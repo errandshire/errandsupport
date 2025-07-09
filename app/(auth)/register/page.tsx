@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, CheckCircle, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -142,14 +142,14 @@ export default function RegisterPage() {
                           </div>
                           <div
                             className={cn(
-                              "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                              "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200",
                               selectedRole === option.value
-                                ? "border-primary-500 bg-primary-500"
-                                : "border-neutral-300"
+                                ? "border-emerald-500 bg-emerald-500"
+                                : "border-neutral-300 bg-white"
                             )}
                           >
                             {selectedRole === option.value && (
-                              <CheckCircle className="w-3 h-3 text-white" />
+                              <Circle className="w-4 h-4 text-white fill-white" />
                             )}
                           </div>
                         </div>
