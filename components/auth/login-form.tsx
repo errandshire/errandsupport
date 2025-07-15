@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 interface LoginFormProps {
   callbackUrl: string;
@@ -14,6 +15,7 @@ interface LoginFormProps {
 export function LoginForm({ callbackUrl }: LoginFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -24,17 +26,27 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
       const email = formData.get("email") as string;
       const password = formData.get("password") as string;
 
-      // TODO: Implement actual login logic here
-      console.log("Login attempt:", { email, password, callbackUrl });
+      console.log('Attempting login with:', { email, callbackUrl });
       
-      // Simulate login success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Use real authentication
+      const result = await login({ email, password });
+      console.log('Login result:', result);
       
-      toast.success("Logged in successfully!");
-      router.push(callbackUrl);
+      if (result.success) {
+        console.log('Login successful, redirecting to:', callbackUrl || '/dashboard');
+        toast.success("Logged in successfully!");
+        
+        // Small delay to ensure auth state is set
+        setTimeout(() => {
+          router.replace(callbackUrl || '/dashboard');
+        }, 100);
+      } else {
+        console.error('Login failed:', result.error);
+        toast.error(result.error?.message || "Login failed");
+      }
     } catch (error) {
       toast.error("Something went wrong. Please try again.");
-      console.error(error);
+   
     } finally {
       setIsLoading(false);
     }

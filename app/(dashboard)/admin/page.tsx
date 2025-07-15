@@ -25,30 +25,33 @@ export default function AdminDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
-  // Redirect if not authenticated
+  // Handle authentication and loading
   React.useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login?redirect=/admin");
-    }
-  }, [isAuthenticated, loading, router]);
+    if (loading) return;
 
-  // Redirect if user is not an admin
-  React.useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.push(`/${user.role}`);
+    if (!isAuthenticated || !user) {
+      router.replace("/login?callbackUrl=/admin");
+      return;
     }
-  }, [user, router]);
 
-  if (loading) {
+    if (user.role !== "admin") {
+      router.replace(`/${user.role}`);
+      return;
+    }
+  }, [loading, isAuthenticated, user, router]);
+
+  // Show loading state
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
       </div>
     );
   }
 
-  if (!user || user.role !== "admin") {
-    return null; // Will redirect
+  // Ensure user is an admin
+  if (user.role !== "admin") {
+    return null; // Will redirect in useEffect
   }
 
   return (

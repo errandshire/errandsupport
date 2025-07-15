@@ -29,30 +29,33 @@ export default function WorkerDashboard() {
   const router = useRouter();
   const [isAvailable, setIsAvailable] = React.useState(true);
 
-  // Redirect if not authenticated
+  // Handle authentication and loading
   React.useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login?redirect=/worker");
-    }
-  }, [isAuthenticated, loading, router]);
+    if (loading) return;
 
-  // Redirect if user is not a worker
-  React.useEffect(() => {
-    if (user && user.role !== "worker") {
-      router.push(`/${user.role}`);
+    if (!isAuthenticated || !user) {
+      router.replace("/login?callbackUrl=/worker");
+      return;
     }
-  }, [user, router]);
 
-  if (loading) {
+    if (user.role !== "worker") {
+      router.replace(`/${user.role}`);
+      return;
+    }
+  }, [loading, isAuthenticated, user, router]);
+
+  // Show loading state
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
       </div>
     );
   }
 
-  if (!user || user.role !== "worker") {
-    return null; // Will redirect
+  // Ensure user is a worker
+  if (user.role !== "worker") {
+    return null; // Will redirect in useEffect
   }
 
   // Mock data for worker dashboard
@@ -147,7 +150,7 @@ export default function WorkerDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-                  Hello, {user.name}! 👋
+                  Hello, {user?.name}! 👋
                 </h1>
                 <p className="text-neutral-600">
                   Here's your work summary and upcoming jobs.

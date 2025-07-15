@@ -26,30 +26,33 @@ export default function ClientDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
-  // Redirect if not authenticated
+  // Handle authentication and loading
   React.useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login?redirect=/client");
-    }
-  }, [isAuthenticated, loading, router]);
+    if (loading) return;
 
-  // Redirect if user is not a client
-  React.useEffect(() => {
-    if (user && user.role !== "client") {
-      router.push(`/${user.role}`);
+    if (!isAuthenticated || !user) {
+      router.replace("/login?callbackUrl=/client");
+      return;
     }
-  }, [user, router]);
 
-  if (loading) {
+    if (user.role !== "client") {
+      router.replace(`/${user.role}`);
+      return;
+    }
+  }, [loading, isAuthenticated, user, router]);
+
+  // Show loading state
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
       </div>
     );
   }
 
-  if (!user || user.role !== "client") {
-    return null; // Will redirect
+  // Ensure user is a client
+  if (user.role !== "client") {
+    return null; // Will redirect in useEffect
   }
 
   // Mock data for dashboard
@@ -173,7 +176,6 @@ export default function ClientDashboard() {
                     type="search"
                     placeholder="Search for services..."
                     className="pl-10"
-                    variant="filled"
                   />
                 </div>
               </div>

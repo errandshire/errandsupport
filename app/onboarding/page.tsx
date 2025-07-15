@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronLeft, ChevronRight, Upload, MapPin, DollarSign, Clock, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FormInput } from "@/components/forms/form-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -194,14 +194,14 @@ function PersonalInfoStep({ user, updateProfile, onNext, isFirstStep }: any) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Input
+        <FormInput
           {...register("name")}
           label="Full Name"
           error={errors.name?.message}
           disabled={isSubmitting}
           required
         />
-        <Input
+        <FormInput
           {...register("phone")}
           label="Phone Number"
           error={errors.phone?.message}
@@ -209,7 +209,7 @@ function PersonalInfoStep({ user, updateProfile, onNext, isFirstStep }: any) {
         />
       </div>
 
-      <Input
+      <FormInput
         {...register("address")}
         label="Street Address"
         error={errors.address?.message}
@@ -217,19 +217,19 @@ function PersonalInfoStep({ user, updateProfile, onNext, isFirstStep }: any) {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Input
+        <FormInput
           {...register("city")}
           label="City"
           error={errors.city?.message}
           disabled={isSubmitting}
         />
-        <Input
+        <FormInput
           {...register("state")}
           label="State"
           error={errors.state?.message}
           disabled={isSubmitting}
         />
-        <Input
+        <FormInput
           {...register("postalCode")}
           label="Postal Code"
           error={errors.postalCode?.message}
@@ -321,7 +321,7 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
           </Select>
         </div>
 
-        <Input
+        <FormInput
           {...register("hourlyRate", { valueAsNumber: true })}
           type="number"
           label="Hourly Rate (₦)"
@@ -334,7 +334,7 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
         />
       </div>
 
-      <Input
+      <FormInput
         {...register("serviceRadius", { valueAsNumber: true })}
         type="number"
         label="Service Radius (km)"
@@ -555,7 +555,7 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
         </Select>
       </div>
 
-      <Input
+      <FormInput
         {...register("idNumber")}
         label="ID Number"
         error={errors.idNumber?.message}
