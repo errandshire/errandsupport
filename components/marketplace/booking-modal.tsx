@@ -13,13 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
+import { paystack } from "@/lib/paystack";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   worker: WorkerProfile | null;
-  onBookingSubmit: (booking: Partial<BookingRequest>) => void;
+  onBookingSubmit: (booking: Partial<BookingRequest>) => Promise<void>;
 }
 
 type BookingStep = 'details' | 'scheduling' | 'payment' | 'confirmation';
@@ -239,9 +242,9 @@ function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepPr
           <div className="bg-blue-50 p-4 rounded-lg">
             <h4 className="font-medium text-blue-900 mb-2">Worker Availability</h4>
             <div className="text-sm text-blue-800">
-              <p>Working Days: {worker.availability.workingDays.join(', ')}</p>
-              <p>Working Hours: {worker.availability.workingHours.start} - {worker.availability.workingHours.end}</p>
-              <p>Response Time: Usually responds within {worker.stats.responseTime} minutes</p>
+              <p>Working Days: {worker && worker.availability && worker.availability.workingDays.join(', ')}</p>
+              <p>Working Hours: {worker && worker.availability && worker.availability.workingHours.start} - {worker && worker.availability && worker.availability.workingHours.end}</p>
+              <p>Response Time: Usually responds within {worker && worker.stats && worker.stats.responseTime} minutes</p>
             </div>
           </div>
         </div>
@@ -254,13 +257,108 @@ interface PaymentStepProps {
   formData: Partial<BookingRequest>;
   onFormDataChange: (data: Partial<BookingRequest>) => void;
   worker: WorkerProfile;
+  onBookingSubmit: (booking: Partial<BookingRequest>) => Promise<void>;
 }
 
-function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
+function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: PaymentStepProps) {
+  const { user } = useAuth();
+  const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
+  
   const duration = formData.estimatedDuration || 1;
   const subtotal = worker.hourlyRate * duration;
-  const platformFee = subtotal * 0.05; // 5% platform fee
+  const platformFee = paystack.calculatePlatformFee(subtotal);
   const total = subtotal + platformFee;
+
+  const handlePaymentTypeChange = (value: string) => {
+    const isHourly = value === "hourly";
+    const amount = isHourly ? worker.hourlyRate : total;
+    
+    onFormDataChange({ 
+      ...formData, 
+      budget: { 
+        ...formData.budget,
+        isHourly,
+        amount,
+        currency: worker.currency
+      }
+    });
+  };
+
+  const initializePayment = async () => {
+    if (!user) {
+      toast.error("Please log in to proceed with payment");
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+      
+      // Generate booking ID if not already present
+      const { ID } = await import('appwrite');
+      const bookingId = formData.id || ID.unique();
+      
+      // Update form data with booking ID
+      const updatedFormData = {
+        ...formData,
+        id: bookingId
+      };
+      onFormDataChange(updatedFormData);
+      
+      // Create booking in database before payment
+      const bookingData: Partial<BookingRequest> = {
+        ...updatedFormData,
+        workerId: worker.id,
+        categoryId: worker.categories[0], // Use first category
+      };
+      
+      try {
+        // Create the booking first
+        await onBookingSubmit(bookingData);
+      } catch (error) {
+        console.error('Failed to create booking:', error);
+        setIsProcessingPayment(false);
+        return; // Stop payment flow if booking creation fails
+      }
+      
+      const paymentReference = paystack.generateReference('booking');
+      const paymentData = {
+        email: user.email,
+        amount: total * 100, // Convert to kobo
+        currency: 'NGN',
+        reference: paymentReference,
+        callback_url: `${window.location.origin}/payment/callback`,
+        metadata: {
+          bookingId: bookingId,
+          clientId: user.$id,
+          workerId: worker.id,
+          type: 'booking_payment' as const,
+          workerName: worker.displayName,
+          serviceName: formData.title || 'Service Booking'
+        }
+      };
+
+      const response = await paystack.initializePayment(paymentData);
+      
+      if (response.status) {
+        // Store payment reference in form data
+        onFormDataChange({
+          ...updatedFormData,
+          paymentReference,
+          paymentStatus: 'pending'
+        });
+        
+        // Redirect to Paystack payment page
+        window.location.href = response.data.authorization_url;
+      } else {
+        throw new Error(response.message || 'Payment initialization failed');
+      }
+    } catch (error) {
+      console.error('Payment initialization error:', error);
+      toast.error("Failed to initialize payment. Please try again.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -272,15 +370,7 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
             <Label>Budget Type</Label>
             <RadioGroup
               value={formData.budget?.isHourly ? "hourly" : "fixed"}
-              onValueChange={(value) => onFormDataChange({ 
-                ...formData, 
-                budget: { 
-                  ...formData.budget,
-                  isHourly: value === "hourly",
-                  amount: value === "hourly" ? worker.hourlyRate : total,
-                  currency: worker.currency
-                }
-              })}
+              onValueChange={handlePaymentTypeChange}
               className="mt-2"
             >
               <div className="flex items-center space-x-2">
@@ -294,13 +384,15 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
             </RadioGroup>
           </div>
 
-          {!formData.budget?.isHourly && (
+          {formData.budget?.isHourly === false && (
             <div>
               <Label htmlFor="fixedAmount">Fixed Amount (₦)</Label>
               <Input
                 id="fixedAmount"
                 type="number"
-                value={formData.budget?.amount || ""}
+                min="0"
+                step="100"
+                value={formData.budget?.amount || 0}
                 onChange={(e) => onFormDataChange({ 
                   ...formData, 
                   budget: { 
@@ -310,15 +402,14 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
                     isHourly: false
                   }
                 })}
-                placeholder="Enter fixed amount"
+                className="mt-1"
               />
             </div>
           )}
 
-          <Separator />
-
-          <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-            <h4 className="font-medium text-gray-900">Cost Breakdown</h4>
+          {/* Payment Breakdown */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="font-medium text-gray-900 mb-3">Payment Breakdown</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Service ({duration}h × ₦{worker.hourlyRate.toLocaleString()})</span>
@@ -336,13 +427,33 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
             </div>
           </div>
 
-          <div className="bg-green-50 p-4 rounded-lg">
-            <h4 className="font-medium text-green-900 mb-2">Escrow Protection</h4>
-            <p className="text-sm text-green-800">
-              Your payment will be held securely until the job is completed to your satisfaction.
-              Only then will the worker receive payment.
-            </p>
+          {/* Escrow Notice */}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">🔒 Secure Escrow Payment</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Your payment is held securely until job completion</li>
+              <li>• Worker gets paid only after you confirm satisfaction</li>
+              <li>• Full refund if service is not delivered</li>
+              <li>• Powered by Paystack for secure transactions</li>
+            </ul>
           </div>
+
+          {/* Payment Button */}
+          <Button 
+            onClick={initializePayment}
+            disabled={isProcessingPayment || !formData.budget?.amount}
+            className="w-full"
+            size="lg"
+          >
+            {isProcessingPayment ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Processing...</span>
+              </div>
+            ) : (
+              `Pay ₦${total.toLocaleString()} with Paystack`
+            )}
+          </Button>
         </div>
       </div>
     </div>
@@ -438,21 +549,9 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
   const handleConfirmBooking = async () => {
     if (!worker) return;
     
-    setIsSubmitting(true);
-    try {
-      const bookingData: Partial<BookingRequest> = {
-        ...formData,
-        workerId: worker.id,
-        categoryId: worker.categories[0], // Use first category
-      };
-      
-      await onBookingSubmit(bookingData);
-      onClose();
-    } catch (error) {
-      console.error('Booking submission failed:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Since booking is now created during payment initialization,
+    // this step just closes the modal
+    onClose();
   };
 
   const canProceed = () => {
@@ -520,6 +619,7 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
                 formData={formData}
                 onFormDataChange={setFormData}
                 worker={worker}
+                onBookingSubmit={onBookingSubmit}
               />
             )}
             {currentStep === 'confirmation' && (

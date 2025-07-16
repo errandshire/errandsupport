@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Settings,
   Eye,
-  MessageCircle
+  MessageCircle,
+  MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import type { WorkerProfile } from "@/lib/types/marketplace";
+import { cn } from "@/lib/utils";
 
 export default function WorkerDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -34,37 +36,136 @@ export default function WorkerDashboard() {
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [workerProfile, setWorkerProfile] = React.useState<WorkerProfile | null>(null);
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [upcomingJobs, setUpcomingJobs] = React.useState([]);
+  const [stats, setStats] = React.useState(null);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  // Fetch worker profile
+  // Fetch worker profile and dashboard data
   React.useEffect(() => {
-    async function fetchWorkerProfile() {
+    async function fetchDashboardData() {
       if (!user) return;
       
       try {
-        const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+        const { databases, COLLECTIONS } = await import('@/lib/appwrite');
         const { Query } = await import('appwrite');
         
-        const response = await databases.listDocuments(
-          DATABASE_ID,
+        // Fetch worker profile
+        const workersResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.WORKERS,
           [Query.equal('userId', user.$id)]
         );
         
-        if (response.documents.length > 0) {
-          const profile = response.documents[0] as unknown as WorkerProfile;
+        if (workersResponse.documents.length > 0) {
+          const profile = workersResponse.documents[0] as unknown as WorkerProfile;
           setWorkerProfile(profile);
           setIsAvailable(profile.isActive);
         }
+
+        // Fetch all bookings for this worker
+        const bookingsResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.BOOKINGS,
+          [
+            Query.equal('workerId', workerProfile?.id || ''),
+            Query.orderDesc('$createdAt'),
+            Query.limit(10)
+          ]
+        );
+
+        // Fetch client profiles for the bookings
+        const clientIds = [...new Set(bookingsResponse.documents.map(booking => booking.clientId))];
+        const clientsResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          [Query.equal('$id', clientIds)]
+        );
+
+        const clientMap = clientsResponse.documents.reduce((acc, client) => {
+          acc[client.$id] = client;
+          return acc;
+        }, {});
+
+        // Process bookings with client info
+        const processedBookings = bookingsResponse.documents.map(booking => ({
+          id: booking.$id,
+          service: booking.title || 'Service Booking',
+          client: clientMap[booking.clientId]?.name || 'Client',
+          date: new Date(booking.scheduledDate).toLocaleString(),
+          location: booking.locationAddress || 'Location not specified',
+          price: `₦${booking.budgetAmount}`,
+          duration: `${booking.estimatedDuration} hours`,
+          status: booking.status
+        }));
+
+        setUpcomingJobs(processedBookings);
+
+        // Calculate stats
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        const monthlyBookings = bookingsResponse.documents.filter(b => 
+          new Date(b.$createdAt) >= firstDayOfMonth
+        );
+
+        const totalEarnings = monthlyBookings.reduce((sum, b) => sum + (b.workerEarnings || 0), 0);
+        const previousEarnings = monthlyBookings.reduce((sum, b) => {
+          const date = new Date(b.$createdAt);
+          if (date.getMonth() === now.getMonth() - 1) {
+            return sum + (b.workerEarnings || 0);
+          }
+          return sum;
+        }, 0);
+
+        const earningsDiff = totalEarnings - previousEarnings;
+
+        setStats([
+          {
+            label: "This Month's Earnings",
+            value: `₦${totalEarnings.toFixed(2)}`,
+            change: `${earningsDiff >= 0 ? '+' : '-'}₦${Math.abs(earningsDiff).toFixed(2)} from last month`,
+            icon: DollarSign,
+            color: "text-green-600",
+            bgColor: "bg-green-100",
+          },
+          {
+            label: "Total Jobs",
+            value: bookingsResponse.total.toString(),
+            change: `+${monthlyBookings.length} this month`,
+            icon: CheckCircle,
+            color: "text-blue-600",
+            bgColor: "bg-blue-100",
+          },
+          {
+            label: "Average Rating",
+            value: workerProfile?.rating?.toFixed(1) || "N/A",
+            change: `Based on ${workerProfile?.totalReviews || 0} reviews`,
+            icon: Star,
+            color: "text-yellow-600",
+            bgColor: "bg-yellow-100",
+          },
+          {
+            label: "Response Time",
+            value: "< 2h",
+            change: "85% faster than average",
+            icon: Clock,
+            color: "text-primary-600",
+            bgColor: "bg-primary-100",
+          },
+        ]);
+
+        setIsLoading(false);
       } catch (error) {
-        console.error('Error fetching worker profile:', error);
-        toast.error("Failed to load your profile");
+        console.error('Error fetching dashboard data:', error);
+        toast.error('Failed to load dashboard data');
+        setIsLoading(false);
       }
     }
     
     if (!loading && isAuthenticated && user) {
-      fetchWorkerProfile();
+      fetchDashboardData();
     }
-  }, [user, loading, isAuthenticated]);
+  }, [user, loading, isAuthenticated, workerProfile?.id]);
 
   // Handle availability toggle
   const handleAvailabilityToggle = async (newValue: boolean) => {
@@ -134,7 +235,7 @@ export default function WorkerDashboard() {
   }, []);
 
   // Show loading state
-  if (loading || !user) {
+  if (loading || !user || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
@@ -147,75 +248,6 @@ export default function WorkerDashboard() {
     return null; // Will redirect in useEffect
   }
 
-  // Mock data for worker dashboard
-  const stats = [
-    {
-      label: "This Month's Earnings",
-      value: "₦2,840",
-      change: "+₦420 from last month",
-      icon: DollarSign,
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-    },
-    {
-      label: "Total Jobs",
-      value: "156",
-      change: "+12 this month",
-      icon: CheckCircle,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-    },
-    {
-      label: "Average Rating",
-      value: "4.9",
-      change: "Based on 142 reviews",
-      icon: Star,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-100",
-    },
-    {
-      label: "Response Time",
-      value: "< 2h",
-      change: "85% faster than average",
-      icon: Clock,
-      color: "text-primary-600",
-      bgColor: "bg-primary-100",
-    },
-  ];
-
-  const upcomingJobs = [
-    {
-      id: "1",
-      service: "House Cleaning",
-      client: "Alice Smith",
-      date: "Today, 2:00 PM",
-      location: "Downtown, 0.5 mi",
-      price: "₦85",
-      duration: "3 hours",
-      status: "confirmed",
-    },
-    {
-      id: "2",
-      service: "Grocery Shopping",
-      client: "John Doe",
-      date: "Tomorrow, 10:00 AM",
-      location: "Midtown, 1.2 mi",
-      price: "₦45",
-      duration: "2 hours",
-      status: "pending",
-    },
-    {
-      id: "3",
-      service: "Pet Walking",
-      client: "Sarah Johnson",
-      date: "Dec 22, 4:00 PM",
-      location: "Uptown, 0.8 mi",
-        price: "₦30",
-      duration: "1 hour",
-      status: "confirmed",
-    },
-  ];
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "confirmed":
@@ -226,6 +258,19 @@ export default function WorkerDashboard() {
         return "bg-blue-100 text-blue-800";
       default:
         return "bg-neutral-100 text-neutral-800";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "confirmed":
+        return "Confirmed";
+      case "pending":
+        return "Pending";
+      case "in_progress":
+        return "In Progress";
+      default:
+        return status;
     }
   };
 
@@ -249,10 +294,10 @@ export default function WorkerDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-                  Hello, {user?.name}! 👋
+                  Welcome back, {workerProfile?.displayName || user.name}! 👋
                 </h1>
                 <p className="text-neutral-600">
-                  Here's your work summary and upcoming jobs.
+                  Here's what's happening with your services today.
                 </p>
               </div>
               <div className="flex items-center space-x-4">
@@ -296,19 +341,30 @@ export default function WorkerDashboard() {
           )}
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {stats.map((stat, index) => (
-              <Card key={index} variant="elevated">
-                <CardContent className="p-6">
+              <Card key={index}>
+                <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-neutral-600">{stat.label}</p>
-                      <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
-                      <p className="text-xs text-neutral-500 mt-1">{stat.change}</p>
+                    <div
+                      className={cn(
+                        "p-2 rounded-lg",
+                        stat.bgColor
+                      )}
+                    >
+                      <stat.icon className={cn("h-5 w-5", stat.color)} />
                     </div>
-                    <div className={`p-3 rounded-2xl ${stat.bgColor}`}>
-                      <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-neutral-600">
+                      {stat.label}
+                    </p>
+                    <h4 className="text-2xl font-bold text-neutral-900 mt-1">
+                      {stat.value}
+                    </h4>
+                    <p className="text-sm text-neutral-500 mt-1">
+                      {stat.change}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -332,7 +388,7 @@ export default function WorkerDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {upcomingJobs.map((job) => (
+                    {upcomingJobs.map(job => (
                       <div
                         key={job.id}
                         className="flex items-center justify-between p-4 rounded-xl border border-neutral-200 hover:border-primary-300 transition-colors"
@@ -344,31 +400,20 @@ export default function WorkerDashboard() {
                           <div>
                             <h4 className="font-medium text-neutral-900">{job.service}</h4>
                             <p className="text-sm text-neutral-600">for {job.client}</p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <div className="flex items-center space-x-1">
-                                <Clock className="h-3 w-3 text-neutral-400" />
-                                <span className="text-xs text-neutral-500">{job.date}</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <span className="text-xs text-neutral-500">{job.location}</span>
-                              </div>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Clock className="h-3 w-3 text-neutral-400" />
+                              <span className="text-xs text-neutral-500">{job.date}</span>
+                              <MapPin className="h-3 w-3 text-neutral-400 ml-2" />
+                              <span className="text-xs text-neutral-500">{job.location}</span>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
                           <Badge className={getStatusColor(job.status)}>
-                            {job.status}
+                            {getStatusText(job.status)}
                           </Badge>
                           <p className="text-sm font-medium text-neutral-900 mt-1">{job.price}</p>
-                          <p className="text-xs text-neutral-500">{job.duration}</p>
-                          <div className="flex space-x-1 mt-2">
-                            <Button size="sm" variant="outline">
-                              <MessageCircle className="h-3 w-3" />
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                          </div>
+                          <p className="text-xs text-neutral-500 mt-1">{job.duration}</p>
                         </div>
                       </div>
                     ))}
@@ -377,93 +422,56 @@ export default function WorkerDashboard() {
               </Card>
             </div>
 
-            {/* Quick Actions & Profile */}
             <div className="space-y-6">
-              {/* Profile Overview */}
+              {/* Quick Stats Card */}
               <Card variant="elevated">
                 <CardHeader>
-                  <CardTitle>Profile Overview</CardTitle>
+                  <CardTitle>Quick Stats</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-neutral-600">Profile Views</span>
-                    <span className="font-medium">124 this week</span>
+                    <Badge variant="outline">
+                      <Eye className="h-3 w-3 mr-1" />
+                      {workerProfile?.profileViews || 0}
+                    </Badge>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-600">Response Rate</span>
-                    <span className="font-medium">98%</span>
+                    <span className="text-sm text-neutral-600">Active Chats</span>
+                    <Badge variant="outline">
+                      <MessageCircle className="h-3 w-3 mr-1" />
+                      {workerProfile?.activeChats || 0}
+                    </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-neutral-600">Completion Rate</span>
-                    <span className="font-medium">100%</span>
+                    <Badge variant="outline">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      {workerProfile?.completionRate || 0}%
+                    </Badge>
                   </div>
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link href="/profile">View Full Profile</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card variant="elevated">
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href="/availability">
-                      <Clock className="mr-2 h-4 w-4" />
-                      Update Availability
-                    </Link>
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href="/earnings">
-                      <DollarSign className="mr-2 h-4 w-4" />
-                      View Earnings
-                    </Link>
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href="/reviews">
-                      <Star className="mr-2 h-4 w-4" />
-                      Manage Reviews
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Verification Status */}
-              <Card variant="outlined" className="border-blue-200 bg-blue-50">
-                <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <CheckCircle className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <h4 className="font-medium text-blue-900 mb-2">Verified Worker</h4>
-                  <p className="text-sm text-blue-700 mb-3">
-                    Your profile is verified and trusted by clients
-                  </p>
-                  <Badge className="bg-blue-100 text-blue-800">
-                    Verified ✓
-                  </Badge>
                 </CardContent>
               </Card>
 
               {/* Tips Card */}
-              <Card variant="flat">
-                <CardContent className="p-4 text-center">
-                  <h4 className="font-medium text-neutral-900 mb-2">💡 Pro Tip</h4>
+              <Card variant="outlined">
+                <CardHeader>
+                  <CardTitle className="text-lg">💡 Pro Tip</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <p className="text-sm text-neutral-600 mb-3">
-                    Workers who respond within 1 hour get 3x more bookings!
+                    Keep your calendar updated to get more booking requests and maintain a high response rate!
                   </p>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href="/tips">Learn More</Link>
+                  <Button size="sm" variant="outline" className="w-full" asChild>
+                    <Link href="/worker/availability">Update Calendar</Link>
                   </Button>
                 </CardContent>
               </Card>
             </div>
           </div>
         </main>
-        
-        <Footer />
       </div>
+      <Footer />
     </div>
   );
 } 

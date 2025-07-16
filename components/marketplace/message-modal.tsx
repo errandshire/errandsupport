@@ -147,7 +147,7 @@ export function MessageModal({ isOpen, onClose, worker }: MessageModalProps) {
                 <p>No messages yet. Start a conversation!</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 ">
                 {messages.map((message) => {
                   const isOwnMessage = message.senderId === user?.$id;
                   return (
@@ -158,7 +158,7 @@ export function MessageModal({ isOpen, onClose, worker }: MessageModalProps) {
                       <div
                         className={`max-w-xs px-4 py-2 rounded-lg ${
                           isOwnMessage
-                            ? 'bg-primary-500 text-white'
+                            ? 'bg-[#16a34a] hover:bg-[#15803d] text-white'
                             : 'bg-gray-100 text-gray-900'
                         }`}
                       >

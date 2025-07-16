@@ -106,9 +106,12 @@ export default function WorkersPage() {
     try {
       const { ID } = await import('appwrite');
       
+      // Use existing booking ID from payment flow or generate new one
+      const bookingId = bookingData.id || ID.unique();
+      
       // Flatten the booking data for Appwrite storage
       const flattenedBookingRequest = {
-        id: ID.unique(),
+        id: bookingId,
         clientId: user.$id,
         workerId: bookingModal.selectedWorker.id,
         categoryId: bookingModal.selectedWorker.categories[0],
@@ -139,14 +142,11 @@ export default function WorkersPage() {
         flattenedBookingRequest
       );
 
-      toast.success("Booking request sent successfully!");
-      setBookingModal({ isOpen: false, selectedWorker: null });
-      
-      // Redirect to client dashboard to view booking
-      router.push('/client');
+      // Don't redirect or show success message here since payment flow will handle it
     } catch (error) {
       console.error('Error submitting booking:', error);
       toast.error("Failed to submit booking request. Please try again.");
+      throw error; // Rethrow so payment flow knows it failed
     }
   };
 

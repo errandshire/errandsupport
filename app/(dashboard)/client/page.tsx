@@ -21,10 +21,49 @@ import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "react-toastify";
+import { cn } from "@/lib/utils";
+
+interface WorkerProfile {
+  $id: string;
+  displayName: string;
+  rating?: number;
+}
+
+interface Booking {
+  $id: string;
+  title: string;
+  workerId: string;
+  scheduledDate: string;
+  status: string;
+  budgetAmount: number;
+}
+
+interface ProcessedBooking {
+  id: string;
+  service: string;
+  worker: string;
+  date: string;
+  status: string;
+  price: string;
+  rating: number;
+}
+
+interface StatItem {
+  label: string;
+  value: string;
+  change: string;
+  icon: any; // Using any for Lucide icon component type
+  color: string;
+  bgColor: string;
+}
 
 export default function ClientDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const [bookings, setBookings] = React.useState<ProcessedBooking[]>([]);
+  const [stats, setStats] = React.useState<StatItem[] | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   // Handle authentication and loading
   React.useEffect(() => {
@@ -41,8 +80,130 @@ export default function ClientDashboard() {
     }
   }, [loading, isAuthenticated, user, router]);
 
+  // Fetch bookings and stats
+  React.useEffect(() => {
+    async function fetchDashboardData() {
+      if (!user) return;
+      
+      try {
+        const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+        const { Query } = await import('appwrite');
+        
+        // Fetch all bookings for this client
+        const bookingsResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.BOOKINGS,
+          [
+            Query.equal('clientId', user.$id),
+            Query.orderDesc('$createdAt'),
+            Query.limit(10)
+          ]
+        );
+
+        // Fetch worker profiles for the bookings
+        const workerIds = [...new Set(bookingsResponse.documents.map(booking => booking.workerId))].filter(Boolean);
+        
+        // Skip worker fetching if no valid worker IDs
+        const workerMap: Record<string, WorkerProfile> = {};
+        if (workerIds.length > 0) {
+          try {
+            // Fetch each worker profile individually and combine results
+            const workerPromises = workerIds.map(workerId =>
+              databases.listDocuments(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                COLLECTIONS.WORKERS,
+                [Query.equal('$id', workerId)]
+              ).catch(error => {
+                console.error(`Error fetching worker ${workerId}:`, error);
+                return { documents: [] }; // Return empty result on error
+              })
+            );
+            
+            const workersResponses = await Promise.all(workerPromises);
+            workersResponses.forEach(response => {
+              if (response.documents.length > 0) {
+                const worker = response.documents[0] as WorkerProfile;
+                workerMap[worker.$id] = worker;
+              }
+            });
+          } catch (error) {
+            console.error('Error fetching worker profiles:', error);
+          }
+        }
+
+        // Process bookings with worker info
+        const processedBookings = bookingsResponse.documents.map((booking: Booking) => ({
+          id: booking.$id,
+          service: booking.title || 'Service Booking',
+          worker: workerMap[booking.workerId]?.displayName || 'Worker',
+          date: new Date(booking.scheduledDate).toLocaleString(),
+          status: booking.status,
+          price: `₦${booking.budgetAmount}`,
+          rating: workerMap[booking.workerId]?.rating || 0
+        }));
+
+        setBookings(processedBookings);
+
+        // Calculate stats
+        const totalBookings = bookingsResponse.total;
+        const completedBookings = bookingsResponse.documents.filter(b => b.status === 'completed').length;
+        const pendingBookings = bookingsResponse.documents.filter(b => ['pending', 'confirmed', 'in_progress'].includes(b.status)).length;
+        const thisMonthBookings = bookingsResponse.documents.filter(b => {
+          const bookingDate = new Date(b.$createdAt);
+          const now = new Date();
+          return bookingDate.getMonth() === now.getMonth() && bookingDate.getFullYear() === now.getFullYear();
+        }).length;
+
+        setStats([
+          {
+            label: "Total Bookings",
+            value: totalBookings.toString(),
+            change: `+${thisMonthBookings} this month`,
+            icon: Calendar,
+            color: "text-blue-600",
+            bgColor: "bg-blue-100",
+          },
+          {
+            label: "Completed Tasks",
+            value: completedBookings.toString(),
+            change: `${Math.round((completedBookings / totalBookings) * 100)}% completion rate`,
+            icon: CheckCircle,
+            color: "text-green-600",
+            bgColor: "bg-green-100",
+          },
+          {
+            label: "Active Bookings",
+            value: pendingBookings.toString(),
+            change: "Awaiting completion",
+            icon: TrendingUp,
+            color: "text-primary-600",
+            bgColor: "bg-primary-100",
+          },
+          {
+            label: "Pending Tasks",
+            value: pendingBookings.toString(),
+            change: `${pendingBookings} in progress`,
+            icon: AlertCircle,
+            color: "text-orange-600",
+            bgColor: "bg-orange-100",
+          },
+        ]);
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast.error('Failed to load dashboard data');
+        setIsLoading(false);
+      }
+    }
+
+    if (!loading && isAuthenticated && user) {
+      fetchDashboardData();
+    }
+  }, [user, loading, isAuthenticated]);
+
   // Show loading state
-  if (loading || !user) {
+  if (loading || !user || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
@@ -54,72 +215,6 @@ export default function ClientDashboard() {
   if (user.role !== "client") {
     return null; // Will redirect in useEffect
   }
-
-  // Mock data for dashboard
-  const stats = [
-    {
-      label: "Total Bookings",
-      value: "12",
-      change: "+3 this month",
-      icon: Calendar,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-    },
-    {
-      label: "Completed Tasks",
-      value: "8",
-      change: "67% completion rate",
-      icon: CheckCircle,
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-    },
-    {
-      label: "Money Saved",
-        value: "₦1,240",
-      change: "+₦320 this month",
-      icon: TrendingUp,
-      color: "text-primary-600",
-      bgColor: "bg-primary-100",
-    },
-    {
-      label: "Pending Tasks",
-      value: "4",
-      change: "2 starting today",
-      icon: AlertCircle,
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
-    },
-  ];
-
-  const recentBookings = [
-    {
-      id: "1",
-      service: "House Cleaning",
-      worker: "Sarah Johnson",
-      date: "Today, 2:00 PM",
-      status: "in_progress",
-      rating: 4.9,
-      price: "₦85",
-    },
-    {
-      id: "2",
-      service: "Grocery Shopping",
-      worker: "Mike Chen",
-      date: "Yesterday, 10:00 AM",
-      status: "completed",
-      rating: 5.0,
-      price: "₦45",
-    },
-    {
-      id: "3",
-      service: "Pet Walking",
-      worker: "Emma Wilson",
-      date: "Dec 20, 4:00 PM",
-      status: "confirmed",
-      rating: 4.8,
-        price: "₦30",
-    },
-  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -189,19 +284,30 @@ export default function ClientDashboard() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat, index) => (
-              <Card key={index} variant="elevated">
-                <CardContent className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {stats?.map((stat, index) => (
+              <Card key={index}>
+                <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-neutral-600">{stat.label}</p>
-                      <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
-                      <p className="text-xs text-neutral-500 mt-1">{stat.change}</p>
+                    <div
+                      className={cn(
+                        "p-2 rounded-lg",
+                        stat.bgColor
+                      )}
+                    >
+                      <stat.icon className={cn("h-5 w-5", stat.color)} />
                     </div>
-                    <div className={`p-3 rounded-2xl ${stat.bgColor}`}>
-                      <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-neutral-600">
+                      {stat.label}
+                    </p>
+                    <h4 className="text-2xl font-bold text-neutral-900 mt-1">
+                      {stat.value}
+                    </h4>
+                    <p className="text-sm text-neutral-500 mt-1">
+                      {stat.change}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -225,7 +331,7 @@ export default function ClientDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {recentBookings.map((booking) => (
+                    {bookings?.map(booking => (
                       <div
                         key={booking.id}
                         className="flex items-center justify-between p-4 rounded-xl border border-neutral-200 hover:border-primary-300 transition-colors"
@@ -248,10 +354,12 @@ export default function ClientDashboard() {
                             {getStatusText(booking.status)}
                           </Badge>
                           <p className="text-sm font-medium text-neutral-900 mt-1">{booking.price}</p>
-                          <div className="flex items-center mt-1">
-                            <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                            <span className="text-xs text-neutral-500 ml-1">{booking.rating}</span>
-                          </div>
+                          {booking.rating > 0 && (
+                            <div className="flex items-center mt-1">
+                              <Star className="h-3 w-3 text-yellow-400 fill-current" />
+                              <span className="text-xs text-neutral-500 ml-1">{booking.rating}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -260,7 +368,6 @@ export default function ClientDashboard() {
               </Card>
             </div>
 
-            {/* Quick Actions & Tips */}
             <div className="space-y-6">
               {/* Quick Actions Card */}
               <Card variant="elevated">
@@ -300,19 +407,6 @@ export default function ClientDashboard() {
                   </p>
                   <Button size="sm" variant="outline" className="w-full">
                     Learn More
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Support Card */}
-              <Card variant="flat">
-                <CardContent className="p-4 text-center">
-                  <h4 className="font-medium text-neutral-900 mb-2">Need Help?</h4>
-                  <p className="text-sm text-neutral-600 mb-3">
-                    Our support team is here 24/7
-                  </p>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href="/support">Contact Support</Link>
                   </Button>
                 </CardContent>
               </Card>
