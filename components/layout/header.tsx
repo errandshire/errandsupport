@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 interface HeaderProps {
   className?: string;
+  children?: React.ReactNode;
 }
 
 const navigationItems = [
@@ -30,7 +31,7 @@ const navigationItems = [
   { href: "/about", label: "About" },
 ];
 
-export const Header = React.memo(function Header({ className }: HeaderProps) {
+export const Header = React.memo(function Header({ className, children }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   
@@ -89,6 +90,9 @@ export const Header = React.memo(function Header({ className }: HeaderProps) {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
+            {/* Sidebar Toggle (if provided) */}
+            {children}
+            
             {/* Logo */}
             <Link href="/" className="flex items-center">
               <span className="text-lg md:text-xl font-bold text-black">
@@ -117,7 +121,6 @@ export const Header = React.memo(function Header({ className }: HeaderProps) {
                   type="search"
                   placeholder="Search services, workers..."
                   className="pl-10 pr-4"
-                  variant="filled"
                 />
               </div>
             </div>
@@ -248,7 +251,6 @@ export const Header = React.memo(function Header({ className }: HeaderProps) {
                   type="search"
                   placeholder="Search services, workers..."
                   className="pl-10 pr-4"
-                  variant="filled"
                 />
               </div>
             </div>

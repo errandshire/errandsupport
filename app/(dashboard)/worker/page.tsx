@@ -22,12 +22,80 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
+import type { WorkerProfile } from "@/lib/types/marketplace";
 
 export default function WorkerDashboard() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
-  const [isAvailable, setIsAvailable] = React.useState(true);
+  const [isAvailable, setIsAvailable] = React.useState(false);
+  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [workerProfile, setWorkerProfile] = React.useState<WorkerProfile | null>(null);
+  const [sidebarOpen, setSidebarOpen] = React.useState(true);
+
+  // Fetch worker profile
+  React.useEffect(() => {
+    async function fetchWorkerProfile() {
+      if (!user) return;
+      
+      try {
+        const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+        const { Query } = await import('appwrite');
+        
+        const response = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.WORKERS,
+          [Query.equal('userId', user.$id)]
+        );
+        
+        if (response.documents.length > 0) {
+          const profile = response.documents[0] as unknown as WorkerProfile;
+          setWorkerProfile(profile);
+          setIsAvailable(profile.isActive);
+        }
+      } catch (error) {
+        console.error('Error fetching worker profile:', error);
+        toast.error("Failed to load your profile");
+      }
+    }
+    
+    if (!loading && isAuthenticated && user) {
+      fetchWorkerProfile();
+    }
+  }, [user, loading, isAuthenticated]);
+
+  // Handle availability toggle
+  const handleAvailabilityToggle = async (newValue: boolean) => {
+    if (!workerProfile) return;
+    
+    try {
+      setIsUpdating(true);
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+      
+      // Update the document using $id instead of id
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.WORKERS,
+        (workerProfile as any).$id,
+        {
+          isActive: newValue,
+          updatedAt: new Date().toISOString()
+        }
+      );
+      
+      setIsAvailable(newValue);
+      toast.success(newValue ? "You are now available for work" : "You are now marked as unavailable");
+    } catch (error) {
+      console.error('Error updating availability:', error);
+      toast.error("Failed to update availability status");
+      // Revert the toggle if update fails
+      setIsAvailable(!newValue);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   // Handle authentication and loading
   React.useEffect(() => {
@@ -42,7 +110,28 @@ export default function WorkerDashboard() {
       router.replace(`/${user.role}`);
       return;
     }
+
+    // If worker is not onboarded, redirect to onboarding
+    if (!user.isOnboarded) {
+      router.replace("/onboarding");
+      return;
+    }
   }, [loading, isAuthenticated, user, router]);
+
+  // Handle responsive sidebar behavior
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+    };
+
+    handleResize(); // Set initial state
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Show loading state
   if (loading || !user) {
@@ -141,10 +230,20 @@ export default function WorkerDashboard() {
   };
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-neutral-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-neutral-50 flex">
+      {/* Sidebar */}
+      <WorkerSidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col lg:ml-0">
+        <Header>
+          <SidebarToggle onToggle={() => setSidebarOpen(!sidebarOpen)} />
+        </Header>
+        
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {/* Welcome Section */}
           <div className="mb-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -161,8 +260,14 @@ export default function WorkerDashboard() {
                   <span className="text-sm font-medium text-neutral-700">Available</span>
                   <Switch
                     checked={isAvailable}
-                    onCheckedChange={setIsAvailable}
+                    onCheckedChange={handleAvailabilityToggle}
+                    disabled={isUpdating}
                   />
+                  {isUpdating && (
+                    <span className="text-sm text-neutral-500 animate-pulse">
+                      Updating...
+                    </span>
+                  )}
                 </div>
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/profile">
@@ -355,9 +460,10 @@ export default function WorkerDashboard() {
               </Card>
             </div>
           </div>
-        </div>
-      </main>
-      <Footer />
-    </>
+        </main>
+        
+        <Footer />
+      </div>
+    </div>
   );
 } 

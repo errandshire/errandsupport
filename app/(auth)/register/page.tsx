@@ -7,13 +7,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, CheckCircle, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FormInput } from "@/components/forms/form-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { registerSchema, RegisterFormData } from "@/lib/validations";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -48,16 +49,30 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
+      // Show validation errors as toasts
+      if (Object.keys(errors).length > 0) {
+        Object.values(errors).forEach((error) => {
+          if (error?.message) {
+            toast.error(error.message);
+          }
+        });
+        return;
+      }
+
       const result = await registerUser(data);
       
       if (result.success) {
-        // Redirect to login page
-        router.push("/login");
+        // Redirect workers to onboarding, clients to login
+        if (data.role === "worker") {
+          router.push("/onboarding");
+        } else {
+          router.push("/login");
+        }
       } else if (result.error) {
-        setError("root", { message: result.error.message });
+        toast.error(result.error.message);
       }
     } catch (error) {
-      setError("root", { message: "An unexpected error occurred" });
+      toast.error("An unexpected error occurred");
     }
   };
 
@@ -172,7 +187,7 @@ export default function RegisterPage() {
 
               {/* Personal Information */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
+                <FormInput
                   {...register("name")}
                   label="Full Name"
                   placeholder="John Doe"
@@ -181,7 +196,7 @@ export default function RegisterPage() {
                   disabled={isSubmitting || loading}
                   required
                 />
-                <Input
+                <FormInput
                   {...register("phone")}
                   label="Phone Number"
                   placeholder="+1 (555) 123-4567"
@@ -191,7 +206,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <Input
+              <FormInput
                 {...register("email")}
                 type="email"
                 label="Email Address"
@@ -203,7 +218,7 @@ export default function RegisterPage() {
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
+                <FormInput
                   {...register("password")}
                   type={showPassword ? "text" : "password"}
                   label="Password"
@@ -228,7 +243,7 @@ export default function RegisterPage() {
                   required
                 />
 
-                <Input
+                <FormInput
                   {...register("confirmPassword")}
                   type={showConfirmPassword ? "text" : "password"}
                   label="Confirm Password"
@@ -266,18 +281,6 @@ export default function RegisterPage() {
                 </Link>
                 .
               </div>
-
-              {/* Error Message */}
-              {errors.root && (
-                <div className="rounded-xl bg-red-50 border border-red-200 p-4">
-                  <p className="text-sm text-red-600 flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    {errors.root.message}
-                  </p>
-                </div>
-              )}
 
               {/* Submit Button */}
               <Button

@@ -19,55 +19,55 @@ export interface WorkerProfile {
   bio: string;
   profileImage?: string;
   coverImage?: string;
-  location: {
-    address: string;
-    city: string;
-    state: string;
-    coordinates?: {
-      lat: number;
-      lng: number;
-    };
-  };
+  
+  // Flattened location
+  address: string;
+  city: string;
+  state: string;
+  locationLat?: number;
+  locationLng?: number;
+  
+  // Arrays (supported by Appwrite)
   categories: string[]; // Category IDs
   skills: string[];
   languages: string[];
-  experience: {
-    years: number;
-    description: string;
-  };
-  pricing: {
-    hourlyRate: number;
-    minimumHours: number;
-    currency: string;
-  };
-  availability: {
-    workingDays: string[]; // ['monday', 'tuesday', etc.]
-    workingHours: {
-      start: string; // '09:00'
-      end: string; // '17:00'
-    };
-    timezone: string;
-  };
-  verification: {
-    isVerified: boolean;
-    idVerified: boolean;
-    backgroundCheck: boolean;
-    verifiedAt?: string;
-  };
-  rating: {
-    average: number;
-    totalReviews: number;
-  };
-  stats: {
-    completedJobs: number;
-    responseTime: number; // in minutes
-    rehireRate: number; // percentage
-  };
-  preferences: {
-    maxRadius: number; // in kilometers
-    acceptsLastMinute: boolean;
-    acceptsWeekends: boolean;
-  };
+  workingDays: string[]; // ['monday', 'tuesday', etc.]
+  
+  // Flattened experience
+  experienceYears: number;
+  experienceDescription: string;
+  
+  // Flattened pricing
+  hourlyRate: number;
+  minimumHours: number;
+  currency: string;
+  
+  // Flattened availability
+  workingHoursStart: string; // '09:00'
+  workingHoursEnd: string; // '17:00'
+  timezone: string;
+  
+  // Flattened verification
+  isVerified: boolean;
+  idVerified: boolean;
+  backgroundCheckVerified: boolean;
+  verifiedAt?: string;
+  
+  // Flattened rating
+  ratingAverage: number;
+  totalReviews: number;
+  
+  // Flattened stats
+  completedJobs: number;
+  responseTimeMinutes: number;
+  rehireRatePercent: number;
+  
+  // Flattened preferences
+  maxRadiusKm: number;
+  acceptsLastMinute: boolean;
+  acceptsWeekends: boolean;
+  
+  // Status
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

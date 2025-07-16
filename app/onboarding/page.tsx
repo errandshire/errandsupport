@@ -10,7 +10,6 @@ import { FormInput } from "@/components/forms/form-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,22 +26,45 @@ interface OnboardingStep {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, updateProfile } = useAuth();
+  const { user, isAuthenticated, loading, updateProfile } = useAuth();
   const [currentStep, setCurrentStep] = React.useState(0);
   const [completedSteps, setCompletedSteps] = React.useState<Set<number>>(new Set());
 
-  // Redirect if not authenticated
+  // Handle authentication and loading
   React.useEffect(() => {
-    if (!user) {
-      router.push("/login");
-    }
-  }, [user, router]);
+    if (loading) return;
 
-  if (!user) {
-    return null; // Will redirect
+    if (!isAuthenticated || !user) {
+      router.replace("/login?callbackUrl=/onboarding");
+      return;
+    }
+
+    // If user is already onboarded, redirect to their dashboard
+    if (user.isOnboarded) {
+      router.replace(`/${user.role}`);
+      return;
+    }
+
+    // If user is not a worker, redirect to their dashboard
+    if (user.role !== 'worker') {
+      router.replace(`/${user.role}`);
+      return;
+    }
+  }, [loading, isAuthenticated, user, router]);
+
+  // Show loading state
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+      </div>
+    );
   }
 
-  const isWorker = user.role === "worker";
+  // If not a worker or already onboarded, return null (will be redirected)
+  if (user.role !== 'worker' || user.isOnboarded) {
+    return null;
+  }
   
   const steps: OnboardingStep[] = [
     {
@@ -50,7 +72,7 @@ export default function OnboardingPage() {
       description: "Tell us a bit about yourself",
       component: PersonalInfoStep,
     },
-    ...(isWorker
+    ...(user.role === "worker"
       ? [
           {
             title: "Professional Details",
@@ -94,10 +116,10 @@ export default function OnboardingPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-            Welcome to Errand Support, {user.name}!
+            Welcome to Errand Support, {user?.name}!
           </h1>
           <p className="text-neutral-600">
-            Let's set up your {isWorker ? "worker" : "client"} profile
+            Let's set up your {user.role === "worker" ? "worker" : "client"} profile
           </p>
         </div>
 
@@ -268,21 +290,79 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
 
   const onSubmit = async (data: any) => {
     try {
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+      const { ID } = await import('appwrite');
+
+      // Create worker profile data
+      const workerProfileData = {
+        userId: user.$id,
+        displayName: user.name || 'Worker', // Add displayName from user's name
+        bio: data.bio,
+        // Flatten experience
+        experienceYears: data.experience,
+        experienceDescription: `${data.experience} years of experience`,
+        // Flatten pricing
+        hourlyRate: data.hourlyRate,
+        minimumHours: 1,
+        currency: "NGN",
+        // Arrays are supported
+        categories: selectedCategories,
+        skills: [], // Will be updated in next step
+        
+        // languages: ["English"], // Default
+        // Flatten availability
+        workingDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        workingHoursStart: "09:00",
+        workingHoursEnd: "17:00",
+        timezone: "Africa/Lagos",
+        // Flatten verification
+        isVerified: false,
+        idVerified: false,
+        backgroundCheckVerified: false,
+        // Flatten rating
+        ratingAverage: 0,
+        totalReviews: 0,
+        // Flatten stats
+        completedJobs: 0,
+        responseTimeMinutes: 0,
+        rehireRatePercent: 0,
+        // Flatten preferences
+        maxRadiusKm: data.serviceRadius,
+        acceptsLastMinute: true,
+        acceptsWeekends: false,
+        // Status
+        isActive: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Create worker profile in WORKERS collection
+      await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.WORKERS,
+        ID.unique(),
+        workerProfileData
+      );
+
+      // Update user profile with worker-specific data
       const profileData = {
         ...data,
         categories: selectedCategories,
+        isOnboarded: true,
       };
       
-      console.log('Submitting worker profile data:', profileData);
       const result = await updateProfile(profileData);
       
       if (result.success) {
+        toast.success("Professional profile created successfully!");
         onNext();
       } else {
         console.error('Profile update failed:', result.error);
+        toast.error("Failed to create professional profile");
       }
     } catch (error) {
       console.error('Error submitting worker profile:', error);
+      toast.error("Failed to create professional profile");
     }
   };
 
@@ -357,7 +437,7 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
               className={cn(
                 "p-3 rounded-xl border-2 cursor-pointer transition-all",
                 selectedCategories.includes(category.id)
-                  ? "border-primary-500 bg-primary-50"
+                  ? "border-primary-500 bg-green-200 "
                   : "border-neutral-200 hover:border-primary-300"
               )}
               onClick={() => {
