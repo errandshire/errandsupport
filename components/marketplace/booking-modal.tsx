@@ -258,7 +258,7 @@ interface PaymentStepProps {
 
 function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
   const duration = formData.estimatedDuration || 1;
-  const subtotal = worker.pricing.hourlyRate * duration;
+  const subtotal = worker.hourlyRate * duration;
   const platformFee = subtotal * 0.05; // 5% platform fee
   const total = subtotal + platformFee;
 
@@ -277,15 +277,15 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
                 budget: { 
                   ...formData.budget,
                   isHourly: value === "hourly",
-                  amount: value === "hourly" ? worker.pricing.hourlyRate : total,
-                  currency: worker.pricing.currency
+                  amount: value === "hourly" ? worker.hourlyRate : total,
+                  currency: worker.currency
                 }
               })}
               className="mt-2"
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="hourly" id="hourly" />
-                <Label htmlFor="hourly">Hourly Rate (₦{worker.pricing.hourlyRate.toLocaleString()}/hr)</Label>
+                <Label htmlFor="hourly">Hourly Rate (₦{worker.hourlyRate.toLocaleString()}/hr)</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="fixed" id="fixed" />
@@ -306,7 +306,7 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
                   budget: { 
                     ...formData.budget,
                     amount: parseFloat(e.target.value) || 0,
-                    currency: worker.pricing.currency,
+                    currency: worker.currency,
                     isHourly: false
                   }
                 })}
@@ -321,7 +321,7 @@ function PaymentStep({ formData, onFormDataChange, worker }: PaymentStepProps) {
             <h4 className="font-medium text-gray-900">Cost Breakdown</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Service ({duration}h × ₦{worker.pricing.hourlyRate.toLocaleString()})</span>
+                <span>Service ({duration}h × ₦{worker.hourlyRate.toLocaleString()})</span>
                 <span>₦{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
@@ -358,7 +358,7 @@ interface ConfirmationStepProps {
 
 function ConfirmationStep({ formData, worker, onConfirm, isSubmitting }: ConfirmationStepProps) {
   const duration = formData.estimatedDuration || 1;
-  const total = (worker.pricing.hourlyRate * duration) * 1.05; // Including 5% fee
+  const total = (worker.hourlyRate * duration) * 1.05; // Including 5% fee
 
   return (
     <div className="space-y-6">
@@ -382,7 +382,7 @@ function ConfirmationStep({ formData, worker, onConfirm, isSubmitting }: Confirm
             <h4 className="font-medium text-blue-900 mb-2">What happens next?</h4>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Your booking request will be sent to {worker.displayName}</li>
-              <li>• You'll receive a response within {worker.stats.responseTime} minutes</li>
+              <li>• You'll receive a response within {worker.responseTimeMinutes} minutes</li>
               <li>• Payment will be held in escrow until job completion</li>
               <li>• You can message the worker directly through our platform</li>
             </ul>
@@ -492,7 +492,7 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
             </Avatar>
             <div>
               <h2 className="text-lg font-semibold">Book {worker.displayName}</h2>
-              <p className="text-sm text-gray-600">₦{worker.pricing.hourlyRate.toLocaleString()}/hour</p>
+              <p className="text-sm text-gray-600">₦{worker.hourlyRate.toLocaleString()}/hour</p>
             </div>
           </DialogTitle>
         </DialogHeader>

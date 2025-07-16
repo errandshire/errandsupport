@@ -6,12 +6,18 @@ import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { BookingModal } from "@/components/marketplace/booking-modal";
+import { MessageModal } from "@/components/marketplace/message-modal";
+import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
 import { motion, Variants } from "framer-motion";
-import { Search, MapPin, Clock, Star, Heart, Filter } from "lucide-react";
+import { Search, MapPin, Clock, Star, Heart, Filter, MessageCircle } from "lucide-react";
 import { databases } from "@/lib/appwrite";
 import { COLLECTIONS } from "@/lib/appwrite";
 import { Query } from "appwrite";
-import type { WorkerProfile } from "@/lib/types/marketplace";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
+import type { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
 
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -39,6 +45,27 @@ export default function WorkersPage() {
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Booking modal state
+  const [bookingModal, setBookingModal] = useState({
+    isOpen: false,
+    selectedWorker: null as WorkerProfile | null
+  });
+  
+  // Message modal state
+  const [messageModal, setMessageModal] = useState({
+    isOpen: false,
+    selectedWorker: null as WorkerProfile | null
+  });
+  
+  // Profile modal state
+  const [profileModal, setProfileModal] = useState({
+    isOpen: false,
+    selectedWorker: null as WorkerProfile | null
+  });
+  
+  const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
 
   // Fetch workers from Appwrite
   useEffect(() => {
@@ -68,6 +95,121 @@ export default function WorkersPage() {
 
     fetchWorkers();
   }, []);
+
+  // Handle booking submission
+  const handleBookingSubmit = async (bookingData: Partial<BookingRequest>) => {
+    if (!user || !bookingModal.selectedWorker) {
+      toast.error("Please log in to book a service");
+      return;
+    }
+
+    try {
+      const { ID } = await import('appwrite');
+      
+      // Flatten the booking data for Appwrite storage
+      const flattenedBookingRequest = {
+        id: ID.unique(),
+        clientId: user.$id,
+        workerId: bookingModal.selectedWorker.id,
+        categoryId: bookingModal.selectedWorker.categories[0],
+        title: bookingData.title || '',
+        description: bookingData.description || '',
+        // Flatten location
+        locationAddress: bookingData.location?.address || '',
+        locationLat: bookingData.location?.coordinates?.lat,
+        locationLng: bookingData.location?.coordinates?.lng,
+        scheduledDate: bookingData.scheduledDate || '',
+        estimatedDuration: bookingData.estimatedDuration || 1,
+        // Flatten budget
+        budgetAmount: bookingData.budget?.amount || 0,
+        budgetCurrency: bookingData.budget?.currency || 'NGN',
+        budgetIsHourly: bookingData.budget?.isHourly || false,
+        urgency: bookingData.urgency || 'medium',
+        status: 'pending',
+        requirements: bookingData.requirements || [],
+        attachments: bookingData.attachments || [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        flattenedBookingRequest.id,
+        flattenedBookingRequest
+      );
+
+      toast.success("Booking request sent successfully!");
+      setBookingModal({ isOpen: false, selectedWorker: null });
+      
+      // Redirect to client dashboard to view booking
+      router.push('/client');
+    } catch (error) {
+      console.error('Error submitting booking:', error);
+      toast.error("Failed to submit booking request. Please try again.");
+    }
+  };
+
+  // Handle worker selection for booking
+  const handleBookWorker = (worker: WorkerProfile) => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to book a service");
+      router.push('/login?callbackUrl=/workers');
+      return;
+    }
+
+    if (user?.role !== 'client') {
+      toast.error("Only clients can book services");
+      return;
+    }
+
+    setBookingModal({
+      isOpen: true,
+      selectedWorker: worker
+    });
+  };
+
+  // Handle worker messaging (placeholder for now)
+  const handleMessageWorker = (worker: WorkerProfile) => {
+    if (!isAuthenticated) {
+      toast.error("Please log in to message workers");
+      router.push('/login?callbackUrl=/workers');
+      return;
+    }
+    
+    if (user?.role !== 'client') {
+      toast.error("Only clients can message workers");
+      return;
+    }
+    
+    setMessageModal({
+      isOpen: true,
+      selectedWorker: worker
+    });
+  };
+
+  // Handle view worker profile (placeholder for now)
+  const handleViewProfile = (worker: WorkerProfile) => {
+    setProfileModal({
+      isOpen: true,
+      selectedWorker: worker
+    });
+  };
+
+  // Close booking modal
+  const handleCloseBookingModal = () => {
+    setBookingModal({ isOpen: false, selectedWorker: null });
+  };
+
+  // Close message modal
+  const handleCloseMessageModal = () => {
+    setMessageModal({ isOpen: false, selectedWorker: null });
+  };
+
+  // Close profile modal
+  const handleCloseProfileModal = () => {
+    setProfileModal({ isOpen: false, selectedWorker: null });
+  };
 
   // Filter workers based on search and location
   const filteredWorkers = useMemo(() => {
@@ -209,9 +351,9 @@ export default function WorkersPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredWorkers.map((worker) => (
+            {filteredWorkers.map((worker, index) => (
               <motion.div
-                key={worker.id}
+                key={index}
                 variants={fadeIn}
                 className="bg-white rounded-xl p-4 shadow-soft hover:shadow-medium transition-shadow duration-300"
               >
@@ -272,9 +414,28 @@ export default function WorkersPage() {
                       </div>
                       <div>{worker.completedJobs} jobs</div> {/* Updated to use flat structure */}
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <Button variant="outline" className="h-10">View Profile</Button>
-                      <Button className="h-10 bg-emerald-500 hover:bg-emerald-600">Book Now</Button>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="h-10 text-xs"
+                        onClick={() => handleViewProfile(worker)}
+                      >
+                        View Profile
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="h-10 text-xs"
+                        onClick={() => handleMessageWorker(worker)}
+                      >
+                        <MessageCircle className="h-3 w-3 mr-1" />
+                        Message
+                      </Button>
+                      <Button 
+                        className="h-10 bg-emerald-500 hover:bg-emerald-600 text-xs"
+                        onClick={() => handleBookWorker(worker)}
+                      >
+                        Book Now
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -284,6 +445,30 @@ export default function WorkersPage() {
         </motion.div>
       </main>
       <Footer />
+      
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={bookingModal.isOpen}
+        onClose={handleCloseBookingModal}
+        worker={bookingModal.selectedWorker}
+        onBookingSubmit={handleBookingSubmit}
+      />
+
+      {/* Message Modal */}
+      <MessageModal
+        isOpen={messageModal.isOpen}
+        onClose={handleCloseMessageModal}
+        worker={messageModal.selectedWorker}
+      />
+
+      {/* Worker Profile Modal */}
+      <WorkerProfileModal
+        isOpen={profileModal.isOpen}
+        onClose={handleCloseProfileModal}
+        worker={profileModal.selectedWorker}
+        onBookWorker={handleBookWorker}
+        onMessageWorker={handleMessageWorker}
+      />
     </div>
   );
 } 
