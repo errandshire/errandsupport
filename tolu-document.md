@@ -1,7 +1,7 @@
 # Tolu Development Guidelines & Warnings
 
 ## Project Context
-This is a backend NestJS project with multiple developers. All code changes must be professional, well-reasoned, and follow established patterns to maintain team standards and avoid PR complications.
+This is a fullstack applicaton with next js and appwrite. Don't code, think to understand the issue then ask me if you should proceed or not. All code changes must be professional, well-reasoned, and follow established patterns to maintain team standards and avoid PR complications.
 
 ## Core Development Principles
 
@@ -33,12 +33,8 @@ Before writing any code, verify:
 
 ### 4. Code Analysis Requirements
 Before implementing, analyze:
-- Existing naming conventions in the module
-- Current logging patterns used
-- Database entity relationships
-- Error handling approaches
-- Authentication/authorization patterns
-- DTO validation structures
+- Existing naming conventions in the 
+- 
 - Opportunities for code reuse in all areas (not just responses)
 - Code formatting and linting requirements
 
@@ -65,12 +61,7 @@ After implementation, conduct:
 ## Current Project Patterns to Follow
 
 ### File Structure Patterns
-- Controllers: Handle HTTP requests/responses only
-- Services: Contain business logic
-- Repositories: Handle data access
-- DTOs: Input/output validation
-- Entities: Database models
-- Enums: Constant values
+
 - Interfaces: Type definitions
 
 ### Naming Conventions
@@ -81,7 +72,6 @@ After implementation, conduct:
 - Prefix interfaces with 'I' if needed
 
 ### Error Handling
-- Use appropriate HTTP status codes
 - Implement proper exception filters
 - Provide meaningful error messages
 - Log errors appropriately
