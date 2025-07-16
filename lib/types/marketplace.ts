@@ -13,64 +13,20 @@ export interface Category {
 }
 
 export interface WorkerProfile {
+  // Appwrite document fields
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  
+  // Worker fields
   id: string;
   userId: string;
   displayName: string;
-  bio: string;
-  profileImage?: string;
-  coverImage?: string;
-  
-  // Flattened location
-  address: string;
-  city: string;
-  state: string;
-  locationLat?: number;
-  locationLng?: number;
-  
-  // Arrays (supported by Appwrite)
-  categories: string[]; // Category IDs
-  skills: string[];
-  languages: string[];
-  workingDays: string[]; // ['monday', 'tuesday', etc.]
-  
-  // Flattened experience
-  experienceYears: number;
-  experienceDescription: string;
-  
-  // Flattened pricing
-  hourlyRate: number;
-  minimumHours: number;
-  currency: string;
-  
-  // Flattened availability
-  workingHoursStart: string; // '09:00'
-  workingHoursEnd: string; // '17:00'
-  timezone: string;
-  
-  // Flattened verification
-  isVerified: boolean;
-  idVerified: boolean;
-  backgroundCheckVerified: boolean;
-  verifiedAt?: string;
-  
-  // Flattened rating
-  ratingAverage: number;
-  totalReviews: number;
-  
-  // Flattened stats
-  completedJobs: number;
-  responseTimeMinutes: number;
-  rehireRatePercent: number;
-  
-  // Flattened preferences
-  maxRadiusKm: number;
-  acceptsLastMinute: boolean;
-  acceptsWeekends: boolean;
-  
-  // Status
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  ratingAverage?: number;
+  totalReviews?: number;
+  responseTimeMinutes?: number;
+  // Add other worker fields as needed
 }
 
 export interface BookingRequest {
@@ -154,18 +110,35 @@ export interface Review {
 
 export interface Message {
   id: string;
-  bookingId: string;
+  conversationId: string; // For grouping messages between two users
   senderId: string;
   recipientId: string;
   content: string;
   type: 'text' | 'image' | 'file' | 'system';
-  attachments?: {
-    url: string;
-    name: string;
-    type: string;
-    size: number;
-  }[];
+  // Flat structure for attachments (Appwrite requirement)
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
+  attachmentSize?: number;
+  thumbnailUrl?: string;
+  // Message status and delivery
   isRead: boolean;
+  isDelivered: boolean;
+  deliveredAt?: string;
+  readAt?: string;
+  // Typing and real-time features
+  isTyping?: boolean;
+  lastTypingAt?: string;
+  // Conversation management
+  isConversationMuted?: boolean;
+  mutedBy?: string;
+  mutedAt?: string;
+  // Optional booking reference
+  relatedBookingId?: string;
+  // Metadata
+  replyToMessageId?: string;
+  editedAt?: string;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

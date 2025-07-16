@@ -292,7 +292,9 @@ export type NotificationType =
   | 'review_received'
   | 'verification_approved'
   | 'verification_rejected'
-  | 'system_announcement';
+  | 'system_announcement'
+  | 'new_message'
+  | 'file_shared';
 
 // State Management Types
 export interface AuthState {

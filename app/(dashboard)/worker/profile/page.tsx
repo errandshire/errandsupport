@@ -366,15 +366,10 @@ export default function WorkerProfilePage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
-      <WorkerSidebar
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-      />
+       
 
       <div className="flex-1 flex flex-col lg:ml-0">
-        <Header>
-          <SidebarToggle onToggle={() => setSidebarOpen(!sidebarOpen)} />
-        </Header>
+         
         
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto">
@@ -604,7 +599,6 @@ export default function WorkerProfilePage() {
           </div>
         </main>
         
-        <Footer />
       </div>
     </div>
   );

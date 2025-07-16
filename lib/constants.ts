@@ -71,6 +71,8 @@ export const NOTIFICATION_TYPES = {
   VERIFICATION_APPROVED: 'verification_approved',
   VERIFICATION_REJECTED: 'verification_rejected',
   SYSTEM_ANNOUNCEMENT: 'system_announcement',
+  NEW_MESSAGE: 'new_message',
+  FILE_SHARED: 'file_shared',
 } as const;
 
 // Service Categories
