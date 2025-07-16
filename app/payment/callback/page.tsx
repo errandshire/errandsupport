@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 
 type PaymentStatus = 'verifying' | 'success' | 'failed' | 'cancelled';
 
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -229,5 +229,25 @@ export default function PaymentCallbackPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4">
+              <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
+            </div>
+            <CardTitle className="text-xl">Loading...</CardTitle>
+            <CardDescription>Please wait while we verify your payment</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    }>
+      <PaymentCallbackContent />
+    </Suspense>
   );
 } 

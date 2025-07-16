@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { BookingModal } from "@/components/marketplace/booking-modal";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
 import { motion, Variants } from "framer-motion";
-import { Search, MapPin, Clock, Star, Heart, Filter, MessageCircle } from "lucide-react";
+import { Search, MapPin, Clock, Star, Heart, Filter, MessageCircle, Loader2 } from "lucide-react";
 import { databases } from "@/lib/appwrite";
 import { COLLECTIONS } from "@/lib/appwrite";
 import { Query } from "appwrite";
@@ -38,7 +39,7 @@ const staggerContainer: Variants = {
   }
 };
 
-export default function WorkersPage() {
+function WorkersPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -78,11 +79,14 @@ export default function WorkersPage() {
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.WORKERS,
           [
-            Query.equal('isActive', true),
-            Query.orderDesc('ratingAverage'), // Updated to use flat structure
+            Query.orderDesc('$createdAt'), // Order by creation date instead since ratingAverage might not exist
             Query.limit(100)
           ]
         );
+
+        if (response.documents.length === 0) {
+          console.log('No workers found in the database');
+        }
 
         setWorkers(response.documents as unknown as WorkerProfile[]);
       } catch (err) {
@@ -215,18 +219,15 @@ export default function WorkersPage() {
   const filteredWorkers = useMemo(() => {
     return workers.filter(worker => {
       const matchesSearch = searchQuery === "" || 
-        worker.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        worker.skills.some(skill => 
-          skill.toLowerCase().includes(searchQuery.toLowerCase())
-        ) ||
+        worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         worker.categories.some(category =>
           category.toLowerCase().includes(searchQuery.toLowerCase())
         ) ||
         worker.bio.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesLocation = locationQuery === "" ||
-        worker.city.toLowerCase().includes(locationQuery.toLowerCase()) || // Updated to use flat structure
-        worker.state.toLowerCase().includes(locationQuery.toLowerCase()); // Updated to use flat structure
+        worker.city.toLowerCase().includes(locationQuery.toLowerCase()) ||
+        worker.state.toLowerCase().includes(locationQuery.toLowerCase());
 
       return matchesSearch && matchesLocation;
     });
@@ -362,12 +363,12 @@ export default function WorkersPage() {
                     {worker.profileImage ? (
                       <img 
                         src={worker.profileImage} 
-                        alt={worker.displayName || 'Worker'}
+                        alt={worker.name || 'Worker'}
                         className="h-full w-full object-cover"
                       />
                     ) : (
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-medium text-lg">
-                        {(worker.displayName || 'W').charAt(0)}
+                        {(worker.name || 'W').charAt(0)}
                       </div>
                     )}
                     {worker.isActive && (
@@ -377,42 +378,42 @@ export default function WorkersPage() {
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-medium text-gray-900">{worker.displayName || 'Worker'}</h3>
+                        <h3 className="font-medium text-gray-900">{worker.name || 'Worker'}</h3>
                         <div className="flex items-center gap-1 text-sm text-gray-600">
                           <MapPin className="h-3 w-3" />
-                          {worker.city}, {worker.state} {/* Updated to use flat structure */}
+                          {worker.city}, {worker.state}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
                           <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                          {worker.ratingAverage} {/* Updated to use flat structure */}
-                          <span className="text-gray-500">({worker.totalReviews})</span> {/* Updated to use flat structure */}
+                          {worker.ratingAverage || 'New'} 
+                          {worker.totalReviews ? <span className="text-gray-500">({worker.totalReviews})</span> : null}
                         </div>
                         <p className="text-sm font-medium text-emerald-600">
-                          ₦{worker.hourlyRate}/hr {/* Updated to use flat structure */}
+                          ₦{worker.hourlyRate}/hr
                         </p>
                       </div>
                     </div>
                     <p className="mt-2 text-sm text-gray-600 line-clamp-2">{worker.bio}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {worker.skills.slice(0, 3).map((skill, index) => (
+                      {worker.categories?.slice(0, 3).map((category, index) => (
                         <Badge key={index} variant="secondary" className="bg-gray-100">
-                          {skill}
+                          {category}
                         </Badge>
                       ))}
-                      {worker.skills.length > 3 && (
+                      {(worker.categories?.length || 0) > 3 && (
                         <Badge variant="secondary" className="bg-gray-100">
-                          +{worker.skills.length - 3} more
+                          +{worker.categories!.length - 3} more
                         </Badge>
                       )}
                     </div>
                     <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        Responds in {worker.responseTimeMinutes}m {/* Updated to use flat structure */}
+                        {worker.responseTimeMinutes ? `Responds in ${worker.responseTimeMinutes}m` : 'Response time N/A'}
                       </div>
-                      <div>{worker.completedJobs} jobs</div> {/* Updated to use flat structure */}
+                      <div>{worker.completedJobs || 0} jobs</div>
                     </div>
                     <div className="mt-4 grid grid-cols-3 gap-2">
                       <Button 
@@ -470,5 +471,28 @@ export default function WorkersPage() {
         onMessageWorker={handleMessageWorker}
       />
     </div>
+  );
+}
+
+export default function WorkersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-6 md:py-10">
+          <div className="flex flex-col items-center justify-center min-h-[60vh]">
+            <Card className="p-6">
+              <div className="flex flex-col items-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+                <p className="mt-2 text-sm text-gray-600">Loading available workers...</p>
+              </div>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    }>
+      <WorkersPageContent />
+    </Suspense>
   );
 } 

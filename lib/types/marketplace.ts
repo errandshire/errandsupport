@@ -13,20 +13,45 @@ export interface Category {
 }
 
 export interface WorkerProfile {
-  // Appwrite document fields
   $id: string;
   $createdAt: string;
   $updatedAt: string;
-  
-  // Worker fields
-  id: string;
-  userId: string;
-  displayName: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string;
+  role: 'worker';
+  profileImage: string | null;
+  isVerified: boolean;
   isActive: boolean;
-  ratingAverage?: number;
-  totalReviews?: number;
-  responseTimeMinutes?: number;
-  // Add other worker fields as needed
+  address: string;
+  city: string;
+  state: string;
+  longitude: number | null;
+  latitude: number | null;
+  name: string;
+  userId: string | null;
+  postalCode: string;
+  country: string;
+  bio: string;
+  categories: string[];
+  experience: number;
+  hourlyRate: number;
+  serviceRadius: number;
+  idType: string | null;
+  verificationDocuments: string[];
+  verificationStatus: string | null;
+  submittedAt: string | null;
+  idNumber: string | null;
+  isOnboarded: boolean;
+  documentId: string | null;
+  lauguages: string[];
+  skills?: string[]; // Optional since it's not in your data
+  displayName?: string; // Optional computed field
+  completedJobs?: number; // Optional since it's not in your data
+  responseTimeMinutes?: number; // Optional since it's not in your data
+  ratingAverage?: number; // Optional since it's not in your data
+  totalReviews?: number; // Optional since it's not in your data
 }
 
 export interface BookingRequest {
