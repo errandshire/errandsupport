@@ -18,7 +18,9 @@ import {
   MessageCircle,
   Wallet,
   Settings,
-  Star
+  Star,
+  ArrowRight,
+  BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,14 +56,18 @@ const StatsCard = React.memo(({
   trend?: string;
   color?: string;
 }) => (
-  <Card className="p-6">
-    <div className={`w-12 h-12 ${color.replace('text-', 'bg-').replace('-400', '-100')} rounded-full flex items-center justify-center mb-4`}>
-      <Icon className={`h-6 w-6 ${color}`} />
+  <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+    <div className="flex items-start justify-between">
+      <div className="flex-1">
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 ${color.replace('text-', 'bg-').replace('-600', '-100')} rounded-lg flex items-center justify-center mb-3 sm:mb-4`}>
+          <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${color}`} />
+        </div>
+        <h3 className="text-xl sm:text-2xl font-semibold mb-1">{value}</h3>
+        <p className="text-gray-600 text-xs sm:text-sm">{title}</p>
+        {trend && <p className="text-green-600 text-xs sm:text-sm mt-1 sm:mt-2">{trend}</p>}
+        {description && !trend && <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">{description}</p>}
+      </div>
     </div>
-    <h3 className="text-2xl font-semibold mb-1">{value}</h3>
-    <p className="text-gray-600 text-sm">{title}</p>
-    {trend && <p className="text-green-600 text-sm mt-2">{trend}</p>}
-    {description && !trend && <p className="text-gray-600 text-sm mt-2">{description}</p>}
   </Card>
 ));
 
@@ -71,56 +77,38 @@ const BookingCard = React.memo(({
 }: {
   booking: RecentBooking;
   onClick: (booking: RecentBooking) => void;
-}) => {
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "bg-green-100 text-green-800";
-      case "in_progress":
-        return "bg-blue-100 text-blue-800";
-      case "confirmed":
-      case "accepted":
-        return "bg-yellow-100 text-yellow-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  return (
-    <div
-      className="flex items-center justify-between p-4 rounded-xl border hover:border-primary-300 transition-colors cursor-pointer"
-      onClick={() => onClick(booking)}
-    >
-      <div className="flex items-center space-x-4">
-        <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center">
-          <Calendar className="h-6 w-6 text-primary-600" />
-        </div>
-        <div>
-          <h4 className="font-medium">{booking.service}</h4>
-          <p className="text-sm text-gray-600">with {booking.worker}</p>
-          <div className="flex items-center mt-1">
-            <Clock className="h-3 w-3 text-gray-400 mr-1" />
-            <span className="text-xs text-gray-500">{booking.timeAgo}</span>
-            {booking.rating > 0 && (
-              <>
-                <Star className="h-3 w-3 text-yellow-400 ml-2 mr-1" />
-                <span className="text-xs text-gray-500">{booking.rating}</span>
-              </>
-            )}
+}) => (
+  <Card 
+    className="p-4 hover:shadow-md transition-all cursor-pointer border hover:border-primary-200"
+    onClick={() => onClick(booking)}
+  >
+    <div className="flex items-start space-x-3">
+      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+        <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between">
+          <div className="min-w-0 flex-1">
+            <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">{booking.title}</h4>
+            <p className="text-xs sm:text-sm text-gray-600 truncate">by {booking.workerName}</p>
+            <div className="flex items-center gap-2 sm:gap-4 text-xs text-gray-500 mt-2">
+              <span>{booking.timeAgo}</span>
+              <span>{booking.price}</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end ml-2">
+            <Badge className={getStatusColor(booking.status)} variant="secondary">
+              {getStatusDisplayName(booking.status)}
+            </Badge>
+            <div className="mt-2">
+              <ArrowRight className="h-4 w-4 text-gray-400" />
+            </div>
           </div>
         </div>
       </div>
-      <div className="text-right">
-        <Badge className={cn("text-xs", getStatusColor(booking.status))}>
-          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1).replace('_', ' ')}
-        </Badge>
-        <p className="text-sm font-medium mt-1">{booking.price}</p>
-      </div>
     </div>
-  );
-});
+  </Card>
+));
 
 const QuickActionCard = React.memo(({ 
   action,
@@ -132,45 +120,67 @@ const QuickActionCard = React.memo(({
   const getIcon = () => {
     switch (action.icon) {
       case 'workers':
-        return <Users className="h-6 w-6 text-white" />;
+        return <Users className="h-5 w-5 sm:h-6 sm:w-6 text-white" />;
       case 'bookings':
-        return <Calendar className="h-6 w-6 text-white" />;
+        return <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-white" />;
       case 'messages':
-        return <MessageCircle className="h-6 w-6 text-white" />;
+        return <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />;
       case 'wallet':
-        return <Wallet className="h-6 w-6 text-white" />;
+        return <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-white" />;
       case 'settings':
-        return <Settings className="h-6 w-6 text-white" />;
+        return <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-white" />;
       default:
-        return <Calendar className="h-6 w-6 text-white" />;
+        return <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-white" />;
     }
   };
 
   return (
     <Button 
       variant="outline" 
-      className="w-full justify-start h-auto p-4 text-left"
+      className="w-full justify-start h-auto p-3 sm:p-4 text-left hover:bg-gray-50 transition-colors"
       onClick={() => onClick(action)}
     >
-      <div className="flex items-center space-x-3">
-        <div className={`w-10 h-10 ${action.color} rounded-lg flex items-center justify-center`}>
+      <div className="flex items-center space-x-3 w-full">
+        <div className={`w-10 h-10 sm:w-10 sm:h-10 ${action.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
           {getIcon()}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{action.title}</span>
+            <span className="font-medium text-sm sm:text-base truncate">{action.title}</span>
             {action.count && (
-              <Badge className="bg-red-500 text-white text-xs">
+              <Badge className="bg-red-500 text-white text-xs h-5 min-w-[20px] flex items-center justify-center">
                 {action.count}
               </Badge>
             )}
           </div>
-          <p className="text-sm text-gray-600">{action.description}</p>
+          <p className="text-xs sm:text-sm text-gray-600 truncate">{action.description}</p>
         </div>
+        <ArrowRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
       </div>
     </Button>
   );
 });
+
+// Helper functions
+const getStatusColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed': return 'bg-green-100 text-green-800';
+    case 'in_progress': return 'bg-blue-100 text-blue-800';
+    case 'confirmed': return 'bg-yellow-100 text-yellow-800';
+    case 'pending': return 'bg-orange-100 text-orange-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getStatusDisplayName = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed': return 'Completed';
+    case 'in_progress': return 'In Progress';
+    case 'confirmed': return 'Confirmed';
+    case 'pending': return 'Pending';
+    default: return status;
+  }
+};
 
 function ClientDashboardContent() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -283,10 +293,10 @@ function ClientDashboardContent() {
   // Error state
   if (error && !stats) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4">
         <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
         <h2 className="text-xl font-medium text-gray-900 mb-2">Oops! Something went wrong</h2>
-        <p className="text-gray-600 mb-4">{error}</p>
+        <p className="text-gray-600 mb-4 text-sm sm:text-base">{error}</p>
         <Button onClick={() => loadDashboardData()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Try Again
@@ -296,53 +306,57 @@ function ClientDashboardContent() {
   }
 
   return (
-    <>
+    <div className="space-y-6 sm:space-y-8">
       {/* Welcome Section */}
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h1 className="text-3xl font-serif mb-2">Dashboard</h1>
-          <div>
-            <h2 className="text-3xl font-serif mb-2">
-              Welcome back, {user.name}! 👋
-            </h2>
-            <p className="text-gray-600">
-              Here's what's happening with your services today.
-            </p>
-          </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold mb-2">
+            Welcome back, {user.name?.split(' ')[0] || 'Client'}! 👋
+          </h1>
+          <p className="text-gray-600 text-sm sm:text-base">
+            Here's what's happening with your services today.
+          </p>
         </div>
         <Button 
           variant="outline" 
           size="sm" 
           onClick={handleRefresh}
           disabled={isRefreshing}
+          className="self-start"
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
+          <span className="hidden sm:inline">Refresh</span>
         </Button>
       </div>
 
       {/* Search and Book Service */}
-      <div className="flex items-center justify-between mb-8">
-        <form onSubmit={handleSearch} className="relative flex-1 max-w-lg">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            type="search"
-            placeholder="Search for services..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+        <form onSubmit={handleSearch} className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Search for services..."
+              className="pl-10 h-11 sm:h-12"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </form>
-        <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white ml-4" asChild>
+        <Button 
+          size="lg" 
+          className="bg-green-500 hover:bg-green-600 text-white h-11 sm:h-12 px-4 sm:px-6" 
+          asChild
+        >
           <Link href="/workers">
-            <Plus className="h-5 w-5 mr-2" />
-            Book a Service
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+            <span className="whitespace-nowrap">Book Service</span>
           </Link>
         </Button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         <StatsCard
           title="Total Bookings"
           value={stats?.totalBookings || 0}
@@ -352,21 +366,21 @@ function ClientDashboardContent() {
           color="text-blue-600"
         />
         <StatsCard
-          title="Completed Tasks"
+          title="Completed"
           value={stats?.completedTasks || 0}
           description={`${stats?.completionRate || 0}% completion rate`}
           icon={CheckCircle}
           color="text-green-600"
         />
         <StatsCard
-          title="Active Bookings"
+          title="Active"
           value={stats?.activeBookings || 0}
           description="Currently in progress"
           icon={TrendingUp}
           color="text-purple-600"
         />
         <StatsCard
-          title="Pending Tasks"
+          title="Pending"
           value={stats?.pendingTasks || 0}
           description="Awaiting worker acceptance"
           icon={Clock}
@@ -375,47 +389,47 @@ function ClientDashboardContent() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Recent Bookings */}
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xl font-serif">Recent Bookings</h3>
-              <p className="text-gray-600 text-sm">Your latest service requests</p>
+              <h3 className="text-lg sm:text-xl font-serif font-semibold">Recent Bookings</h3>
+              <p className="text-gray-600 text-xs sm:text-sm">Your latest service requests</p>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/client/bookings">View All</Link>
+              <Link href="/client/bookings">
+                <span className="hidden sm:inline">View All</span>
+                <span className="sm:hidden">All</span>
+              </Link>
             </Button>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {isLoading ? (
               // Loading skeleton for bookings
               [...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-4 rounded-xl border animate-pulse">
+                <Card key={i} className="p-4 animate-pulse">
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gray-200 rounded-2xl" />
-                    <div>
-                      <div className="h-4 w-32 bg-gray-200 rounded mb-1" />
+                    <div className="w-12 h-12 bg-gray-200 rounded-lg" />
+                    <div className="flex-1">
+                      <div className="h-4 w-32 bg-gray-200 rounded mb-2" />
                       <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
                       <div className="h-3 w-28 bg-gray-200 rounded" />
                     </div>
+                    <div className="h-6 w-16 bg-gray-200 rounded" />
                   </div>
-                  <div className="text-right">
-                    <div className="h-6 w-16 bg-gray-200 rounded mb-1" />
-                    <div className="h-4 w-12 bg-gray-200 rounded" />
-                  </div>
-                </div>
+                </Card>
               ))
             ) : recentBookings.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <Card className="p-6 sm:p-8 text-center">
+                <BookOpen className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <h3 className="text-lg font-medium mb-2">No bookings yet</h3>
-                <p className="mb-4">Start by booking your first service</p>
+                <p className="text-gray-600 mb-4 text-sm sm:text-base">Start by booking your first service</p>
                 <Button asChild>
                   <Link href="/workers">Find Workers</Link>
                 </Button>
-              </div>
+              </Card>
             ) : (
               recentBookings.map(booking => (
                 <BookingCard
@@ -429,9 +443,9 @@ function ClientDashboardContent() {
         </div>
 
         {/* Quick Actions */}
-        <div>
-          <h3 className="text-xl font-serif mb-4">Quick Actions</h3>
-          <div className="space-y-3">
+        <div className="space-y-4 sm:space-y-6">
+          <h3 className="text-lg sm:text-xl font-serif font-semibold">Quick Actions</h3>
+          <div className="space-y-2 sm:space-y-3">
             {quickActions.map(action => (
               <QuickActionCard
                 key={action.id}
@@ -442,7 +456,7 @@ function ClientDashboardContent() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

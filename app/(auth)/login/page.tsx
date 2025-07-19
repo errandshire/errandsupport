@@ -19,17 +19,20 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <>
-    <Header />
-    <div className="container relative flex min-h-screen flex-col items-center justify-center">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <Suspense fallback={<div>Loading...</div>}>
-        
-          <LoginContent />
-        </Suspense>
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <main className="flex-1 flex items-center justify-center px-4 py-6 sm:py-12">
+        <div className="w-full max-w-sm mx-auto">
+          <Suspense fallback={
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
+            </div>
+          }>
+            <LoginContent />
+          </Suspense>
+        </div>
+      </main>
+      <Footer />
     </div>
-    <Footer />
-    </>
   );
 } 

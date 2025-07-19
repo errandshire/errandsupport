@@ -113,25 +113,39 @@ export function ClientSidebar({ isOpen, onToggle, className }: ClientSidebarProp
 
       {/* Sidebar */}
       <motion.aside
-        initial="open"
+        initial={false}
         animate={isOpen ? "open" : "closed"}
         variants={sidebarVariants}
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-white border-r border-neutral-200 shadow-lg lg:sticky lg:z-auto lg:shadow-none overflow-y-auto",
+          "fixed left-0 top-0 z-50 h-screen w-72 sm:w-64 bg-white border-r border-neutral-200 shadow-lg lg:sticky lg:z-auto lg:shadow-none overflow-y-auto",
           className
         )}
       >
         <div className="flex min-h-full flex-col">
           {/* Header */}
-          <div className="p-4">
-            <h1 className="text-xl font-semibold">Client Portal</h1>
+          <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">CP</span>
+              </div>
+              <h1 className="text-lg font-semibold text-neutral-900">Client Portal</h1>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggle}
+              className="h-8 w-8 lg:hidden"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-2 py-4">
-            <ul className="space-y-1">
+          <nav className="flex-1 p-4">
+            <ul className="space-y-2">
               {sidebarItems.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || 
+                  (item.href === "/client" && pathname === "/client/dashboard");
                 const Icon = item.icon;
 
                 return (
@@ -139,25 +153,44 @@ export function ClientSidebar({ isOpen, onToggle, className }: ClientSidebarProp
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex items-center px-4 py-3 text-sm rounded-lg transition-colors",
+                        "flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200",
+                        "hover:bg-gray-50 active:scale-95",
                         isActive
-                          ? "bg-primary-50 text-primary-900 font-medium"
-                          : "text-gray-700 hover:bg-gray-100"
+                          ? "bg-primary-50 text-primary-700 border border-primary-200 shadow-sm"
+                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                       )}
                       onClick={() => {
+                        // Close sidebar on mobile when navigating
                         if (window.innerWidth < 1024) {
                           onToggle();
                         }
                       }}
                     >
-                      <Icon className="h-5 w-5 mr-3" />
-                      <span>{item.title}</span>
+                      <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
+                      <span className="truncate">{item.title}</span>
                     </Link>
                   </li>
                 );
               })}
             </ul>
           </nav>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-neutral-200">
+            <div className="flex items-center space-x-3 p-3 bg-neutral-50 rounded-lg">
+              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-medium">●</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-neutral-900 truncate">
+                  Client Account
+                </p>
+                <p className="text-xs text-neutral-500">
+                  Ready to book services
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </motion.aside>
     </>

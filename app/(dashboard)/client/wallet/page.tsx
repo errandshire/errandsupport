@@ -15,7 +15,9 @@ import {
   ArrowUpRight,
   DollarSign,
   Shield,
-  Settings
+  Settings,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +45,7 @@ export default function ClientWalletPage() {
   const [virtualWallet, setVirtualWallet] = React.useState<VirtualWallet | null>(null);
   const [walletTransactions, setWalletTransactions] = React.useState<any[]>([]);
   const [walletStats, setWalletStats] = React.useState<any>(null);
+  const [showBalance, setShowBalance] = React.useState(true);
   
   // Top-up modal state
   const [showTopUpModal, setShowTopUpModal] = React.useState(false);
@@ -234,30 +237,31 @@ export default function ClientWalletPage() {
   }, [escrowTransactions]);
 
   return (
-    <>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-neutral-900 mb-2">
             My Wallet
           </h1>
-          <p className="text-neutral-600">
+          <p className="text-neutral-600 text-sm sm:text-base">
             Manage your virtual wallet, payment history, and spending.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchWalletData}>
+        <div className="flex items-center gap-2 self-start">
+          <Button variant="outline" size="sm" onClick={fetchWalletData} className="h-9">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="h-9 hidden sm:flex">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600" asChild>
+          <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 h-9" asChild>
             <Link href="/workers">
               <Plus className="h-4 w-4 mr-2" />
-              Book Service
+              <span className="hidden sm:inline">Book Service</span>
+              <span className="sm:hidden">Book</span>
             </Link>
           </Button>
         </div>
@@ -265,62 +269,72 @@ export default function ClientWalletPage() {
 
       {/* Virtual Wallet Card */}
       {virtualWallet && (
-        <Card className="mb-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-          <CardHeader>
+        <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+          <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Wallet className="h-6 w-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
                 <div>
-                  <CardTitle className="text-white">Virtual Wallet</CardTitle>
-                  <p className="text-blue-100">Instant payments & quick bookings</p>
+                  <CardTitle className="text-white text-base sm:text-lg">Virtual Wallet</CardTitle>
+                  <p className="text-blue-100 text-xs sm:text-sm">Instant payments & quick bookings</p>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                {virtualWallet.isActive ? 'Active' : 'Inactive'}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="h-8 w-8 text-white hover:bg-white/20"
+                >
+                  {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Badge variant="secondary" className="bg-white/20 text-white border-white/30 text-xs">
+                  {virtualWallet.isActive ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <CardContent className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {/* Available Balance */}
-              <div>
-                <p className="text-blue-100 text-sm mb-1">Available Balance</p>
-                <p className="text-3xl font-bold">
-                  ₦{virtualWallet.availableBalance.toLocaleString()}
+              <div className="col-span-1 sm:col-span-2 lg:col-span-1">
+                <p className="text-blue-100 text-xs sm:text-sm mb-1">Available Balance</p>
+                <p className="text-2xl sm:text-3xl font-bold">
+                  {showBalance ? `₦${virtualWallet.availableBalance.toLocaleString()}` : '₦••••••'}
                 </p>
                 <p className="text-blue-100 text-xs mt-1">Ready to spend</p>
               </div>
 
               {/* Pending Balance */}
               <div>
-                <p className="text-blue-100 text-sm mb-1">Pending Balance</p>
-                <p className="text-xl font-semibold">
-                  ₦{virtualWallet.pendingBalance.toLocaleString()}
+                <p className="text-blue-100 text-xs sm:text-sm mb-1">Pending Balance</p>
+                <p className="text-lg sm:text-xl font-semibold">
+                  {showBalance ? `₦${virtualWallet.pendingBalance.toLocaleString()}` : '₦••••'}
                 </p>
                 <p className="text-blue-100 text-xs mt-1">Processing...</p>
               </div>
 
               {/* Quick Actions */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
                 <Dialog open={showTopUpModal} onOpenChange={setShowTopUpModal}>
                   <DialogTrigger asChild>
-                    <Button variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                    <Button variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-10 sm:h-11">
                       <Plus className="h-4 w-4 mr-2" />
                       Top Up
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="text-black">
+                  <DialogContent className="text-black mx-4 max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Top Up Wallet</DialogTitle>
-                      <DialogDescription>
+                      <DialogTitle className="text-lg sm:text-xl">Top Up Wallet</DialogTitle>
+                      <DialogDescription className="text-sm sm:text-base">
                         Add funds to your virtual wallet for instant payments
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="topup-amount">Amount (₦)</Label>
+                        <Label htmlFor="topup-amount" className="text-sm sm:text-base">Amount (₦)</Label>
                         <Input
                           id="topup-amount"
                           type="number"
@@ -329,15 +343,17 @@ export default function ClientWalletPage() {
                           value={topUpAmount}
                           onChange={(e) => setTopUpAmount(e.target.value)}
                           placeholder="Enter amount (min: ₦100)"
+                          className="h-11 sm:h-12 text-base"
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowTopUpModal(false)}>
+                      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                        <Button variant="outline" onClick={() => setShowTopUpModal(false)} className="h-11">
                           Cancel
                         </Button>
                         <Button 
                           onClick={handleTopUp}
                           disabled={isProcessingTopUp}
+                          className="h-11"
                         >
                           {isProcessingTopUp ? 'Processing...' : 'Proceed to Payment'}
                         </Button>
@@ -350,23 +366,23 @@ export default function ClientWalletPage() {
                   <DialogTrigger asChild>
                     <Button 
                       variant="secondary" 
-                      className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                      className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-10 sm:h-11"
                       disabled={virtualWallet.availableBalance < 500}
                     >
                       <ArrowUpRight className="h-4 w-4 mr-2" />
                       Withdraw
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="text-black">
+                  <DialogContent className="text-black mx-4 max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Withdraw Funds</DialogTitle>
-                      <DialogDescription>
+                      <DialogTitle className="text-lg sm:text-xl">Withdraw Funds</DialogTitle>
+                      <DialogDescription className="text-sm sm:text-base">
                         Withdraw funds from your virtual wallet to your bank account
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="withdrawal-amount">Amount (₦)</Label>
+                        <Label htmlFor="withdrawal-amount" className="text-sm sm:text-base">Amount (₦)</Label>
                         <Input
                           id="withdrawal-amount"
                           type="number"
@@ -374,45 +390,50 @@ export default function ClientWalletPage() {
                           max={virtualWallet.availableBalance}
                           value={withdrawalAmount}
                           onChange={(e) => setWithdrawalAmount(e.target.value)}
-                          placeholder={`Enter amount (min: ₦500, max: ₦${virtualWallet.availableBalance.toLocaleString()})`}
+                          placeholder={`Min: ₦500, Max: ₦${virtualWallet.availableBalance.toLocaleString()}`}
+                          className="h-11 sm:h-12 text-base"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
-                          <Label htmlFor="account-number">Account Number</Label>
+                          <Label htmlFor="account-number" className="text-sm sm:text-base">Account Number</Label>
                           <Input
                             id="account-number"
                             value={bankDetails.accountNumber}
                             onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
                             placeholder="0123456789"
+                            className="h-11 text-base"
                           />
                         </div>
                         <div>
-                          <Label htmlFor="bank-code">Bank Code</Label>
+                          <Label htmlFor="bank-code" className="text-sm sm:text-base">Bank Code</Label>
                           <Input
                             id="bank-code"
                             value={bankDetails.bankCode}
                             onChange={(e) => setBankDetails({...bankDetails, bankCode: e.target.value})}
                             placeholder="058"
+                            className="h-11 text-base"
                           />
                         </div>
                       </div>
                       <div>
-                        <Label htmlFor="account-name">Account Name</Label>
+                        <Label htmlFor="account-name" className="text-sm sm:text-base">Account Name</Label>
                         <Input
                           id="account-name"
                           value={bankDetails.accountName}
                           onChange={(e) => setBankDetails({...bankDetails, accountName: e.target.value})}
                           placeholder="John Doe"
+                          className="h-11 text-base"
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowWithdrawalModal(false)}>
+                      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+                        <Button variant="outline" onClick={() => setShowWithdrawalModal(false)} className="h-11">
                           Cancel
                         </Button>
                         <Button 
                           onClick={handleWithdrawal}
                           disabled={isProcessingWithdrawal}
+                          className="h-11"
                         >
                           {isProcessingWithdrawal ? 'Processing...' : 'Request Withdrawal'}
                         </Button>
@@ -424,10 +445,10 @@ export default function ClientWalletPage() {
             </div>
 
             {/* Spending Limits */}
-            <div className="mt-6 pt-6 border-t border-white/20">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="pt-4 sm:pt-6 border-t border-white/20">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <p className="text-blue-100 text-sm mb-1">Daily Spending</p>
+                  <p className="text-blue-100 text-xs sm:text-sm mb-2">Daily Spending</p>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-white/20 rounded-full h-2">
                       <div 
@@ -437,13 +458,14 @@ export default function ClientWalletPage() {
                         }}
                       />
                     </div>
-                    <span className="text-xs text-blue-100 whitespace-nowrap">
-                      ₦{virtualWallet.currentDailySpent.toLocaleString()} / ₦{virtualWallet.dailySpendLimit.toLocaleString()}
-                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-blue-100 mt-1">
+                    <span>₦{virtualWallet.currentDailySpent.toLocaleString()}</span>
+                    <span>₦{virtualWallet.dailySpendLimit.toLocaleString()}</span>
                   </div>
                 </div>
                 <div>
-                  <p className="text-blue-100 text-sm mb-1">Monthly Spending</p>
+                  <p className="text-blue-100 text-xs sm:text-sm mb-2">Monthly Spending</p>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-white/20 rounded-full h-2">
                       <div 
@@ -453,9 +475,10 @@ export default function ClientWalletPage() {
                         }}
                       />
                     </div>
-                    <span className="text-xs text-blue-100 whitespace-nowrap">
-                      ₦{virtualWallet.currentMonthlySpent.toLocaleString()} / ₦{virtualWallet.monthlySpendLimit.toLocaleString()}
-                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-blue-100 mt-1">
+                    <span>₦{virtualWallet.currentMonthlySpent.toLocaleString()}</span>
+                    <span>₦{virtualWallet.monthlySpendLimit.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -465,67 +488,59 @@ export default function ClientWalletPage() {
       )}
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">Total Spent</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{EscrowUtils.formatAmount(stats.totalSpent)}</div>
-              <CreditCard className="h-4 w-4 text-blue-500" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-neutral-500 truncate">Total Spent</p>
+              <div className="text-lg sm:text-2xl font-bold mt-1">{EscrowUtils.formatAmount(stats.totalSpent)}</div>
+              <p className="text-xs text-neutral-500 mt-1">All time</p>
             </div>
-            <p className="text-xs text-neutral-500 mt-1">All time spending</p>
-          </CardContent>
+            <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">Wallet Balance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-neutral-500 truncate">Wallet Balance</p>
+              <div className="text-lg sm:text-2xl font-bold mt-1">
                 {virtualWallet ? EscrowUtils.formatAmount(virtualWallet.availableBalance) : '₦0'}
               </div>
-              <Wallet className="h-4 w-4 text-emerald-500" />
+              <p className="text-xs text-neutral-500 mt-1">Available</p>
             </div>
-            <p className="text-xs text-neutral-500 mt-1">Available for instant payments</p>
-          </CardContent>
+            <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500 flex-shrink-0" />
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">Pending Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{stats.pendingPayments}</div>
-              <Clock className="h-4 w-4 text-yellow-500" />
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-neutral-500 truncate">Pending</p>
+              <div className="text-lg sm:text-2xl font-bold mt-1">{stats.pendingPayments}</div>
+              <p className="text-xs text-neutral-500 mt-1">In escrow</p>
             </div>
-            <p className="text-xs text-neutral-500 mt-1">In escrow</p>
-          </CardContent>
+            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 flex-shrink-0" />
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-neutral-500">Completed Bookings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{stats.completedBookings}</div>
-              <Receipt className="h-4 w-4 text-emerald-500" />
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-neutral-500 truncate">Completed</p>
+              <div className="text-lg sm:text-2xl font-bold mt-1">{stats.completedBookings}</div>
+              <p className="text-xs text-neutral-500 mt-1">Services</p>
             </div>
-            <p className="text-xs text-neutral-500 mt-1">Services received</p>
-          </CardContent>
+            <Receipt className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500 flex-shrink-0" />
+          </div>
         </Card>
       </div>
 
       {/* Benefits Info */}
       {virtualWallet && virtualWallet.availableBalance > 0 && (
-        <Alert className="mb-8 border-emerald-200 bg-emerald-50">
+        <Alert className="border-emerald-200 bg-emerald-50">
           <Wallet className="h-4 w-4 text-emerald-600" />
-          <AlertDescription className="text-emerald-800">
+          <AlertDescription className="text-emerald-800 text-sm sm:text-base">
             <strong>Instant Booking Available!</strong> You have ₦{virtualWallet.availableBalance.toLocaleString()} in your wallet. 
             Book services instantly without payment delays.
           </AlertDescription>
@@ -533,13 +548,13 @@ export default function ClientWalletPage() {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card className="hover:bg-gray-50 transition-colors cursor-pointer" asChild>
           <Link href="/workers">
-            <CardContent className="p-6 text-center">
-              <Plus className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-              <h3 className="font-medium text-gray-900 mb-1">Book a Service</h3>
-              <p className="text-sm text-gray-600">Find and hire workers</p>
+            <CardContent className="p-4 sm:p-6 text-center">
+              <Plus className="h-6 w-6 sm:h-8 sm:w-8 text-emerald-500 mx-auto mb-2" />
+              <h3 className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Book a Service</h3>
+              <p className="text-xs sm:text-sm text-gray-600">Find and hire workers</p>
             </CardContent>
           </Link>
         </Card>
@@ -548,27 +563,27 @@ export default function ClientWalletPage() {
           className="hover:bg-gray-50 transition-colors cursor-pointer" 
           onClick={() => setShowTopUpModal(true)}
         >
-          <CardContent className="p-6 text-center">
-            <DollarSign className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-            <h3 className="font-medium text-gray-900 mb-1">Top Up Wallet</h3>
-            <p className="text-sm text-gray-600">Add funds for instant payments</p>
+          <CardContent className="p-4 sm:p-6 text-center">
+            <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500 mx-auto mb-2" />
+            <h3 className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Top Up Wallet</h3>
+            <p className="text-xs sm:text-sm text-gray-600">Add funds for instant payments</p>
           </CardContent>
         </Card>
 
         <Card className="hover:bg-gray-50 transition-colors cursor-pointer">
-          <CardContent className="p-6 text-center">
-            <Shield className="h-8 w-8 text-purple-500 mx-auto mb-2" />
-            <h3 className="font-medium text-gray-900 mb-1">Security Settings</h3>
-            <p className="text-sm text-gray-600">Manage limits & security</p>
+          <CardContent className="p-4 sm:p-6 text-center">
+            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500 mx-auto mb-2" />
+            <h3 className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Security Settings</h3>
+            <p className="text-xs sm:text-sm text-gray-600">Manage limits & security</p>
           </CardContent>
         </Card>
       </div>
 
       {/* No Transactions State */}
       {!isLoading && escrowTransactions.length === 0 && walletTransactions.length === 0 && (
-        <Alert className="mb-8">
+        <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="text-sm sm:text-base">
             You haven't made any transactions yet. 
             <Link href="/workers" className="font-medium text-blue-600 hover:underline ml-1">
               Book your first service
@@ -578,12 +593,14 @@ export default function ClientWalletPage() {
       )}
 
       {/* Transactions */}
-      <Tabs defaultValue="all" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="all">All Transactions</TabsTrigger>
-          <TabsTrigger value="wallet">Wallet Transactions</TabsTrigger>
-          <TabsTrigger value="bookings">Booking Payments</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="all" className="space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto">
+          <TabsList className="grid w-full grid-cols-3 h-10 sm:h-11">
+            <TabsTrigger value="all" className="text-xs sm:text-sm">All Transactions</TabsTrigger>
+            <TabsTrigger value="wallet" className="text-xs sm:text-sm">Wallet</TabsTrigger>
+            <TabsTrigger value="bookings" className="text-xs sm:text-sm">Bookings</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="all">
           <TransactionList
@@ -598,49 +615,49 @@ export default function ClientWalletPage() {
         <TabsContent value="wallet">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Wallet Transaction History</CardTitle>
+              <CardTitle className="text-sm sm:text-base">Wallet Transaction History</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-                      <div className="h-12 w-12 bg-gray-200 rounded animate-pulse" />
-                      <div className="flex-1 space-y-2">
+                    <div key={i} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 border rounded-lg">
+                      <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gray-200 rounded animate-pulse flex-shrink-0" />
+                      <div className="flex-1 space-y-2 min-w-0">
                         <div className="h-4 bg-gray-200 rounded animate-pulse" />
                         <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
                       </div>
-                      <div className="h-6 bg-gray-200 rounded w-20 animate-pulse" />
+                      <div className="h-6 bg-gray-200 rounded w-16 sm:w-20 animate-pulse flex-shrink-0" />
                     </div>
                   ))}
                 </div>
               ) : walletTransactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <Wallet className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <div className="text-center py-6 sm:py-8">
+                  <Wallet className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-sm text-gray-500 mb-2">No wallet transactions found</p>
-                  <Button size="sm" onClick={() => setShowTopUpModal(true)}>
+                  <Button size="sm" onClick={() => setShowTopUpModal(true)} className="h-9">
                     Top Up Your Wallet
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {walletTransactions.map((transaction) => (
-                    <div key={transaction.$id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                    <div key={transaction.$id} className="flex items-center justify-between p-3 sm:p-4 border border-gray-100 rounded-lg">
+                      <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
                           transaction.amount > 0 ? 'bg-emerald-100' : 'bg-blue-100'
                         }`}>
                           {transaction.amount > 0 ? (
-                            <ArrowUpLeft className="h-6 w-6 text-emerald-600" />
+                            <ArrowUpLeft className="h-4 w-4 sm:h-6 sm:w-6 text-emerald-600" />
                           ) : (
-                            <ArrowUpRight className="h-6 w-6 text-blue-600" />
+                            <ArrowUpRight className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600" />
                           )}
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
                             {transaction.description}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-gray-600">
                             {new Date(transaction.createdAt).toLocaleDateString()}
                           </p>
                           <p className="text-xs text-gray-500">
@@ -648,15 +665,15 @@ export default function ClientWalletPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="text-right space-y-2">
-                        <p className={`font-semibold text-lg ${
+                      <div className="text-right space-y-1 sm:space-y-2 flex-shrink-0 ml-3">
+                        <p className={`font-semibold text-sm sm:text-lg ${
                           transaction.amount > 0 ? 'text-emerald-600' : 'text-gray-900'
                         }`}>
                           {transaction.amount > 0 ? '+' : ''}₦{Math.abs(transaction.amount).toLocaleString()}
                         </p>
                         <Badge 
                           variant={transaction.status === 'completed' ? 'default' : 'secondary'}
-                          className={transaction.status === 'completed' ? 'bg-green-100 text-green-800' : ''}
+                          className={`text-xs ${transaction.status === 'completed' ? 'bg-green-100 text-green-800' : ''}`}
                         >
                           {transaction.status}
                         </Badge>
@@ -672,43 +689,43 @@ export default function ClientWalletPage() {
         <TabsContent value="bookings">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Booking Payment History</CardTitle>
+              <CardTitle className="text-sm sm:text-base">Booking Payment History</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-                      <div className="h-12 w-12 bg-gray-200 rounded animate-pulse" />
-                      <div className="flex-1 space-y-2">
+                    <div key={i} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 border rounded-lg">
+                      <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gray-200 rounded animate-pulse flex-shrink-0" />
+                      <div className="flex-1 space-y-2 min-w-0">
                         <div className="h-4 bg-gray-200 rounded animate-pulse" />
                         <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
                       </div>
-                      <div className="h-6 bg-gray-200 rounded w-20 animate-pulse" />
+                      <div className="h-6 bg-gray-200 rounded w-16 sm:w-20 animate-pulse flex-shrink-0" />
                     </div>
                   ))}
                 </div>
               ) : escrowTransactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <Receipt className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <div className="text-center py-6 sm:py-8">
+                  <Receipt className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-sm text-gray-500 mb-2">No bookings found</p>
-                  <Button size="sm" asChild>
+                  <Button size="sm" asChild className="h-9">
                     <Link href="/workers">Book Your First Service</Link>
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {escrowTransactions.map((transaction) => (
-                    <div key={transaction.$id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <CreditCard className="h-6 w-6 text-blue-600" />
+                    <div key={transaction.$id} className="flex items-center justify-between p-3 sm:p-4 border border-gray-100 rounded-lg">
+                      <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <CreditCard className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600" />
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 text-sm sm:text-base truncate">
                             Booking #{transaction.bookingId.slice(-8)}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-gray-600">
                             {new Date(transaction.createdAt).toLocaleDateString()}
                           </p>
                           <p className="text-xs text-gray-500">
@@ -716,8 +733,8 @@ export default function ClientWalletPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="text-right space-y-2">
-                        <p className="font-semibold text-lg">
+                      <div className="text-right space-y-1 sm:space-y-2 flex-shrink-0 ml-3">
+                        <p className="font-semibold text-sm sm:text-lg">
                           {EscrowUtils.formatAmount(transaction.amount)}
                         </p>
                         <Badge 
@@ -727,12 +744,12 @@ export default function ClientWalletPage() {
                             transaction.status === 'refunded' ? 'outline' :
                             'outline'
                           }
-                          className={
+                          className={`text-xs ${
                             transaction.status === 'released' ? 'bg-green-100 text-green-800' :
                             transaction.status === 'held' ? 'bg-yellow-100 text-yellow-800' :
                             transaction.status === 'refunded' ? 'bg-blue-100 text-blue-800' :
                             ''
-                          }
+                          }`}
                         >
                           {transaction.status === 'released' ? 'Completed' :
                            transaction.status === 'held' ? 'In Progress' :
@@ -748,6 +765,6 @@ export default function ClientWalletPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   );
 } 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, Bell, User, Menu, X } from "lucide-react";
+import { Search, Bell, User, Menu, X, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
-import type { Notification } from '@/lib/types';
+import type { Notification } from '@/lib/notification-service';
 import { useRouter } from "next/navigation";
 
 interface ClientHeaderProps {
@@ -66,6 +66,7 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
     profile: '/client/profile',
     settings: '/client/settings',
     bookings: '/client/bookings',
+    wallet: '/client/wallet',
   };
 
   const userDisplayName = user?.name || 'Client';
@@ -79,97 +80,157 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="lg:hidden h-10 w-10"
             onClick={onSidebarToggle}
             aria-label="Open menu"
           >
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
+
           {/* Logo */}
           <Link href="/client" className="flex items-center">
-            <span className="text-lg md:text-xl font-bold text-black">Client Portal</span>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center lg:hidden">
+                <span className="text-white font-bold text-sm">EP</span>
+              </div>
+              <span className="text-lg lg:text-xl font-bold text-black">
+                <span className="hidden sm:inline">Client Portal</span>
+                <span className="sm:hidden">Portal</span>
+              </span>
+            </div>
           </Link>
-          {/* Spacer */}
-          <div className="flex-1" />
+
+          {/* Spacer for mobile */}
+          <div className="flex-1 lg:hidden" />
+
           {/* Right Side Actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Wallet Button - Mobile Priority */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:flex h-9"
+              asChild
+            >
+              <Link href="/client/wallet">
+                <Wallet className="h-4 w-4 mr-2" />
+                <span className="hidden md:inline">Wallet</span>
+              </Link>
+            </Button>
+
+            {/* Quick Book Button */}
+            <Button
+              size="sm"
+              className="bg-primary-500 hover:bg-primary-600 text-white h-9 px-3 sm:px-4"
+              asChild
+            >
+              <Link href="/workers">
+                <span className="hidden sm:inline">Book Service</span>
+                <span className="sm:hidden">Book</span>
+              </Link>
+            </Button>
+
             {/* Notifications */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
+                <Button variant="ghost" size="icon" className="relative h-10 w-10">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <Badge 
-                      variant="destructive" 
-                      className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs flex items-center justify-center"
-                    >
-                      {unreadCount}
+                    <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs bg-red-500 text-white border-2 border-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
                     </Badge>
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuContent align="end" className="w-80 sm:w-72">
                 <div className="p-3 border-b">
-                  <h4 className="font-semibold text-sm">Notifications</h4>
+                  <h3 className="font-medium text-sm">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">{unreadCount} unread</p>
+                  )}
                 </div>
-                {notifications.length === 0 ? (
-                  <DropdownMenuItem>
-                    <div className="text-sm text-neutral-500">No notifications</div>
-                  </DropdownMenuItem>
-                ) : (
-                  notifications.map((notif) => (
-                    <DropdownMenuItem 
-                      key={notif.$id}
-                      onClick={() => handleNotificationClick(notif)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium">{notif.title}</p>
-                        <p className="text-xs text-neutral-500">{notif.message}</p>
-                      </div>
-                    </DropdownMenuItem>
-                  ))
-                )}
-                <DropdownMenuSeparator />
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No notifications
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <DropdownMenuItem
+                        key={notification.id}
+                        onClick={() => handleNotificationClick(notification)}
+                        className="p-3 cursor-pointer"
+                      >
+                        <div className="flex items-start space-x-2 w-full">
+                          <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                            notification.isRead ? 'bg-gray-300' : 'bg-blue-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {notification.title}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                              {notification.message}
+                            </p>
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </div>
                 <DropdownMenuItem asChild>
-                  <Link href="/notifications" className="w-full text-center text-sm">
+                  <Link href="/notifications" className="w-full text-center text-sm p-3 border-t">
                     View all notifications
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={user?.avatar || ""} alt={userDisplayName} />
-                    <AvatarFallback>{userInitials}</AvatarFallback>
+                    <AvatarFallback className="text-sm">{userInitials}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="p-3 border-b">
-                  <p className="text-sm font-medium">{userDisplayName}</p>
-                  <p className="text-xs text-neutral-500">{user?.email}</p>
+                  <p className="text-sm font-medium truncate">{userDisplayName}</p>
+                  <p className="text-xs text-neutral-500 truncate">{user?.email}</p>
                 </div>
                 <DropdownMenuItem asChild>
-                  <Link href={userLinks.profile}>
+                  <Link href={userLinks.dashboard} className="w-full">
+                    <User className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={userLinks.profile} className="w-full">
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href={userLinks.dashboard}>Dashboard</Link>
+                  <Link href={userLinks.bookings} className="w-full">
+                    My Bookings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="sm:hidden">
+                  <Link href={userLinks.wallet} className="w-full">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Wallet
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href={userLinks.bookings}>My Bookings</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={userLinks.settings}>Settings</Link>
+                  <Link href={userLinks.settings} className="w-full">
+                    Settings
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>

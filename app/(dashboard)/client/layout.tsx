@@ -21,38 +21,6 @@ const LayoutLoading = React.memo(() => (
   </div>
 ));
 
-// Memoized layout content
-const LayoutContent = React.memo(({ 
-  children, 
-  sidebarOpen, 
-  onSidebarToggle 
-}: {
-  children: React.ReactNode;
-  sidebarOpen: boolean;
-  onSidebarToggle: () => void;
-}) => (
-  <div className="min-h-screen flex flex-col bg-neutral-50">
-    <ClientHeader
-      sidebarOpen={sidebarOpen}
-      onSidebarToggle={onSidebarToggle}
-    />
-    <div className="flex flex-1">
-      {/* Sidebar */}
-      <ClientSidebar
-        isOpen={sidebarOpen}
-        onToggle={onSidebarToggle}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:ml-0">
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
-      </div>
-    </div>
-  </div>
-));
-
 export default function ClientDashboardLayout({
   children,
 }: {
@@ -60,7 +28,7 @@ export default function ClientDashboardLayout({
 }) {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [sidebarOpen, setSidebarOpen] = React.useState(false); // Start closed on mobile
   const [isRedirecting, setIsRedirecting] = React.useState(false);
 
   // Handle authentication and loading with debounce
@@ -89,10 +57,10 @@ export default function ClientDashboardLayout({
     const handleResize = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        if (window.innerWidth < 1024) {
-          setSidebarOpen(false);
+        if (window.innerWidth >= 1024) {
+          setSidebarOpen(true); // Open on desktop
         } else {
-          setSidebarOpen(true);
+          setSidebarOpen(false); // Closed on mobile/tablet
         }
       }, 100); // Throttle resize events
     };
@@ -122,11 +90,25 @@ export default function ClientDashboardLayout({
   }
 
   return (
-    <LayoutContent 
-      sidebarOpen={sidebarOpen}
-      onSidebarToggle={handleSidebarToggle}
-    >
-      {children}
-    </LayoutContent>
+    <div className="min-h-screen flex flex-col bg-neutral-50">
+      <ClientHeader
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={handleSidebarToggle}
+      />
+      <div className="flex flex-1 relative">
+        {/* Sidebar */}
+        <ClientSidebar
+          isOpen={sidebarOpen}
+          onToggle={handleSidebarToggle}
+        />
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 max-w-full overflow-x-hidden">
+            {children}
+          </main>
+        </div>
+      </div>
+    </div>
   );
 } 

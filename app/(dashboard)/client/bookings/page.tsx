@@ -17,7 +17,9 @@ import {
   MoreHorizontal,
   AlertTriangle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Plus,
+  BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -288,131 +290,126 @@ export default function ClientBookingsPage() {
   };
 
   return (
-    <>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-neutral-900 mb-2">
             My Bookings
           </h1>
-          <p className="text-neutral-600">
+          <p className="text-neutral-600 text-sm sm:text-base">
             View and manage your service bookings
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchBookings}>
+        <div className="flex items-center gap-2 self-start">
+          <Button variant="outline" size="sm" onClick={fetchBookings} className="h-9">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button size="sm" asChild>
+          <Button size="sm" className="h-9" asChild>
             <Link href="/workers">
-              <Calendar className="h-4 w-4 mr-2" />
-              Book Service
+              <Plus className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Book Service</span>
+              <span className="sm:hidden">Book</span>
             </Link>
           </Button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <Calendar className="h-8 w-8 text-blue-500" />
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Total Bookings</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center">
+            <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500 flex-shrink-0" />
+            <div className="ml-3 sm:ml-4 min-w-0">
+              <p className="text-xs sm:text-sm text-gray-600 truncate">Total</p>
+              <p className="text-lg sm:text-2xl font-bold">{stats.total}</p>
             </div>
-          </CardContent>
+          </div>
         </Card>
         
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <CheckCircle className="h-8 w-8 text-green-500" />
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-bold">{stats.completed}</p>
-              </div>
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center">
+            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 flex-shrink-0" />
+            <div className="ml-3 sm:ml-4 min-w-0">
+              <p className="text-xs sm:text-sm text-gray-600 truncate">Completed</p>
+              <p className="text-lg sm:text-2xl font-bold">{stats.completed}</p>
             </div>
-          </CardContent>
+          </div>
         </Card>
         
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <Clock className="h-8 w-8 text-purple-500" />
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Active</p>
-                <p className="text-2xl font-bold">{stats.active}</p>
-              </div>
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center">
+            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500 flex-shrink-0" />
+            <div className="ml-3 sm:ml-4 min-w-0">
+              <p className="text-xs sm:text-sm text-gray-600 truncate">Active</p>
+              <p className="text-lg sm:text-2xl font-bold">{stats.active}</p>
             </div>
-          </CardContent>
+          </div>
         </Card>
         
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <AlertTriangle className="h-8 w-8 text-yellow-500" />
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
-              </div>
+        <Card className="p-4 sm:p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center">
+            <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-500 flex-shrink-0" />
+            <div className="ml-3 sm:ml-4 min-w-0">
+              <p className="text-xs sm:text-sm text-gray-600 truncate">Pending</p>
+              <p className="text-lg sm:text-2xl font-bold">{stats.pending}</p>
             </div>
-          </CardContent>
+          </div>
         </Card>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search bookings..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 h-11 sm:h-12"
           />
         </div>
-        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-auto">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="confirmed">Pending</TabsTrigger>
-            <TabsTrigger value="accepted">Accepted</TabsTrigger>
-            <TabsTrigger value="in_progress">Active</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="overflow-x-auto">
+          <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+            <TabsList className="grid w-full grid-cols-5 h-10 sm:h-11">
+              <TabsTrigger value="all" className="text-xs sm:text-sm">All</TabsTrigger>
+              <TabsTrigger value="confirmed" className="text-xs sm:text-sm">Pending</TabsTrigger>
+              <TabsTrigger value="accepted" className="text-xs sm:text-sm">Accepted</TabsTrigger>
+              <TabsTrigger value="in_progress" className="text-xs sm:text-sm">Active</TabsTrigger>
+              <TabsTrigger value="completed" className="text-xs sm:text-sm">Done</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {/* Bookings List */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-3 sm:p-6">
           {isLoading ? (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg animate-pulse">
-                  <div className="w-16 h-16 bg-gray-200 rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-1/2" />
-                    <div className="h-3 bg-gray-200 rounded w-1/3" />
-                    <div className="h-3 bg-gray-200 rounded w-1/4" />
+                <div key={i} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 border rounded-lg animate-pulse">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 rounded-lg flex-shrink-0" />
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <div className="h-4 bg-gray-200 rounded w-full sm:w-1/2" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3 sm:w-1/3" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2 sm:w-1/4" />
                   </div>
-                  <div className="space-y-2">
-                    <div className="h-6 bg-gray-200 rounded w-20" />
-                    <div className="h-4 bg-gray-200 rounded w-16" />
+                  <div className="space-y-2 flex-shrink-0">
+                    <div className="h-6 bg-gray-200 rounded w-16 sm:w-20" />
+                    <div className="h-4 bg-gray-200 rounded w-12 sm:w-16" />
                   </div>
                 </div>
               ))}
             </div>
           ) : filteredBookings.length === 0 ? (
-            <div className="text-center py-12">
-              <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <div className="text-center py-8 sm:py-12">
+              <BookOpen className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
                 {bookings.length === 0 ? 'No bookings yet' : 'No bookings match your filters'}
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 mb-4 sm:mb-6 text-sm sm:text-base">
                 {bookings.length === 0 
                   ? 'Start by booking your first service'
                   : 'Try adjusting your search or filter criteria'
@@ -425,46 +422,46 @@ export default function ClientBookingsPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {filteredBookings.map((booking) => (
                 <div
                   key={booking.id}
                   className={cn(
-                    "flex items-center justify-between p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer",
+                    "flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer",
                     highlightBookingId === booking.id && "border-primary-500 bg-primary-50"
                   )}
                   onClick={() => handleBookingClick(booking)}
                 >
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <Calendar className="h-8 w-8 text-primary-600" />
+                  <div className="flex items-start space-x-3 sm:space-x-4 w-full sm:w-auto">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-primary-600" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-medium text-gray-900">{booking.title}</h3>
-                        <Badge className={cn("text-xs", getStatusColor(booking.status))}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                        <h3 className="font-medium text-gray-900 text-sm sm:text-base truncate">{booking.title}</h3>
+                        <Badge className={cn("text-xs self-start", getStatusColor(booking.status))}>
                           {getStatusText(booking.status)}
                         </Badge>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4 text-xs sm:text-sm text-gray-600 mb-2">
                         {booking.worker && (
                           <div className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            <span>{booking.worker.name}</span>
+                            <User className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{booking.worker.name}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          <span className="truncate max-w-32">{booking.locationAddress || 'Location TBD'}</span>
+                          <MapPin className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{booking.locationAddress || 'Location TBD'}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{new Date(booking.scheduledDate).toLocaleDateString()}</span>
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{new Date(booking.scheduledDate).toLocaleDateString()}</span>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500">
                         <span>Created {booking.timeAgo}</span>
                         <span>₦{booking.budgetAmount.toLocaleString()}</span>
                         <span>{booking.estimatedDuration}h duration</span>
@@ -472,24 +469,25 @@ export default function ClientBookingsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mt-3 sm:mt-0 w-full sm:w-auto justify-end">
                     {booking.worker && (
                       <Button
                         variant="outline"
                         size="sm"
+                        className="h-8 text-xs"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleMessageWorker(booking);
                         }}
                       >
                         <MessageCircle className="h-3 w-3 mr-1" />
-                        Message
+                        <span className="hidden sm:inline">Message</span>
                       </Button>
                     )}
                     
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -516,44 +514,44 @@ export default function ClientBookingsPage() {
 
       {/* Booking Details Modal */}
       <Dialog open={showBookingModal} onOpenChange={setShowBookingModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
           <DialogHeader>
-            <DialogTitle>Booking Details</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Booking Details</DialogTitle>
           </DialogHeader>
           
           {selectedBooking && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Header */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold mb-2">{selectedBooking.title}</h2>
-                  <Badge className={cn("text-sm", getStatusColor(selectedBooking.status))}>
+              <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold mb-2 break-words">{selectedBooking.title}</h2>
+                  <Badge className={cn("text-xs sm:text-sm", getStatusColor(selectedBooking.status))}>
                     {getStatusText(selectedBooking.status)}
                   </Badge>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold">₦{selectedBooking.budgetAmount.toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">{selectedBooking.budgetCurrency}</p>
+                <div className="text-left sm:text-right">
+                  <p className="text-xl sm:text-2xl font-bold">₦{selectedBooking.budgetAmount.toLocaleString()}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">{selectedBooking.budgetCurrency}</p>
                 </div>
               </div>
 
               {/* Worker Info */}
               {selectedBooking.worker && (
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Service Provider</CardTitle>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm sm:text-base">Service Provider</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12">
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
                         <AvatarImage src={selectedBooking.worker.avatar} />
-                        <AvatarFallback>
+                        <AvatarFallback className="text-sm">
                           {selectedBooking.worker.name.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-medium">{selectedBooking.worker.name}</p>
-                        <p className="text-sm text-gray-600">{selectedBooking.worker.email}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm sm:text-base truncate">{selectedBooking.worker.name}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 truncate">{selectedBooking.worker.email}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -562,37 +560,37 @@ export default function ClientBookingsPage() {
 
               {/* Booking Details */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Service Details</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm sm:text-base">Service Details</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 sm:space-y-4">
                   <div>
-                    <h4 className="font-medium mb-1">Description</h4>
-                    <p className="text-gray-600">{selectedBooking.description}</p>
+                    <h4 className="font-medium mb-1 text-sm sm:text-base">Description</h4>
+                    <p className="text-gray-600 text-sm sm:text-base break-words">{selectedBooking.description}</p>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <h4 className="font-medium mb-1">Scheduled Date</h4>
-                      <p className="text-gray-600">{new Date(selectedBooking.scheduledDate).toLocaleString()}</p>
+                      <h4 className="font-medium mb-1 text-sm sm:text-base">Scheduled Date</h4>
+                      <p className="text-gray-600 text-sm sm:text-base">{new Date(selectedBooking.scheduledDate).toLocaleString()}</p>
                     </div>
                     <div>
-                      <h4 className="font-medium mb-1">Duration</h4>
-                      <p className="text-gray-600">{selectedBooking.estimatedDuration} hour(s)</p>
+                      <h4 className="font-medium mb-1 text-sm sm:text-base">Duration</h4>
+                      <p className="text-gray-600 text-sm sm:text-base">{selectedBooking.estimatedDuration} hour(s)</p>
                     </div>
                   </div>
                   
                   <div>
-                    <h4 className="font-medium mb-1">Location</h4>
-                    <p className="text-gray-600">{selectedBooking.locationAddress || 'To be determined'}</p>
+                    <h4 className="font-medium mb-1 text-sm sm:text-base">Location</h4>
+                    <p className="text-gray-600 text-sm sm:text-base break-words">{selectedBooking.locationAddress || 'To be determined'}</p>
                   </div>
                   
                   {selectedBooking.requirements && selectedBooking.requirements.length > 0 && (
                     <div>
-                      <h4 className="font-medium mb-1">Requirements</h4>
-                      <ul className="list-disc list-inside text-gray-600 space-y-1">
+                      <h4 className="font-medium mb-1 text-sm sm:text-base">Requirements</h4>
+                      <ul className="list-disc list-inside text-gray-600 space-y-1 text-sm sm:text-base">
                         {selectedBooking.requirements.map((req, index) => (
-                          <li key={index}>{req}</li>
+                          <li key={index} className="break-words">{req}</li>
                         ))}
                       </ul>
                     </div>
@@ -602,25 +600,25 @@ export default function ClientBookingsPage() {
 
               {/* Timeline */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Timeline</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm sm:text-base">Timeline</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
+                  <div className="space-y-2 sm:space-y-3">
+                    <div className="flex justify-between text-sm sm:text-base">
                       <span className="text-gray-600">Created</span>
-                      <span>{new Date(selectedBooking.createdAt).toLocaleString()}</span>
+                      <span className="text-right">{new Date(selectedBooking.createdAt).toLocaleString()}</span>
                     </div>
                     {selectedBooking.acceptedAt && (
-                      <div className="flex justify-between">
+                      <div className="flex justify-between text-sm sm:text-base">
                         <span className="text-gray-600">Accepted</span>
-                        <span>{new Date(selectedBooking.acceptedAt).toLocaleString()}</span>
+                        <span className="text-right">{new Date(selectedBooking.acceptedAt).toLocaleString()}</span>
                       </div>
                     )}
                     {selectedBooking.completedAt && (
-                      <div className="flex justify-between">
+                      <div className="flex justify-between text-sm sm:text-base">
                         <span className="text-gray-600">Completed</span>
-                        <span>{new Date(selectedBooking.completedAt).toLocaleString()}</span>
+                        <span className="text-right">{new Date(selectedBooking.completedAt).toLocaleString()}</span>
                       </div>
                     )}
                   </div>
@@ -628,12 +626,12 @@ export default function ClientBookingsPage() {
               </Card>
 
               {/* Actions */}
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 {selectedBooking.worker && (
                   <Button 
                     variant="outline" 
                     onClick={() => handleMessageWorker(selectedBooking)}
-                    className="flex-1"
+                    className="flex-1 h-11"
                   >
                     <MessageCircle className="h-4 w-4 mr-2" />
                     Message Worker
@@ -642,7 +640,7 @@ export default function ClientBookingsPage() {
                 <Button 
                   variant="outline" 
                   onClick={() => setShowBookingModal(false)}
-                  className="flex-1"
+                  className="flex-1 h-11"
                 >
                   Close
                 </Button>
@@ -651,6 +649,6 @@ export default function ClientBookingsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 } 
