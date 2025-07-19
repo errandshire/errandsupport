@@ -1,4 +1,5 @@
 import { databases } from './appwrite';
+import { ID } from 'appwrite';
 import { Query } from 'appwrite';
 import { COLLECTIONS } from './appwrite';
 
@@ -9,6 +10,26 @@ export interface Notification {
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
   isRead: boolean;
+  createdAt: string;
+  // Additional fields for linking
+  bookingId?: string;
+  messageId?: string;
+  senderId?: string;
+  recipientId?: string;
+  actionUrl?: string;
+}
+
+interface NotificationData {
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  isRead: boolean;
+  bookingId?: string;
+  messageId?: string;
+  senderId?: string;
+  recipientId?: string;
+  actionUrl?: string;
   createdAt: string;
 }
 
@@ -25,7 +46,7 @@ class NotificationService {
         COLLECTIONS.NOTIFICATIONS,
         [
           Query.equal('userId', userId),
-          Query.orderDesc('createdAt'),
+          Query.orderDesc('$createdAt'),
           Query.limit(limit)
         ]
       );
@@ -53,26 +74,81 @@ class NotificationService {
     }
   }
 
-  static async createNotification(notification: Partial<Notification>): Promise<void> {
-    if (!notification.userId || !notification.message) {
-      console.warn('Invalid notification data');
+  static async createNotification({
+    userId,
+    title,
+    message,
+    type = 'info',
+    bookingId,
+    messageId,
+    senderId,
+    recipientId,
+    actionUrl
+  }: Partial<Notification>): Promise<void> {
+    if (!userId || !message) {
+      console.warn('Invalid notification data:', { userId, message });
       return;
     }
 
     try {
+      // Create a clean notification object with only valid fields
+      const notificationData: NotificationData = {
+        userId,
+        title: title || 'Notification',
+        message,
+        type,
+        isRead: false,
+        bookingId,
+        messageId,
+        senderId,
+        recipientId,
+        actionUrl,
+        createdAt: new Date().toISOString()
+      };
+
+      // Remove undefined fields
+      const cleanData = Object.fromEntries(
+        Object.entries(notificationData).filter(([_, value]) => value !== undefined)
+      ) as NotificationData;
+
       await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
-        'unique()',
-        {
-          ...notification,
-          type: notification.type || 'info',
-          isRead: false,
-          createdAt: new Date().toISOString()
-        }
+        ID.unique(),
+        cleanData
       );
     } catch (error) {
       console.error('Error creating notification:', error);
+      throw error; // Re-throw to handle in calling code
+    }
+  }
+
+  static async deleteNotification(notificationId: string): Promise<void> {
+    if (!notificationId) return;
+
+    try {
+      await databases.deleteDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.NOTIFICATIONS,
+        notificationId
+      );
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  }
+
+  static async clearAllNotifications(userId: string): Promise<void> {
+    if (!userId) return;
+
+    try {
+      const notifications = await this.getUserNotifications(userId, 100);
+      await Promise.all(
+        notifications.map(notification =>
+          this.deleteNotification(notification.id)
+        )
+      );
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
     }
   }
 }

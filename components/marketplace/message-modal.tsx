@@ -12,6 +12,7 @@ import { Query } from "appwrite";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { notificationService } from '@/lib/notification-service';
+import { realtimeMessagingService } from '@/lib/realtime-messaging-service';
 
 interface MessageModalProps {
   isOpen: boolean;
@@ -38,35 +39,35 @@ export function MessageModal({
   const [message, setMessage] = React.useState("");
   const [messages, setMessages] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
   const [recipientInfo, setRecipientInfo] = React.useState<any>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
+  // Get the actual recipient ID
+  const actualRecipientId = recipientId || clientId || (worker?.$id || worker?.id);
+  const conversationId = React.useMemo(() => {
+    if (!user || !actualRecipientId) return '';
+    return [user.$id, actualRecipientId].sort().join('_');
+  }, [user, actualRecipientId]);
+
   // Fetch recipient info when modal opens
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !actualRecipientId) return;
 
     const fetchRecipientInfo = async () => {
       try {
         setLoading(true);
         
-        // Use provided recipientId first, then fallback to clientId or worker id
-        const targetId = recipientId || clientId || (worker?.$id || worker?.id);
-        
-        if (!targetId) {
-          console.error('No recipient ID available');
-          return;
-        }
-
         // Check if this is a mock/invalid ID
-        if (targetId === 'client' || targetId.length < 10) {
-          console.warn('Invalid recipient ID format:', targetId);
+        if (actualRecipientId === 'client' || actualRecipientId.length < 10) {
+          console.warn('Invalid recipient ID format:', actualRecipientId);
           return;
         }
 
         const response = await databases.getDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.USERS,
-          targetId
+          actualRecipientId
         );
         setRecipientInfo(response);
       } catch (error) {
@@ -78,56 +79,67 @@ export function MessageModal({
     };
 
     fetchRecipientInfo();
-  }, [isOpen, recipientId, clientId, worker]);
+  }, [isOpen, actualRecipientId]);
 
-  // Fetch messages when modal opens
+  // Load messages and setup real-time updates
   React.useEffect(() => {
-    if (!isOpen || !user) return;
+    if (!isOpen || !user || !conversationId) return;
 
-    const fetchMessages = async () => {
+    let unsubscribe: (() => void) | null = null;
+
+    const setupRealtime = async () => {
       try {
         setLoading(true);
-        const targetId = recipientId || clientId || (worker?.$id || worker?.id);
         
-        if (!targetId) {
-          console.error('No recipient ID available');
-          return;
+        // Initialize messaging service for this user
+        await realtimeMessagingService.initialize(user.$id);
+        
+        // Get existing messages
+        const conversationMessages = realtimeMessagingService.getConversationMessages(conversationId);
+        setMessages(conversationMessages);
+        
+        // Subscribe to updates for this conversation
+        unsubscribe = realtimeMessagingService.subscribe(conversationId, (update) => {
+          if (update.type === 'message_created') {
+            setMessages(prev => {
+              // Prevent duplicates
+              const exists = prev.some(m => m.id === update.message?.id);
+              if (exists) return prev;
+              
+              return [...prev, update.message!].sort((a, b) => 
+                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+              );
+            });
+          }
+          
+          if (update.type === 'message_read') {
+            setMessages(prev => prev.map(m => 
+              m.id === update.message?.id ? { ...m, isRead: true } : m
+            ));
+          }
+        });
+        
+        // Mark messages as read when opening conversation
+        if (conversationMessages.length > 0) {
+          await realtimeMessagingService.markMessagesAsRead(conversationId, user.$id);
         }
-
-        // Check if this is a mock/invalid ID
-        if (targetId === 'client' || targetId.length < 10) {
-          console.warn('Invalid recipient ID format:', targetId);
-          setMessages([]); // Show empty conversation for demo data
-          return;
-        }
-
-        const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.MESSAGES,
-          [
-            Query.orderDesc('$createdAt'),
-            Query.limit(50)
-          ]
-        );
-
-        // Filter messages between these two users
-        const relevantMessages = response.documents.filter(msg => 
-          (msg.senderId === user.$id && msg.recipientId === targetId) ||
-          (msg.senderId === targetId && msg.recipientId === user.$id)
-        );
-
-        setMessages(relevantMessages.reverse()); // Show oldest first
+        
       } catch (error) {
-        console.error('Error fetching messages:', error);
-        toast.error("Failed to load messages");
-        setMessages([]); // Show empty on error
+        console.error('Error setting up real-time messaging:', error);
+        setMessages([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMessages();
-  }, [isOpen, user, recipientId, clientId, worker]);
+    setupRealtime();
+    
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [isOpen, user, conversationId]);
 
   // Scroll to bottom when messages change
   React.useEffect(() => {
@@ -137,62 +149,36 @@ export function MessageModal({
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !user) return;
+    if (!message.trim() || !user || !actualRecipientId || sending) return;
 
     try {
-      const targetId = recipientId || clientId || (worker?.$id || worker?.id);
+      setSending(true);
       
-      if (!targetId) {
-        console.error('No recipient ID available');
-        toast.error("Cannot send message - recipient information missing");
-        return;
-      }
-
       // Validate recipient ID format
-      if (targetId === 'client' || targetId.length < 10) {
-        console.error('Invalid recipient ID format:', targetId);
+      if (actualRecipientId === 'client' || actualRecipientId.length < 10) {
+        console.error('Invalid recipient ID format:', actualRecipientId);
         toast.error("Cannot send message - invalid recipient ID");
         return;
       }
 
-      const { ID } = await import('appwrite');
-      
-      const newMessage = {
-        id: ID.unique(),
-        senderId: user.$id,
-        recipientId: targetId,
-        content: message.trim(),
-        type: 'text',
-        isRead: false,
-        isDelivered: false,
-        conversationId: `${user.$id}_${targetId}`, // Create a consistent conversation ID
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      // Create message
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.MESSAGES,
-        newMessage.id,
-        newMessage
+      const success = await realtimeMessagingService.sendMessage(
+        message.trim(),
+        actualRecipientId,
+        user.$id
       );
 
-      // Create notification for recipient
-      await notificationService.createNotification({
-        userId: targetId,
-        title: 'New Message',
-        message: `${user.name || 'Someone'} sent you a message: ${message.length > 50 ? message.substring(0, 50) + '...' : message}`,
-        type: 'info'
-      });
-
-      setMessages(prev => [...prev, newMessage]);
-      setMessage("");
-      toast.success("Message sent successfully");
+      if (success) {
+        setMessage("");
+        toast.success("Message sent successfully");
+      } else {
+        toast.error("Failed to send message. Please try again.");
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error("Failed to send message. Please try again.");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -272,9 +258,16 @@ export function MessageModal({
                       }`}
                     >
                       <p className="text-sm">{msg.content}</p>
-                      <p className={`text-xs mt-1 ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
-                        {new Date(msg.createdAt).toLocaleTimeString()}
-                      </p>
+                      <div className={`flex items-center justify-between mt-1 ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
+                        <p className="text-xs">
+                          {new Date(msg.createdAt).toLocaleTimeString()}
+                        </p>
+                        {isMine && (
+                          <span className="text-xs ml-2">
+                            {msg.isRead ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -303,16 +296,21 @@ export function MessageModal({
               }}
               placeholder="Type a message..."
               className="flex-1"
+              disabled={sending}
             />
             <Button variant="ghost" size="icon" disabled>
               <Smile className="h-5 w-5 text-gray-500" />
             </Button>
             <Button 
               onClick={handleSendMessage}
-              disabled={!message.trim()}
+              disabled={!message.trim() || sending}
               className="bg-blue-500 hover:bg-blue-600"
             >
-              <Send className="h-5 w-5" />
+              {sending ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
             </Button>
           </div>
         </div>

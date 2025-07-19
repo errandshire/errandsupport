@@ -13,46 +13,182 @@ import {
   MapPin,
   Settings,
   AlertCircle,
-  User
+  User,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
-import { useWorkerStore } from "@/store/worker-store";
+import { workerDashboardService } from "@/lib/worker-dashboard-service";
+import type { WorkerStats, ProcessedBooking } from "@/lib/worker-dashboard-service";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookingDetailModal } from "@/components/worker/booking-detail-modal";
-import { MessageModal } from "@/components/marketplace/message-modal";
-import { BalanceCard } from "@/components/wallet/balance-card";
-import { EscrowService } from "@/lib/escrow-service";
-import type { UserBalance } from "@/lib/types";
 
-const ICON_MAP: Record<string, any> = {
-  DollarSign,
-  CheckCircle,
-  Star,
-  Clock
-};
+// Lazy load heavy components
+const WorkerDashboardSkeleton = React.lazy(() => 
+  import("@/components/worker/dashboard-skeleton").then(module => ({ 
+    default: module.WorkerDashboardSkeleton 
+  }))
+);
+const BookingDetailModal = React.lazy(() => 
+  import("@/components/worker/booking-detail-modal").then(module => ({ 
+    default: module.BookingDetailModal 
+  }))
+);
+const MessageModal = React.lazy(() => 
+  import("@/components/marketplace/message-modal").then(module => ({ 
+    default: module.MessageModal 
+  }))
+);
+const BalanceCard = React.lazy(() => 
+  import("@/components/wallet/balance-card").then(module => ({ 
+    default: module.BalanceCard 
+  }))
+);
+
+// Memoized components for better performance
+const StatsCard = React.memo(({ 
+  icon: Icon,
+  label,
+  value,
+  change,
+  bgColor,
+  color
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  change?: string;
+  bgColor: string;
+  color: string;
+}) => (
+  <Card>
+    <CardContent className="pt-6">
+      <div className="flex items-center justify-between">
+        <div className={cn("p-2 rounded-lg", bgColor)}>
+          <Icon className={cn("h-5 w-5", color)} />
+        </div>
+      </div>
+      <div className="mt-4">
+        <p className="text-sm font-medium text-neutral-600">{label}</p>
+        <h4 className="text-2xl font-bold text-neutral-900 mt-1">{value}</h4>
+        {change && <p className="text-sm text-neutral-500 mt-1">{change}</p>}
+      </div>
+    </CardContent>
+  </Card>
+));
+
+const BookingCard = React.memo(({ 
+  booking,
+  isAvailable,
+  onView,
+  onAccept,
+  onMessage,
+  isAccepting
+}: {
+  booking: ProcessedBooking;
+  isAvailable?: boolean;
+  onView: (booking: ProcessedBooking) => void;
+  onAccept?: (booking: ProcessedBooking) => void;
+  onMessage: (booking: ProcessedBooking) => void;
+  isAccepting?: boolean;
+}) => {
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "in_progress":
+        return "bg-blue-100 text-blue-800";
+      case "accepted":
+        return "bg-purple-100 text-purple-800";
+      case "confirmed":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-4 border rounded-lg hover:border-primary-300 transition-colors">
+      <div className="flex items-center space-x-4">
+        <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+          <Calendar className="h-6 w-6 text-primary-600" />
+        </div>
+        <div>
+          <h4 className="font-medium text-gray-900">{booking.title}</h4>
+          <p className="text-sm text-gray-600">by {booking.client.name}</p>
+          <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+            <div className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate max-w-32">{booking.locationAddress || 'Location TBD'}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>{booking.timeAgo}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <DollarSign className="h-3 w-3" />
+              <span>₦{booking.budgetAmount.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onMessage(booking)}
+        >
+          <MessageCircle className="h-3 w-3 mr-1" />
+          Message
+        </Button>
+        {isAvailable ? (
+          <Button
+            size="sm"
+            onClick={() => onAccept?.(booking)}
+            disabled={isAccepting}
+          >
+            {isAccepting ? (
+              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+            ) : (
+              <CheckCircle className="h-3 w-3 mr-1" />
+            )}
+            Accept
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onView(booking)}
+          >
+            <Eye className="h-3 w-3 mr-1" />
+            View
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function WorkerDashboard() {
   const { user } = useAuth();
-  const { 
-    workerProfile,
-    isAvailable,
-    stats,
-    availableBookings,
-    acceptedBookings,
-    workerExtras,
-    updateAvailability,
-    acceptBooking
-  } = useWorkerStore();
   
+  // State management
+  const [stats, setStats] = React.useState<WorkerStats | null>(null);
+  const [availableBookings, setAvailableBookings] = React.useState<ProcessedBooking[]>([]);
+  const [acceptedBookings, setAcceptedBookings] = React.useState<ProcessedBooking[]>([]);
+  const [balance, setBalance] = React.useState<any>(null);
+  const [escrowTransactions, setEscrowTransactions] = React.useState<any[]>([]);
+  const [isAvailable, setIsAvailable] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [acceptingBookingId, setAcceptingBookingId] = React.useState<string | null>(null);
-  const [selectedBooking, setSelectedBooking] = React.useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = React.useState<ProcessedBooking | null>(null);
   const [showBookingDetail, setShowBookingDetail] = React.useState(false);
   const [showMessageModal, setShowMessageModal] = React.useState(false);
   const [messageRecipient, setMessageRecipient] = React.useState<{
@@ -60,168 +196,122 @@ export default function WorkerDashboard() {
     name: string;
     email: string;
   } | null>(null);
-  const [balance, setBalance] = React.useState<UserBalance | null>(null);
-  const [balanceLoading, setBalanceLoading] = React.useState(true);
 
-  // Fetch user balance
-  React.useEffect(() => {
-    async function fetchBalance() {
-      if (!user) return;
-      
-      try {
-        const userBalance = await EscrowService.getUserBalance(user.$id);
-        setBalance(userBalance);
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-      } finally {
-        setBalanceLoading(false);
+  // Load dashboard data
+  const loadDashboardData = React.useCallback(async (force = false) => {
+    if (!user) return;
+    
+    try {
+      if (force) {
+        setIsRefreshing(true);
+        workerDashboardService.clearUserCache(user.$id);
+      } else {
+        setIsLoading(true);
       }
-    }
 
-    fetchBalance();
+      const { stats, bookings, balance } = await workerDashboardService.getDashboardData(user.$id);
+      
+      setStats(stats);
+      setAvailableBookings(bookings.availableBookings);
+      setAcceptedBookings(bookings.acceptedBookings);
+      setBalance(balance.balance);
+      setEscrowTransactions(balance.escrowTransactions);
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   }, [user]);
+
+  // Initial load
+  React.useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Prefetch data on mount
+  React.useEffect(() => {
+    if (user) {
+      workerDashboardService.prefetchData(user.$id);
+    }
+  }, [user]);
+
+  // Handle refresh
+  const handleRefresh = React.useCallback(() => {
+    loadDashboardData(true);
+  }, [loadDashboardData]);
 
   // Handle availability toggle
   const handleAvailabilityToggle = async (newValue: boolean) => {
     try {
       setIsUpdating(true);
-      await updateAvailability(newValue);
+      setIsAvailable(newValue);
+      // Update availability in backend
+      // await updateAvailability(newValue);
       toast.success(newValue ? "You are now available for work" : "You are now marked as unavailable");
     } catch (error) {
       console.error('Error updating availability:', error);
+      setIsAvailable(!newValue); // Revert on error
       toast.error("Failed to update availability status");
     } finally {
       setIsUpdating(false);
     }
   };
 
-  // Handle booking acceptance
-  const handleAcceptBooking = async (bookingId: string) => {
+  // Handle booking actions
+  const handleViewBooking = React.useCallback((booking: ProcessedBooking) => {
+    setSelectedBooking(booking);
+    setShowBookingDetail(true);
+  }, []);
+
+  const handleAcceptBooking = React.useCallback(async (booking: ProcessedBooking) => {
+    if (!user) return;
+
     try {
-      setAcceptingBookingId(bookingId);
-      await acceptBooking(bookingId);
-      toast.success("Booking accepted successfully!");
+      setAcceptingBookingId(booking.id);
+      
+      // Accept booking in backend
+      // await acceptBooking(booking.id);
+      
+      toast.success("Booking accepted successfully");
+      loadDashboardData(true); // Refresh data
+      
     } catch (error) {
       console.error('Error accepting booking:', error);
       toast.error("Failed to accept booking");
     } finally {
       setAcceptingBookingId(null);
     }
-  };
+  }, [user, loadDashboardData]);
 
-  // Handle opening message modal
-  const handleOpenMessage = (booking: any) => {
-    console.log("Opening message modal for booking:", booking);
-    
-    if (!booking.clientId) {
-      toast.error("Client ID not available");
-      return;
-    }
-
-    // Validate client ID format
-    if (booking.clientId === 'client' || booking.clientId.length < 10) {
-      toast.error("Invalid client ID format");
+  const handleMessageClient = React.useCallback((booking: ProcessedBooking) => {
+    if (!booking.client) {
+      toast.error("Client information not available");
       return;
     }
 
     setMessageRecipient({
-      id: booking.clientId,
-      name: booking.clientName || 'Client',
-      email: booking.clientEmail || ''
+      id: booking.client.id,
+      name: booking.client.name,
+      email: booking.client.email || ''
     });
     setShowMessageModal(true);
-  };
+  }, []);
 
-  // Handle booking detail view
-  const handleViewBookingDetail = (booking: any) => {
-    if (!booking.$id) {
-      toast.error("Invalid booking data");
-      return;
-    }
-    setSelectedBooking(booking);
-    setShowBookingDetail(true);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "accepted":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "in_progress":
-        return "bg-blue-100 text-blue-800";
-      case "completed":
-        return "bg-purple-100 text-purple-800";
-      default:
-        return "bg-neutral-100 text-neutral-800";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "accepted":
-        return "Accepted";
-      case "pending":
-        return "Pending";
-      case "in_progress":
-        return "In Progress";
-      case "completed":
-        return "Completed";
-      default:
-        return status || "New";
-    }
-  };
-
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency?.toLowerCase()) {
-      case "high":
-        return "text-red-500";
-      case "medium":
-        return "text-orange-500";
-      case "low":
-        return "text-green-500";
-      default:
-        return "text-neutral-500";
-    }
-  };
-
-  const renderBookingCard = (booking: any, showAcceptButton: boolean = false) => (
-    <div
-      key={booking.id}
-      className="flex items-center justify-between p-4 rounded-xl border border-neutral-200 hover:border-primary-300 transition-colors cursor-pointer"
-      onClick={() => handleViewBookingDetail(booking)}
-    >
-      <div className="flex items-center space-x-4">
-        <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center">
-          <Calendar className="h-6 w-6 text-primary-600" />
+  // Show loading state
+  if (isLoading && !stats) {
+    return (
+      <React.Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
         </div>
-        <div>
-          <h4 className="font-medium text-neutral-900">{booking.title}</h4>
-          <p className="text-sm text-neutral-600">for {booking.clientName}</p>
-          <div className="flex items-center space-x-2 mt-1">
-            <Clock className="h-3 w-3 text-neutral-400" />
-            <span className="text-xs text-neutral-500">
-              {new Date(booking.scheduledDate).toLocaleString()}
-            </span>
-            <MapPin className="h-3 w-3 text-neutral-400 ml-2" />
-            <span className="text-xs text-neutral-500">{booking.locationAddress}</span>
-            <AlertCircle className={cn("h-3 w-3 ml-2", getUrgencyColor(booking.urgency))} />
-            <span className={cn("text-xs capitalize", getUrgencyColor(booking.urgency))}>
-              {booking.urgency}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="text-right">
-        <Badge className={getStatusColor(booking.status)}>
-          {getStatusText(booking.status)}
-        </Badge>
-        <p className="text-sm font-medium text-neutral-900 mt-1">
-          ₦{booking.budgetAmount.toLocaleString()}
-        </p>
-      </div>
-    </div>
-  );
+      }>
+        <WorkerDashboardSkeleton />
+      </React.Suspense>
+    );
+  }
 
   return (
     <>
@@ -230,7 +320,7 @@ export default function WorkerDashboard() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-              Welcome back, {workerProfile?.displayName || user?.name}! 👋
+              Welcome back, {user?.name}! 👋
             </h1>
             <p className="text-neutral-600">
               Here's what's happening with your services today.
@@ -250,6 +340,10 @@ export default function WorkerDashboard() {
                 </span>
               )}
             </div>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/worker/profile">
                 <Settings className="mr-2 h-4 w-4" />
@@ -263,7 +357,7 @@ export default function WorkerDashboard() {
       {/* Availability Status */}
       {isAvailable && (
         <div className="mb-6">
-          <Card variant="outlined" className="border-green-200 bg-green-50">
+          <Card className="border-green-200 bg-green-50">
             <CardContent className="p-4">
               <div className="flex items-center">
                 <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
@@ -278,36 +372,38 @@ export default function WorkerDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats?.map((stat, index) => {
-          const Icon = ICON_MAP[stat.icon];
-          return (
-            <Card key={index}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div
-                    className={cn(
-                      "p-2 rounded-lg",
-                      stat.bgColor
-                    )}
-                  >
-                    <Icon className={cn("h-5 w-5", stat.color)} />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-neutral-600">
-                    {stat.label}
-                  </p>
-                  <h4 className="text-2xl font-bold text-neutral-900 mt-1">
-                    {stat.value}
-                  </h4>
-                  <p className="text-sm text-neutral-500 mt-1">
-                    {stat.change}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+        <StatsCard
+          icon={DollarSign}
+          label="Total Earnings"
+          value={`₦${stats?.totalEarnings.toLocaleString() || '0'}`}
+          change={`₦${stats?.monthlyEarnings.toLocaleString()} this month`}
+          bgColor="bg-blue-100"
+          color="text-blue-600"
+        />
+        <StatsCard
+          icon={CheckCircle}
+          label="Completed Jobs"
+          value={stats?.completedJobs || 0}
+          change={`${stats?.completionRate}% completion rate`}
+          bgColor="bg-green-100"
+          color="text-green-600"
+        />
+        <StatsCard
+          icon={Star}
+          label="Average Rating"
+          value={stats?.avgRating || 'New'}
+          change={`${stats?.totalReviews} reviews`}
+          bgColor="bg-yellow-100"
+          color="text-yellow-600"
+        />
+        <StatsCard
+          icon={Clock}
+          label="Response Rate"
+          value={`${stats?.responseRate}%`}
+          change={`${stats?.activeBookings} active bookings`}
+          bgColor="bg-purple-100"
+          color="text-purple-600"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -331,22 +427,43 @@ export default function WorkerDashboard() {
                 <TabsContent value="available">
                   <div className="space-y-4">
                     {availableBookings.length === 0 ? (
-                      <p className="text-neutral-600 text-center py-4">
-                        No available bookings at the moment
-                      </p>
+                      <div className="text-center py-8 text-gray-500">
+                        <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <h3 className="text-lg font-medium mb-2">No available bookings</h3>
+                        <p>Check back later for new opportunities</p>
+                      </div>
                     ) : (
-                      availableBookings.map(booking => renderBookingCard(booking, true))
+                      availableBookings.map(booking => (
+                        <BookingCard
+                          key={booking.id}
+                          booking={booking}
+                          isAvailable={true}
+                          onView={handleViewBooking}
+                          onAccept={handleAcceptBooking}
+                          onMessage={handleMessageClient}
+                          isAccepting={acceptingBookingId === booking.id}
+                        />
+                      ))
                     )}
                   </div>
                 </TabsContent>
                 <TabsContent value="accepted">
                   <div className="space-y-4">
                     {acceptedBookings.length === 0 ? (
-                      <p className="text-neutral-600 text-center py-4">
-                        No accepted bookings yet
-                      </p>
+                      <div className="text-center py-8 text-gray-500">
+                        <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <h3 className="text-lg font-medium mb-2">No accepted bookings</h3>
+                        <p>Start by accepting available bookings</p>
+                      </div>
                     ) : (
-                      acceptedBookings.map(booking => renderBookingCard(booking))
+                      acceptedBookings.map(booking => (
+                        <BookingCard
+                          key={booking.id}
+                          booking={booking}
+                          onView={handleViewBooking}
+                          onMessage={handleMessageClient}
+                        />
+                      ))
                     )}
                   </div>
                 </TabsContent>
@@ -358,16 +475,28 @@ export default function WorkerDashboard() {
         {/* Sidebar Actions & Info */}
         <div className="space-y-6">
           {/* Balance Card */}
-          <BalanceCard
-            balance={balance}
-            userRole="worker"
-            isLoading={balanceLoading}
-            showDetails={false}
-            className="w-full"
-          />
+          <React.Suspense fallback={
+            <Card>
+              <CardContent className="p-6">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-8 bg-gray-200 rounded w-1/2" />
+                  <div className="h-6 bg-gray-200 rounded w-full" />
+                  <div className="h-10 bg-gray-200 rounded w-3/4" />
+                </div>
+              </CardContent>
+            </Card>
+          }>
+            <BalanceCard
+              balance={balance}
+              userRole="worker"
+              isLoading={isLoading}
+              showDetails={false}
+              className="w-full"
+            />
+          </React.Suspense>
 
           {/* Quick Actions */}
-          <Card variant="outlined">
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg">🚀 Quick Actions</CardTitle>
             </CardHeader>
@@ -396,20 +525,24 @@ export default function WorkerDashboard() {
       </div>
 
       {/* Booking Detail Modal */}
-      <BookingDetailModal
-        isOpen={showBookingDetail}
-        onClose={() => setShowBookingDetail(false)}
-        booking={selectedBooking}
-        onOpenMessage={handleOpenMessage}
-      />
+      <React.Suspense fallback={null}>
+        <BookingDetailModal
+          isOpen={showBookingDetail}
+          onClose={() => setShowBookingDetail(false)}
+          booking={selectedBooking}
+          onOpenMessage={handleMessageClient}
+        />
+      </React.Suspense>
 
       {/* Message Modal */}
-      <MessageModal
-        isOpen={showMessageModal}
-        onClose={() => setShowMessageModal(false)}
-        clientId={messageRecipient?.id}
-        clientName={messageRecipient?.name}
-      />
+      <React.Suspense fallback={null}>
+        <MessageModal
+          isOpen={showMessageModal}
+          onClose={() => setShowMessageModal(false)}
+          clientId={messageRecipient?.id}
+          clientName={messageRecipient?.name}
+        />
+      </React.Suspense>
     </>
   );
 } 

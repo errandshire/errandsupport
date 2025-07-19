@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
 import { useRouter } from "next/navigation";
+import { realtimeNotificationService } from '@/lib/realtime-notification-service';
 
 interface HeaderProps {
   className?: string;
@@ -62,13 +63,40 @@ export const Header = React.memo(function Header({ className, children, sidebarO
     };
   }, [isMenuOpen]);
 
+  // Setup real-time notifications
   React.useEffect(() => {
-    if (isAuthenticated && user) {
-      notificationService.getUserNotifications(user.$id, 5).then((notifs) => {
-        setNotifications(notifs);
-        setUnreadCount(notifs.filter(n => !n.isRead).length);
-      });
-    }
+    if (!isAuthenticated || !user) return;
+
+    let unsubscribe: (() => void) | null = null;
+
+    const setupNotifications = async () => {
+      try {
+        // Initialize real-time notification service
+        await realtimeNotificationService.initialize(user.$id);
+        
+        // Get existing notifications
+        const userNotifications = realtimeNotificationService.getUserNotifications(user.$id);
+        setNotifications(userNotifications);
+        setUnreadCount(realtimeNotificationService.getUnreadCount(user.$id));
+        
+        // Subscribe to real-time updates
+        unsubscribe = realtimeNotificationService.subscribe(user.$id, (update) => {
+          setNotifications(realtimeNotificationService.getUserNotifications(user.$id));
+          setUnreadCount(update.unreadCount);
+        });
+        
+      } catch (error) {
+        console.error('Error setting up notifications:', error);
+      }
+    };
+
+    setupNotifications();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [isAuthenticated, user]);
 
   const handleLogout = React.useCallback(() => {
@@ -88,24 +116,21 @@ export const Header = React.memo(function Header({ className, children, sidebarO
   }, []);
 
   const handleNotificationClick = async (notification: Notification) => {
+    if (!user) return;
+    
     // Mark notification as read
-    await notificationService.markAsRead(notification.$id);
+    const success = await realtimeNotificationService.markAsRead(notification.$id, user.$id);
     
-    // If it's a message notification, navigate to messages
-    if (notification.title === 'New Message') {
-      // Navigate based on user role
-      if (user?.role === 'worker') {
-        router.push('/worker/messages');
-      } else if (user?.role === 'client') {
-        router.push('/client/messages');
+    if (success) {
+      // If it's a message notification, navigate to messages
+      if (notification.title === 'New Message') {
+        // Navigate based on user role
+        if (user?.role === 'worker') {
+          router.push('/worker/messages');
+        } else if (user?.role === 'client') {
+          router.push('/client/messages');
+        }
       }
-    }
-    
-    // Refresh notifications
-    if (user) {
-      const updatedNotifs = await notificationService.getUserNotifications(user.$id, 5);
-      setNotifications(updatedNotifs as unknown as Notification[]);
-      setUnreadCount(updatedNotifs.filter(n => !n.isRead).length);
     }
   };
 

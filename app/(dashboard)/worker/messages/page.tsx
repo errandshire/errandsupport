@@ -35,6 +35,15 @@ interface Conversation {
   unreadCount: number;
   isOnline: boolean;
   messages: Message[];
+  participants: string[];
+  participantInfo: {
+    [key: string]: {
+      id: string;
+      name: string;
+      email: string;
+      avatar?: string;
+    };
+  };
 }
 
 export default function WorkerMessagesPage() {
@@ -116,7 +125,9 @@ export default function WorkerMessagesPage() {
               lastMessageTime: new Date(message.createdAt).toLocaleString(),
               unreadCount: 0,
               isOnline: false, // Would need a separate online status system
-              messages: []
+              messages: [],
+              participants: [], // Initialize participants
+              participantInfo: {} // Initialize participantInfo
             });
           } catch (error) {
             console.error('Error fetching user info:', error);
@@ -184,6 +195,13 @@ export default function WorkerMessagesPage() {
 
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
 
+  const getParticipantInfo = (conversation: Conversation) => {
+    // Get the other participant (not the current user)
+    const otherParticipantId = conversation.participants.find(p => p !== user?.$id);
+    if (!otherParticipantId) return null;
+    return conversation.participantInfo[otherParticipantId];
+  };
+
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -194,10 +212,10 @@ export default function WorkerMessagesPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
-      
+      <WorkerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col lg:ml-0">
-        
+      <div className="flex-1 flex flex-col lg:ml-64">
+        <Header sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />
         
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto h-full">
@@ -217,24 +235,22 @@ export default function WorkerMessagesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Conversations List */}
               <Card className="lg:col-span-1">
                 <CardHeader>
                   <CardTitle>Conversations</CardTitle>
-                  <CardDescription>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        placeholder="Search conversations..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </CardDescription>
+                  <div className="relative mt-2">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search conversations..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent>
                   <div className="max-h-[500px] overflow-y-auto">
                     {isLoading ? (
                       <div className="flex items-center justify-center p-8">
@@ -247,43 +263,48 @@ export default function WorkerMessagesPage() {
                         <p className="text-sm">Start messaging with your clients!</p>
                       </div>
                     ) : (
-                      filteredConversations.map((conversation) => (
-                        <div
-                          key={conversation.id}
-                          className={cn(
-                            "flex items-center space-x-3 p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100",
-                            selectedConversation?.id === conversation.id && "bg-primary-50"
-                          )}
-                          onClick={() => handleConversationClick(conversation)}
-                        >
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={conversation.clientAvatar} alt={conversation.clientName} />
-                            <AvatarFallback>
-                              {conversation.clientName.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <h3 className="font-medium text-gray-900 truncate">
-                                {conversation.clientName}
-                              </h3>
-                              <div className="flex items-center space-x-2">
-                                {conversation.unreadCount > 0 && (
-                                  <Badge className="bg-red-500 text-white text-xs">
-                                    {conversation.unreadCount}
-                                  </Badge>
-                                )}
-                                <span className="text-xs text-gray-500">
-                                  {conversation.lastMessageTime}
-                                </span>
+                      filteredConversations.map((conversation) => {
+                        const participantInfo = getParticipantInfo(conversation);
+                        if (!participantInfo) return null;
+
+                        return (
+                          <div
+                            key={conversation.id}
+                            className={cn(
+                              "flex items-center space-x-3 p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100",
+                              selectedConversation?.id === conversation.id && "bg-primary-50"
+                            )}
+                            onClick={() => handleConversationClick(conversation)}
+                          >
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={participantInfo.avatar} alt={participantInfo.name} />
+                              <AvatarFallback>
+                                {participantInfo.name.split(' ').map(n => n[0]).join('')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <h3 className="font-medium text-gray-900 truncate">
+                                  {participantInfo.name}
+                                </h3>
+                                <div className="flex items-center space-x-2">
+                                  {conversation.unreadCount > 0 && (
+                                    <Badge className="bg-red-500 text-white text-xs">
+                                      {conversation.unreadCount}
+                                    </Badge>
+                                  )}
+                                  <span className="text-xs text-gray-500">
+                                    {conversation.lastMessageTime ? new Date(conversation.lastMessageTime).toLocaleString() : ''}
+                                  </span>
+                                </div>
                               </div>
+                              <p className="text-sm text-gray-600 truncate mt-1">
+                                {conversation.lastMessage?.content || 'No messages yet'}
+                              </p>
                             </div>
-                            <p className="text-sm text-gray-600 truncate mt-1">
-                              {conversation.lastMessage}
-                            </p>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </CardContent>
@@ -302,7 +323,6 @@ export default function WorkerMessagesPage() {
             </div>
           </div>
         </main>
-        
       </div>
 
       {/* Message Modal */}

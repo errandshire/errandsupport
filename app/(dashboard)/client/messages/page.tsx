@@ -9,13 +9,10 @@ import {
   VolumeX,
   Volume2
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { databases, COLLECTIONS, client } from "@/lib/appwrite";
@@ -23,18 +20,7 @@ import { Query } from "appwrite";
 import { Message } from "@/lib/types/marketplace";
 import { toast } from "sonner";
 import { MessageModal } from "@/components/marketplace/message-modal";
-
-interface Conversation {
-  id: string;
-  workerId: string;
-  workerName: string;
-  workerAvatar?: string;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-  isOnline: boolean;
-  messages: Message[];
-}
+import { realtimeMessagingService, type Conversation } from "@/lib/realtime-messaging-service";
 
 export default function ClientMessagesPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -63,124 +49,73 @@ export default function ClientMessagesPage() {
       return;
     }
 
-    fetchConversations();
-    setupRealtimeSubscription();
+    setupRealtimeMessaging();
   }, [loading, isAuthenticated, user, router]);
 
-  const fetchConversations = async () => {
+  const setupRealtimeMessaging = async () => {
     if (!user) return;
     
     try {
       setIsLoading(true);
       
-      // Fetch all messages where user is either sender or recipient
-      const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.MESSAGES,
-        [
-          Query.or([
-            Query.equal('senderId', user.$id),
-            Query.equal('recipientId', user.$id)
-          ]),
-          Query.orderDesc('createdAt'),
-          Query.limit(100)
-        ]
-      );
-
-      const messages = response.documents as unknown as Message[];
+      // Initialize real-time messaging service
+      await realtimeMessagingService.initialize(user.$id);
       
-      // Group messages by conversation
-      const conversationMap = new Map<string, Conversation>();
+      // Load conversations
+      const userConversations = await realtimeMessagingService.loadUserConversations(user.$id);
+      setConversations(userConversations);
       
-      for (const message of messages) {
-        const otherUserId = message.senderId === user.$id ? message.recipientId : message.senderId;
-        const conversationId = message.conversationId;
-        
-        if (!conversationMap.has(conversationId)) {
-          // Fetch other user's info
-          try {
-            const userInfo = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              COLLECTIONS.USERS,
-              otherUserId
-            );
-            
-            conversationMap.set(conversationId, {
-              id: conversationId,
-              workerId: otherUserId,
-              workerName: userInfo.name,
-              workerAvatar: userInfo.avatar || '',
-              lastMessage: message.content,
-              lastMessageTime: new Date(message.createdAt).toLocaleString(),
-              unreadCount: 0,
-              isOnline: false, // Would need a separate online status system
-              messages: []
-            });
-          } catch (error) {
-            console.error('Error fetching user info:', error);
-          }
-        }
-        
-        const conversation = conversationMap.get(conversationId);
-        if (conversation) {
-          conversation.messages.push(message);
-          
-          // Update unread count
-          if (message.senderId !== user.$id && !message.isRead) {
-            conversation.unreadCount++;
-          }
-          
-          // Update last message if this is the most recent
-          if (new Date(message.createdAt) > new Date(conversation.lastMessageTime)) {
-            conversation.lastMessage = message.content;
-            conversation.lastMessageTime = new Date(message.createdAt).toLocaleString();
-          }
-        }
-      }
+      // Subscribe to global conversation updates
+      realtimeMessagingService.subscribe('*', (update) => {
+        // Refresh conversations when there are updates
+        const updatedConversations = realtimeMessagingService.getConversations();
+        setConversations(updatedConversations);
+      });
       
-      setConversations(Array.from(conversationMap.values()));
     } catch (error) {
-      console.error('Error fetching conversations:', error);
+      console.error('Error setting up real-time messaging:', error);
       toast.error("Failed to load conversations");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const setupRealtimeSubscription = () => {
-    if (!user) return;
-
-    const unsubscribe = client.subscribe(
-      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`,
-      (response) => {
-        if (response.events.includes('databases.*.collections.*.documents.*.create')) {
-          const newMessage = response.payload as Message;
-          
-          // Check if this message involves the current user
-          if (newMessage.senderId === user.$id || newMessage.recipientId === user.$id) {
-            fetchConversations(); // Refresh conversations
-          }
-        }
-      }
-    );
-
-    return () => unsubscribe();
-  };
-
   const handleConversationClick = (conversation: Conversation) => {
+    // Get the other participant (not the current user)
+    const otherParticipant = conversation.participants.find(p => p !== user?.$id);
+    if (!otherParticipant) return;
+    
+    const participantInfo = conversation.participantInfo[otherParticipant];
+    
     setMessageRecipient({
-      id: conversation.workerId,
-      name: conversation.workerName,
-      email: '' // Email would need to be fetched separately
+      id: otherParticipant,
+      name: participantInfo?.name || 'User',
+      email: participantInfo?.email || ''
     });
     setShowMessageModal(true);
+    setSelectedConversation(conversation);
+    
+    // Mark messages as read
+    if (conversation.unreadCount > 0) {
+      realtimeMessagingService.markMessagesAsRead(conversation.id, user!.$id);
+    }
   };
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.workerName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredConversations = conversations.filter(conv => {
+    // Filter by participant names
+    return Object.values(conv.participantInfo).some(participant =>
+      participant.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+
+  const getParticipantInfo = (conversation: Conversation) => {
+    // Get the other participant (not the current user)
+    const otherParticipantId = conversation.participants.find(p => p !== user?.$id);
+    if (!otherParticipantId) return null;
+    return conversation.participantInfo[otherParticipantId];
+  };
 
   if (loading || !user) {
     return (
@@ -216,8 +151,7 @@ export default function ClientMessagesPage() {
             <Card className="lg:col-span-1">
               <CardHeader>
                 <CardTitle>Conversations</CardTitle>
-                <CardDescription>
-                  <div className="relative">
+                <div className="relative mt-2">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       placeholder="Search conversations..."
@@ -226,7 +160,6 @@ export default function ClientMessagesPage() {
                       className="pl-10"
                     />
                   </div>
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="max-h-[500px] overflow-y-auto">
@@ -241,7 +174,11 @@ export default function ClientMessagesPage() {
                       <p className="text-sm">Start messaging with service providers!</p>
                     </div>
                   ) : (
-                    filteredConversations.map((conversation) => (
+                    filteredConversations.map((conversation) => {
+                      const participantInfo = getParticipantInfo(conversation);
+                      if (!participantInfo) return null;
+
+                      return (
                       <div
                         key={conversation.id}
                         className={cn(
@@ -251,15 +188,15 @@ export default function ClientMessagesPage() {
                         onClick={() => handleConversationClick(conversation)}
                       >
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={conversation.workerAvatar} alt={conversation.workerName} />
+                            <AvatarImage src={participantInfo.avatar} alt={participantInfo.name} />
                           <AvatarFallback>
-                            {conversation.workerName.split(' ').map(n => n[0]).join('')}
+                              {participantInfo.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <h3 className="font-medium text-gray-900 truncate">
-                              {conversation.workerName}
+                                {participantInfo.name}
                             </h3>
                             <div className="flex items-center space-x-2">
                               {conversation.unreadCount > 0 && (
@@ -268,16 +205,17 @@ export default function ClientMessagesPage() {
                                 </Badge>
                               )}
                               <span className="text-xs text-gray-500">
-                                {conversation.lastMessageTime}
+                                  {conversation.lastMessageTime ? new Date(conversation.lastMessageTime).toLocaleString() : ''}
                               </span>
                             </div>
                           </div>
                           <p className="text-sm text-gray-600 truncate mt-1">
-                            {conversation.lastMessage}
+                              {conversation.lastMessage?.content || 'No messages yet'}
                           </p>
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </CardContent>
@@ -297,7 +235,6 @@ export default function ClientMessagesPage() {
         </div>
       </main>
       
-      <Footer />
 
       {/* Message Modal */}
       <MessageModal
