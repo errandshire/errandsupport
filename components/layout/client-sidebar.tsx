@@ -63,7 +63,7 @@ export function ClientSidebar({ isOpen, onToggle, className }: ClientSidebarProp
     open: {
       x: 0,
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 300,
         damping: 30,
       },
@@ -71,7 +71,7 @@ export function ClientSidebar({ isOpen, onToggle, className }: ClientSidebarProp
     closed: {
       x: "-100%",
       transition: {
-        type: "spring",
+        type: "spring" as const,
         stiffness: 300,
         damping: 30,
       },
@@ -111,11 +111,11 @@ export function ClientSidebar({ isOpen, onToggle, className }: ClientSidebarProp
         animate={isOpen ? "open" : "closed"}
         variants={sidebarVariants}
         className={cn(
-          "fixed left-0 top-0 z-50 h-full w-64 bg-white lg:relative lg:z-auto",
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-white border-r border-neutral-200 shadow-lg lg:sticky lg:z-auto lg:shadow-none overflow-y-auto",
           className
         )}
       >
-        <div className="flex h-full flex-col">
+        <div className="flex min-h-full flex-col">
           {/* Header */}
           <div className="p-4">
             <h1 className="text-xl font-semibold">Client Portal</h1>

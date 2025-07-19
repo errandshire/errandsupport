@@ -1,12 +1,12 @@
 "use client";
 
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-
+import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
   visible: { 
@@ -28,8 +28,9 @@ const staggerContainer = {
 
 export default function Home() {
   return (
+    <>
+    <Header />
     <div className="min-h-screen bg-white">
-      <Header />
       <main className="container mx-auto px-4 py-12 md:py-20">
         <motion.section 
           initial="hidden"
@@ -135,7 +136,8 @@ export default function Home() {
           </motion.div>
         </motion.section>
       </main>
-      <Footer />
     </div>
+    <Footer />
+    </>
   );
 }

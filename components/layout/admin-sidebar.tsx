@@ -6,16 +6,14 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Home,
-  Calendar,
-  DollarSign,
-  Star,
-  Settings,
-  User,
-  Clock,
-  MessageCircle,
+  Users,
   FileText,
+  Settings,
   BarChart3,
-  ChevronLeft,
+  Shield,
+  AlertTriangle,
+  Activity,
+  TrendingUp,
   Menu,
   X
 } from "lucide-react";
@@ -23,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-interface WorkerSidebarProps {
+interface AdminSidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   className?: string;
@@ -32,67 +30,61 @@ interface WorkerSidebarProps {
 const sidebarItems = [
   {
     title: "Dashboard",
-    href: "/worker",
+    href: "/admin/dashboard",
     icon: Home,
     badge: null,
   },
   {
-    title: "Jobs",
-    href: "/worker/jobs",
-    icon: Calendar,
-    badge: "3",
+    title: "Manage Users",
+    href: "/admin/users",
+    icon: Users,
+    badge: "23",
   },
   {
-    title: "Messages",
-    href: "/worker/messages",
-    icon: MessageCircle,
+    title: "Verifications",
+    href: "/admin/verifications",
+    icon: Shield,
     badge: "5",
   },
   {
-    title: "Earnings",
-    href: "/worker/earnings",
-    icon: DollarSign,
-    badge: null,
-  },
-  {
-    title: "Reviews",
-    href: "/worker/reviews",
-    icon: Star,
-    badge: null,
-  },
-  {
-    title: "Analytics",
-    href: "/worker/analytics",
-    icon: BarChart3,
-    badge: null,
-  },
-  {
-    title: "Availability",
-    href: "/worker/availability",
-    icon: Clock,
-    badge: null,
-  },
-  {
-    title: "Profile",
-    href: "/worker/profile",
-    icon: User,
-    badge: null,
-  },
-  {
-    title: "Documents",
-    href: "/worker/documents",
+    title: "Reports",
+    href: "/admin/reports",
     icon: FileText,
     badge: null,
   },
   {
+    title: "Analytics",
+    href: "/admin/analytics",
+    icon: BarChart3,
+    badge: null,
+  },
+  {
+    title: "System Health",
+    href: "/admin/system",
+    icon: Activity,
+    badge: null,
+  },
+  {
+    title: "Commission Settings",
+    href: "/admin/commission",
+    icon: TrendingUp,
+    badge: null,
+  },
+  {
+    title: "System Alerts",
+    href: "/admin/alerts",
+    icon: AlertTriangle,
+    badge: "2",
+  },
+  {
     title: "Settings",
-    href: "/worker/settings",
+    href: "/admin/settings",
     icon: Settings,
     badge: null,
   },
 ];
 
-export function WorkerSidebar({ isOpen, onToggle, className }: WorkerSidebarProps) {
+export function AdminSidebar({ isOpen, onToggle, className }: AdminSidebarProps) {
   const pathname = usePathname();
 
   const sidebarVariants = {
@@ -155,10 +147,10 @@ export function WorkerSidebar({ isOpen, onToggle, className }: WorkerSidebarProp
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-neutral-200">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">ES</span>
+              <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">AD</span>
               </div>
-              <span className="font-semibold text-neutral-900">Worker Portal</span>
+              <span className="font-semibold text-neutral-900">Admin Portal</span>
             </div>
             <Button
               variant="ghost"
@@ -184,7 +176,7 @@ export function WorkerSidebar({ isOpen, onToggle, className }: WorkerSidebarProp
                       className={cn(
                         "flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors",
                         isActive
-                          ? "bg-primary-100 text-primary-700 border border-primary-200"
+                          ? "bg-red-100 text-red-700 border border-red-200"
                           : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                       )}
                       onClick={() => {
@@ -216,15 +208,15 @@ export function WorkerSidebar({ isOpen, onToggle, className }: WorkerSidebarProp
           {/* Footer */}
           <div className="p-4 border-t border-neutral-200">
             <div className="flex items-center space-x-3 p-3 bg-neutral-50 rounded-lg">
-              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-medium">●</span>
+              <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                <Shield className="text-white h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-neutral-900 truncate">
-                  Available
+                  Admin Access
                 </p>
                 <p className="text-xs text-neutral-500">
-                  Ready for work
+                  Full system control
                 </p>
               </div>
             </div>

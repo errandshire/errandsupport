@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display, Libre_Baskerville, Cormorant_Garamond, DM_Serif_Display, Lora } from "next/font/google";
+import { Inter, Libre_Baskerville, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/layout/header";
+// import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Toaster } from "sonner";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -80,24 +81,26 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" className={`${inter.variable} ${cormorantGaramond.variable}`}>
       <body className="min-h-screen bg-white font-sans antialiased">
-        {children}
-        <Toaster 
-          position="top-right" 
-          richColors 
-          closeButton
-          toastOptions={{
-            duration: 4000,
-            style: {
-              borderRadius: '1rem',
-            }
-          }}
-        />
+        <Providers>
+          {children}
+          <Toaster 
+            position="top-right" 
+            richColors 
+            closeButton
+            toastOptions={{
+              duration: 4000,
+              style: {
+                borderRadius: '1rem',
+              }
+            }}
+          />
+        </Providers>
       </body>
     </html>
   );

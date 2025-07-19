@@ -17,10 +17,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { notificationService } from '@/lib/notification-service';
+import type { Notification } from '@/lib/types';
 
 interface HeaderProps {
   className?: string;
   children?: React.ReactNode;
+  sidebarOpen?: boolean;
+  onSidebarToggle?: () => void;
 }
 
 const navigationItems = [
@@ -31,11 +35,13 @@ const navigationItems = [
   { href: "/about", label: "About" },
 ];
 
-export const Header = React.memo(function Header({ className, children }: HeaderProps) {
+export const Header = React.memo(function Header({ className, children, sidebarOpen, onSidebarToggle }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   
   const { user, isAuthenticated, logout } = useAuth();
+  const [notifications, setNotifications] = React.useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
 
   // Close menu when route changes
   React.useEffect(() => {
@@ -54,6 +60,15 @@ export const Header = React.memo(function Header({ className, children }: Header
     };
   }, [isMenuOpen]);
 
+  React.useEffect(() => {
+    if (isAuthenticated && user) {
+      notificationService.getUserNotifications(user.$id, 5).then((notifs) => {
+        setNotifications(notifs);
+        setUnreadCount(notifs.filter(n => !n.isRead).length);
+      });
+    }
+  }, [isAuthenticated, user]);
+
   const handleLogout = React.useCallback(() => {
     logout();
   }, [logout]);
@@ -69,6 +84,41 @@ export const Header = React.memo(function Header({ className, children }: Header
   const closeMenu = React.useCallback(() => {
     setIsMenuOpen(false);
   }, []);
+
+  // Helper to get user-specific links
+  const getUserLinks = (role: string | undefined) => {
+    switch (role) {
+      case 'admin':
+        return {
+          dashboard: '/admin/dashboard',
+          profile: '/admin/profile',
+          settings: '/admin/settings',
+          bookings: '/admin/bookings',
+        };
+      case 'worker':
+        return {
+          dashboard: '/worker/dashboard',
+          profile: '/worker/profile',
+          settings: '/worker/settings',
+          bookings: '/worker/jobs',
+        };
+      case 'client':
+        return {
+          dashboard: '/client',
+          profile: '/client/profile',
+          settings: '/client/settings',
+          bookings: '/client/bookings',
+        };
+      default:
+        return {
+          dashboard: '/',
+          profile: '/profile',
+          settings: '/settings',
+          bookings: '/bookings',
+        };
+    }
+  };
+  const userLinks = getUserLinks(user?.role);
 
   // Memoize user display values
   const userDisplayName = React.useMemo(() => 
@@ -144,31 +194,34 @@ export const Header = React.memo(function Header({ className, children }: Header
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="relative">
                         <Bell className="h-5 w-5" />
-                        {/* TODO: Implement actual notification count */}
-                        <Badge 
-                          variant="destructive" 
-                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs flex items-center justify-center"
-                        >
-                          3
-                        </Badge>
+                        {unreadCount > 0 && (
+                          <Badge 
+                            variant="destructive" 
+                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs flex items-center justify-center"
+                          >
+                            {unreadCount}
+                          </Badge>
+                        )}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-80">
                       <div className="p-3 border-b">
                         <h4 className="font-semibold text-sm">Notifications</h4>
                       </div>
-                      <DropdownMenuItem>
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium">New booking request</p>
-                          <p className="text-xs text-neutral-500">John requested cleaning service</p>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium">Payment received</p>
-                          <p className="text-xs text-neutral-500">₦45.00 for grocery shopping</p>
-                        </div>
-                      </DropdownMenuItem>
+                      {notifications.length === 0 ? (
+                        <DropdownMenuItem>
+                          <div className="text-sm text-neutral-500">No notifications</div>
+                        </DropdownMenuItem>
+                      ) : (
+                        notifications.map((notif) => (
+                          <DropdownMenuItem key={notif.$id}>
+                            <div className="flex flex-col space-y-1">
+                              <p className="text-sm font-medium">{notif.title}</p>
+                              <p className="text-xs text-neutral-500">{notif.message}</p>
+                            </div>
+                          </DropdownMenuItem>
+                        ))
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem>
                         <Link href="/notifications" className="w-full text-center text-sm">
@@ -195,18 +248,20 @@ export const Header = React.memo(function Header({ className, children }: Header
                         <p className="text-sm font-medium">{userDisplayName}</p>
                         <p className="text-xs text-neutral-500">{user.email}</p>
                       </div>
-                      <DropdownMenuItem>
-                        <User className="mr-2 h-4 w-4" />
-                        <Link href="/profile">Profile</Link>
+                      <DropdownMenuItem asChild>
+                        <Link href={userLinks.profile}>
+                          <User className="mr-2 h-4 w-4" />
+                          Profile
+                        </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Link href={`/${user.role}`}>Dashboard</Link>
+                      <DropdownMenuItem asChild>
+                        <Link href={userLinks.dashboard}>Dashboard</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Link href="/bookings">My Bookings</Link>
+                      <DropdownMenuItem asChild>
+                        <Link href={userLinks.bookings}>My Bookings</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Link href="/settings">Settings</Link>
+                      <DropdownMenuItem asChild>
+                        <Link href={userLinks.settings}>Settings</Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout}>
@@ -231,9 +286,10 @@ export const Header = React.memo(function Header({ className, children }: Header
                 variant="ghost"
                 size="icon"
                 className="md:hidden"
-                onClick={handleMenuToggle}
+                onClick={isAuthenticated && user ? onSidebarToggle : handleMenuToggle}
+                aria-label="Open menu"
               >
-                {isMenuOpen ? (
+                {isAuthenticated && user && sidebarOpen ? (
                   <X className="h-5 w-5" />
                 ) : (
                   <Menu className="h-5 w-5" />
