@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Suspense } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { 
   Search, 
   Calendar, 
@@ -128,9 +129,11 @@ function ClientDashboardContent() {
             className="pl-10"
           />
         </div>
-        <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white">
-          <Plus className="h-5 w-5 mr-2" />
-          Book a Service
+        <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white" asChild>
+          <Link href="/workers">
+            <Plus className="h-5 w-5 mr-2" />
+            Book a Service
+          </Link>
         </Button>
       </div>
 
@@ -226,11 +229,11 @@ function ClientDashboardContent() {
         <div>
           <h3 className="text-xl font-serif mb-4">Quick Actions</h3>
           <div className="space-y-3">
-            <Button variant="outline" className="w-full justify-start">
-              Find Workers
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/workers">Find Workers</Link>
             </Button>
-            <Button variant="outline" className="w-full justify-start">
-              View Bookings
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <Link href="/client/bookings">View Bookings</Link>
             </Button>
           </div>
         </div>

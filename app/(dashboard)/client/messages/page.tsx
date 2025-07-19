@@ -192,7 +192,6 @@ export default function ClientMessagesPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50">
-      <Header />
       
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-7xl mx-auto">
@@ -212,7 +211,7 @@ export default function ClientMessagesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Conversations List */}
             <Card className="lg:col-span-1">
               <CardHeader>
@@ -229,7 +228,7 @@ export default function ClientMessagesPage() {
                   </div>
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent>
                 <div className="max-h-[500px] overflow-y-auto">
                   {isLoading ? (
                     <div className="flex items-center justify-center p-8">

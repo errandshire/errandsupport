@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { BookingModal } from "@/components/marketplace/booking-modal";
+import { WalletOnlyBookingModal } from "@/components/marketplace/wallet-only-booking-modal";
+import { WalletBalanceHeader } from "@/components/layout/wallet-balance-header";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
 import { motion, Variants } from "framer-motion";
@@ -117,7 +118,7 @@ function WorkersPageContent() {
       const flattenedBookingRequest = {
         id: bookingId,
         clientId: user.$id,
-        workerId: bookingModal.selectedWorker.id,
+        workerId: bookingModal.selectedWorker.$id,
         categoryId: bookingModal.selectedWorker.categories[0],
         title: bookingData.title || '',
         description: bookingData.description || '',
@@ -132,7 +133,8 @@ function WorkersPageContent() {
         budgetCurrency: bookingData.budget?.currency || 'NGN',
         budgetIsHourly: bookingData.budget?.isHourly || false,
         urgency: bookingData.urgency || 'medium',
-        status: 'pending',
+        status: 'confirmed', // Wallet payment confirmed, waiting for worker acceptance
+        paymentStatus: 'paid', // Set as paid since wallet payment is instant
         requirements: bookingData.requirements || [],
         attachments: bookingData.attachments || [],
         createdAt: new Date().toISOString(),
@@ -146,11 +148,11 @@ function WorkersPageContent() {
         flattenedBookingRequest
       );
 
-      // Don't redirect or show success message here since payment flow will handle it
+      console.log('✅ Booking created successfully with wallet payment');
     } catch (error) {
       console.error('Error submitting booking:', error);
       toast.error("Failed to submit booking request. Please try again.");
-      throw error; // Rethrow so payment flow knows it failed
+      throw error; // Rethrow so wallet service knows it failed
     }
   };
 
@@ -273,6 +275,18 @@ function WorkersPageContent() {
     <div className="min-h-screen bg-gray-50">
       <Header />
       <main className="container mx-auto px-4 py-6 md:py-10">
+        {/* Wallet Balance Header - Only for Clients */}
+        {user?.role === 'client' && (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeIn}
+            className="mb-8"
+          >
+            <WalletBalanceHeader variant="compact" />
+          </motion.div>
+        )}
+
         {/* Search Section */}
         <motion.div
           initial="hidden"
@@ -290,7 +304,10 @@ function WorkersPageContent() {
             variants={fadeIn}
             className="text-center text-gray-600 mb-6"
           >
-            Connect with verified local professionals for all your daily tasks
+            {user?.role === 'client' 
+              ? 'Book services instantly with your wallet balance'
+              : 'Connect with verified local professionals for all your daily tasks'
+            }
           </motion.p>
 
           <motion.form 
@@ -351,93 +368,106 @@ function WorkersPageContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-fr">
             {filteredWorkers.map((worker, index) => (
               <motion.div
                 key={index}
                 variants={fadeIn}
-                className="bg-white rounded-xl p-4 shadow-soft hover:shadow-medium transition-shadow duration-300"
+                className="bg-white rounded-xl p-4 shadow-soft hover:shadow-medium transition-shadow duration-300 w-full max-w-none"
               >
-                <div className="flex items-start gap-3">
-                  <div className="relative h-16 w-16 rounded-full overflow-hidden bg-gray-200">
-                    {worker.profileImage ? (
-                      <img 
-                        src={worker.profileImage} 
-                        alt={worker.name || 'Worker'}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-medium text-lg">
-                        {(worker.name || 'W').charAt(0)}
-                      </div>
-                    )}
-                    {worker.isActive && (
-                      <div className="absolute bottom-0 right-0 h-4 w-4 bg-emerald-500 rounded-full border-2 border-white" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium text-gray-900">{worker.name || 'Worker'}</h3>
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <MapPin className="h-3 w-3" />
-                          {worker.city}, {worker.state}
+                <div className="flex flex-col space-y-3">
+                  {/* Header with Avatar and Basic Info */}
+                  <div className="flex items-start gap-3">
+                    <div className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-gray-100">
+                      {worker.profileImage ? (
+                        <img 
+                          src={worker.profileImage} 
+                          alt={worker.name || 'Worker'}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-emerald-500 flex items-center justify-center text-white font-medium text-lg">
+                          {(worker.name || 'W').charAt(0)}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
-                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                          {worker.ratingAverage || 'New'} 
-                          {worker.totalReviews ? <span className="text-gray-500">({worker.totalReviews})</span> : null}
-                        </div>
-                        <p className="text-sm font-medium text-emerald-600">
-                          ₦{worker.hourlyRate}/hr
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-600 line-clamp-2">{worker.bio}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {worker.categories?.slice(0, 3).map((category, index) => (
-                        <Badge key={index} variant="secondary" className="bg-gray-100">
-                          {category}
-                        </Badge>
-                      ))}
-                      {(worker.categories?.length || 0) > 3 && (
-                        <Badge variant="secondary" className="bg-gray-100">
-                          +{worker.categories!.length - 3} more
-                        </Badge>
+                      )}
+                      {worker.isActive && (
+                        <div className="absolute bottom-0 right-0 h-3 w-3 bg-emerald-500 rounded-full border-2 border-white" />
                       )}
                     </div>
-                    <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {worker.responseTimeMinutes ? `Responds in ${worker.responseTimeMinutes}m` : 'Response time N/A'}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-medium text-gray-900 truncate">{worker.name || 'Worker'}</h3>
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{worker.city}, {worker.state}</span>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
+                            <Star className="h-4 w-4 text-yellow-400 fill-current flex-shrink-0" />
+                            <span className="whitespace-nowrap">{worker.ratingAverage || 'New'}</span>
+                            {worker.totalReviews ? <span className="text-gray-500 whitespace-nowrap">({worker.totalReviews})</span> : null}
+                          </div>
+                          <p className="text-sm font-medium text-emerald-600 whitespace-nowrap">
+                            ₦{worker.hourlyRate}/hr
+                          </p>
+                        </div>
                       </div>
-                      <div>{worker.completedJobs || 0} jobs</div>
                     </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <Button 
-                        variant="outline" 
-                        className="h-10 text-xs"
-                        onClick={() => handleViewProfile(worker)}
-                      >
-                        View Profile
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        className="h-10 text-xs"
-                        onClick={() => handleMessageWorker(worker)}
-                      >
-                        <MessageCircle className="h-3 w-3 mr-1" />
-                        Message
-                      </Button>
-                      <Button 
-                        className="h-10 bg-emerald-500 hover:bg-emerald-600 text-xs"
-                        onClick={() => handleBookWorker(worker)}
-                      >
-                        Book Now
-                      </Button>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-sm text-gray-600 line-clamp-2">{worker.bio}</p>
+                  
+                  {/* Categories */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {worker.categories?.slice(0, 3).map((category, index) => (
+                      <Badge key={index} variant="secondary" className="bg-gray-100 text-xs">
+                        {category}
+                      </Badge>
+                    ))}
+                    {(worker.categories?.length || 0) > 3 && (
+                      <Badge variant="secondary" className="bg-gray-100 text-xs">
+                        +{worker.categories!.length - 3} more
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Stats */}
+                  <div className="flex items-center justify-between text-xs text-gray-600">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Clock className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span className="truncate">{worker.responseTimeMinutes ? `Responds in ${worker.responseTimeMinutes}m` : 'Response time N/A'}</span>
                     </div>
+                    <div className="flex-shrink-0 ml-2">{worker.completedJobs || 0} jobs</div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 h-9 text-xs"
+                      onClick={() => handleViewProfile(worker)}
+                    >
+                      <span className="hidden sm:inline">View Profile</span>
+                      <span className="sm:hidden">Profile</span>
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="flex-1 h-9 text-xs"
+                      onClick={() => handleMessageWorker(worker)}
+                    >
+                      <MessageCircle className="h-3 w-3 sm:mr-1 flex-shrink-0" />
+                      <span className="hidden sm:inline ml-1">Message</span>
+                    </Button>
+                    <Button 
+                      className="flex-1 h-9 bg-emerald-500 hover:bg-emerald-600 text-xs"
+                      onClick={() => handleBookWorker(worker)}
+                    >
+                      <span className="hidden sm:inline">Book Now</span>
+                      <span className="sm:hidden">Book</span>
+                    </Button>
                   </div>
                 </div>
               </motion.div>
@@ -447,8 +477,8 @@ function WorkersPageContent() {
       </main>
       <Footer />
       
-      {/* Booking Modal */}
-      <BookingModal
+      {/* Wallet-Only Booking Modal */}
+      <WalletOnlyBookingModal
         isOpen={bookingModal.isOpen}
         onClose={handleCloseBookingModal}
         worker={bookingModal.selectedWorker}

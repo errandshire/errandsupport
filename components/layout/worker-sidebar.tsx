@@ -49,8 +49,8 @@ const sidebarItems = [
     badge: "5",
   },
   {
-    title: "Earnings",
-    href: "/worker/earnings",
+    title: "Wallet",
+    href: "/worker/wallet",
     icon: DollarSign,
     badge: null,
   },

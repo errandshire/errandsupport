@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
+import { useRouter } from "next/navigation";
 
 interface HeaderProps {
   className?: string;
@@ -36,6 +37,7 @@ const navigationItems = [
 ];
 
 export const Header = React.memo(function Header({ className, children, sidebarOpen, onSidebarToggle }: HeaderProps) {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   
@@ -85,36 +87,50 @@ export const Header = React.memo(function Header({ className, children, sidebarO
     setIsMenuOpen(false);
   }, []);
 
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark notification as read
+    await notificationService.markAsRead(notification.$id);
+    
+    // If it's a message notification, navigate to messages
+    if (notification.title === 'New Message') {
+      // Navigate based on user role
+      if (user?.role === 'worker') {
+        router.push('/worker/messages');
+      } else if (user?.role === 'client') {
+        router.push('/client/messages');
+      }
+    }
+    
+    // Refresh notifications
+    if (user) {
+      const updatedNotifs = await notificationService.getUserNotifications(user.$id, 5);
+      setNotifications(updatedNotifs as unknown as Notification[]);
+      setUnreadCount(updatedNotifs.filter(n => !n.isRead).length);
+    }
+  };
+
   // Helper to get user-specific links
   const getUserLinks = (role: string | undefined) => {
     switch (role) {
       case 'admin':
         return {
           dashboard: '/admin/dashboard',
-          profile: '/admin/profile',
-          settings: '/admin/settings',
-          bookings: '/admin/bookings',
+         
         };
       case 'worker':
         return {
           dashboard: '/worker/dashboard',
-          profile: '/worker/profile',
-          settings: '/worker/settings',
-          bookings: '/worker/jobs',
+          
         };
       case 'client':
         return {
           dashboard: '/client',
-          profile: '/client/profile',
-          settings: '/client/settings',
-          bookings: '/client/bookings',
+          
         };
       default:
         return {
           dashboard: '/',
-          profile: '/profile',
-          settings: '/settings',
-          bookings: '/bookings',
+         
         };
     }
   };
@@ -214,7 +230,11 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                         </DropdownMenuItem>
                       ) : (
                         notifications.map((notif) => (
-                          <DropdownMenuItem key={notif.$id}>
+                          <DropdownMenuItem 
+                            key={notif.$id}
+                            onClick={() => handleNotificationClick(notif)}
+                            className="cursor-pointer"
+                          >
                             <div className="flex flex-col space-y-1">
                               <p className="text-sm font-medium">{notif.title}</p>
                               <p className="text-xs text-neutral-500">{notif.message}</p>
@@ -248,21 +268,11 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                         <p className="text-sm font-medium">{userDisplayName}</p>
                         <p className="text-xs text-neutral-500">{user.email}</p>
                       </div>
-                      <DropdownMenuItem asChild>
-                        <Link href={userLinks.profile}>
-                          <User className="mr-2 h-4 w-4" />
-                          Profile
-                        </Link>
-                      </DropdownMenuItem>
+                      
                       <DropdownMenuItem asChild>
                         <Link href={userLinks.dashboard}>Dashboard</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={userLinks.bookings}>My Bookings</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={userLinks.settings}>Settings</Link>
-                      </DropdownMenuItem>
+                      
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout}>
                         Sign Out

@@ -92,7 +92,7 @@ function PaymentCallbackContent() {
         throw new Error(`Booking with ID ${bookingId} not found. The booking may not have been created successfully before payment.`);
       }
 
-      // Update booking with payment information
+      // Update booking with payment information (existing functionality)
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
@@ -110,7 +110,7 @@ function PaymentCallbackContent() {
 
       console.log('Successfully updated booking payment status');
 
-      // Create payment record
+      // Create payment record (existing functionality)
       await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.PAYMENTS,
@@ -129,6 +129,32 @@ function PaymentCallbackContent() {
           updatedAt: new Date().toISOString()
         }
       );
+
+      // 🆕 NEW: Create escrow transaction (Phase 1 Integration)
+      try {
+        const { EscrowService } = await import('@/lib/escrow-service');
+        
+        await EscrowService.createEscrowTransaction(
+          bookingId,
+          metadata.clientId,
+          metadata.workerId,
+          paymentData.amount, // Keep in kobo
+          paymentData.reference,
+          {
+            serviceName: metadata.serviceName || 'Service Booking',
+            workerName: metadata.workerName || 'Worker',
+            clientName: metadata.clientName || 'Client',
+            paymentMethod: paymentData.channel
+          }
+        );
+        
+        console.log('✅ Escrow transaction created successfully');
+      } catch (escrowError) {
+        console.error('❌ Failed to create escrow transaction:', escrowError);
+        // Don't throw - let the existing payment flow continue
+        // The payment is still valid even if escrow tracking fails
+      }
+
     } catch (error) {
       console.error('Error updating booking payment status:', error);
       throw error;

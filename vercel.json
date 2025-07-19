@@ -1,0 +1,11 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/auto-release",
+      "schedule": "*/30 * * * *"
+    }
+  ],
+  "env": {
+    "CRON_SECRET_TOKEN": "@cron-secret-token"
+  }
+} 

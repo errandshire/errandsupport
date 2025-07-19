@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
+import { useRouter } from "next/navigation";
 
 interface ClientHeaderProps {
   sidebarOpen: boolean;
@@ -24,6 +25,7 @@ interface ClientHeaderProps {
 }
 
 export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSidebarToggle }) => {
+  const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
@@ -40,6 +42,23 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
   const handleLogout = React.useCallback(() => {
     logout();
   }, [logout]);
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark notification as read
+    await notificationService.markAsRead(notification.$id);
+    
+    // If it's a message notification, navigate to messages
+    if (notification.title === 'New Message') {
+      router.push('/client/messages');
+    }
+    
+    // Refresh notifications
+    if (user) {
+      const updatedNotifs = await notificationService.getUserNotifications(user.$id, 5);
+      setNotifications(updatedNotifs as unknown as Notification[]);
+      setUnreadCount(updatedNotifs.filter(n => !n.isRead).length);
+    }
+  };
 
   // Client links
   const userLinks = {
@@ -99,7 +118,11 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
                   </DropdownMenuItem>
                 ) : (
                   notifications.map((notif) => (
-                    <DropdownMenuItem key={notif.$id}>
+                    <DropdownMenuItem 
+                      key={notif.$id}
+                      onClick={() => handleNotificationClick(notif)}
+                      className="cursor-pointer"
+                    >
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium">{notif.title}</p>
                         <p className="text-xs text-neutral-500">{notif.message}</p>

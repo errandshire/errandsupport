@@ -122,15 +122,6 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
       if (workersResponse.documents.length > 0) {
         const profile = workersResponse.documents[0] as unknown as WorkerProfile;
         set({ workerProfile: profile, isAvailable: profile.isActive });
-        
-        // Set mock data for demo (replace with real data later)
-        set({
-          workerExtras: {
-            profileViews: 156,
-            activeChats: 3,
-            completionRate: 94
-          }
-        });
 
         // Get current date for filtering
         const now = new Date();
@@ -142,7 +133,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             COLLECTIONS.BOOKINGS,
             [
-              Query.isNull('workerId'), // Fix: Use isNull instead of equal(null)
+              Query.isNull('workerId'),
               Query.greaterThan('scheduledDate', startOfToday.toISOString()),
               Query.orderAsc('scheduledDate'),
               Query.limit(10)
@@ -185,32 +176,46 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
           const processedAvailableBookings = availableBookingsResponse.documents
             .filter((doc: any) => doc.scheduledDate && doc.budgetAmount)
             .map((doc: any) => ({
+              $id: doc.$id,
               id: doc.$id,
-              service: doc.title,
-              client: clientMap[doc.clientId]?.name || 'Client',
-              date: new Date(doc.scheduledDate).toLocaleString(),
-              location: doc.locationAddress,
-              price: `₦${doc.budgetAmount.toFixed(2)}`,
-              duration: `${doc.estimatedDuration} hours`,
+              clientId: doc.clientId,
+              workerId: doc.workerId,
+              title: doc.title,
+              description: doc.description,
+              locationAddress: doc.locationAddress,
+              scheduledDate: doc.scheduledDate,
+              estimatedDuration: doc.estimatedDuration,
+              budgetAmount: doc.budgetAmount,
+              budgetCurrency: doc.budgetCurrency || 'NGN',
               status: doc.status || 'pending',
-              urgency: doc.urgency,
-              canAccept: true
+              paymentStatus: doc.paymentStatus,
+              paymentAmount: doc.paymentAmount,
+              urgency: doc.urgency || 'medium',
+              clientName: clientMap[doc.clientId]?.name || 'Unknown Client',
+              clientEmail: clientMap[doc.clientId]?.email
             }));
 
           // Process accepted bookings
           const processedAcceptedBookings = acceptedBookingsResponse.documents
             .filter((doc: any) => doc.scheduledDate && doc.budgetAmount)
             .map((doc: any) => ({
+              $id: doc.$id,
               id: doc.$id,
-              service: doc.title,
-              client: clientMap[doc.clientId]?.name || 'Client',
-              date: new Date(doc.scheduledDate).toLocaleString(),
-              location: doc.locationAddress,
-              price: `₦${doc.budgetAmount.toFixed(2)}`,
-              duration: `${doc.estimatedDuration} hours`,
-              status: doc.status || 'accepted',
-              urgency: doc.urgency,
-              canAccept: false
+              clientId: doc.clientId,
+              workerId: doc.workerId,
+              title: doc.title,
+              description: doc.description,
+              locationAddress: doc.locationAddress,
+              scheduledDate: doc.scheduledDate,
+              estimatedDuration: doc.estimatedDuration,
+              budgetAmount: doc.budgetAmount,
+              budgetCurrency: doc.budgetCurrency || 'NGN',
+              status: doc.status,
+              paymentStatus: doc.paymentStatus,
+              paymentAmount: doc.paymentAmount,
+              urgency: doc.urgency || 'medium',
+              clientName: clientMap[doc.clientId]?.name || 'Unknown Client',
+              clientEmail: clientMap[doc.clientId]?.email
             }));
 
           set({
@@ -218,66 +223,16 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
             acceptedBookings: processedAcceptedBookings
           });
 
-          // Calculate stats
-          const totalEarnings = processedAcceptedBookings.reduce((sum, booking) => {
-            return sum + (parseFloat(booking.price.replace('₦', '')) || 0);
-          }, 0);
-
-          const completedBookings = processedAcceptedBookings.filter(b => b.status === 'completed');
-          const completionRate = completedBookings.length > 0 
-            ? (completedBookings.length / processedAcceptedBookings.length * 100).toFixed(0)
-            : 0;
-
-          set({
-            stats: [
-              {
-                label: "This Month's Earnings",
-                value: `₦${totalEarnings.toFixed(2)}`,
-                change: `From ${processedAcceptedBookings.length} jobs`,
-                icon: 'DollarSign',
-                color: "text-green-600",
-                bgColor: "bg-green-100",
-              },
-              {
-                label: "Available Jobs",
-                value: processedAvailableBookings.length.toString(),
-                change: "Ready to accept",
-                icon: 'CheckCircle',
-                color: "text-blue-600",
-                bgColor: "bg-blue-100",
-              },
-              {
-                label: "Average Rating",
-                value: profile.ratingAverage?.toFixed(1) || "N/A",
-                change: `Based on ${profile.totalReviews || 0} reviews`,
-                icon: 'Star',
-                color: "text-yellow-600",
-                bgColor: "bg-yellow-100",
-              },
-              {
-                label: "Completion Rate",
-                value: `${completionRate}%`,
-                change: `${completedBookings.length} completed jobs`,
-                icon: 'Clock',
-                color: "text-primary-600",
-                bgColor: "bg-primary-100",
-              },
-            ],
-            workerExtras: {
-              ...get().workerExtras,
-              completionRate: Number(completionRate)
-            }
-          });
         } catch (error) {
           console.error('Error fetching bookings:', error);
-          set({ error: 'Failed to load bookings' });
+          set({ error: 'Failed to fetch bookings' });
         }
       } else {
         set({ error: 'Worker profile not found' });
       }
     } catch (error) {
       console.error('Error fetching worker data:', error);
-      set({ error: 'Failed to load worker data' });
+      set({ error: 'Failed to fetch worker data' });
     } finally {
       set({ isLoading: false });
     }

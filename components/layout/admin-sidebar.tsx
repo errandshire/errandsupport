@@ -14,8 +14,10 @@ import {
   AlertTriangle,
   Activity,
   TrendingUp,
+  DollarSign,
   Menu,
-  X
+  X,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +41,18 @@ const sidebarItems = [
     href: "/admin/users",
     icon: Users,
     badge: "23",
+  },
+  {
+    title: "Transactions",
+    href: "/admin/transactions",
+    icon: DollarSign,
+    badge: null,
+  },
+  {
+    title: "Auto-Release",
+    href: "/admin/auto-release",
+    icon: Clock,
+    badge: null,
   },
   {
     title: "Verifications",

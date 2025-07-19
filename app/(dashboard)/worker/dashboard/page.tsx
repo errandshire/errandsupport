@@ -12,7 +12,8 @@ import {
   MessageCircle,
   MapPin,
   Settings,
-  AlertCircle
+  AlertCircle,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,9 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookingDetailModal } from "@/components/worker/booking-detail-modal";
 import { MessageModal } from "@/components/marketplace/message-modal";
+import { BalanceCard } from "@/components/wallet/balance-card";
+import { EscrowService } from "@/lib/escrow-service";
+import type { UserBalance } from "@/lib/types";
 
 const ICON_MAP: Record<string, any> = {
   DollarSign,
@@ -56,6 +60,26 @@ export default function WorkerDashboard() {
     name: string;
     email: string;
   } | null>(null);
+  const [balance, setBalance] = React.useState<UserBalance | null>(null);
+  const [balanceLoading, setBalanceLoading] = React.useState(true);
+
+  // Fetch user balance
+  React.useEffect(() => {
+    async function fetchBalance() {
+      if (!user) return;
+      
+      try {
+        const userBalance = await EscrowService.getUserBalance(user.$id);
+        setBalance(userBalance);
+      } catch (error) {
+        console.error('Error fetching balance:', error);
+      } finally {
+        setBalanceLoading(false);
+      }
+    }
+
+    fetchBalance();
+  }, [user]);
 
   // Handle availability toggle
   const handleAvailabilityToggle = async (newValue: boolean) => {
@@ -85,20 +109,37 @@ export default function WorkerDashboard() {
     }
   };
 
-  // Handle booking detail view
-  const handleViewBookingDetail = (booking: any) => {
-    setSelectedBooking(booking);
-    setShowBookingDetail(true);
-  };
-
   // Handle opening message modal
-  const handleOpenMessage = (clientId: string, clientName: string, clientEmail?: string) => {
+  const handleOpenMessage = (booking: any) => {
+    console.log("Opening message modal for booking:", booking);
+    
+    if (!booking.clientId) {
+      toast.error("Client ID not available");
+      return;
+    }
+
+    // Validate client ID format
+    if (booking.clientId === 'client' || booking.clientId.length < 10) {
+      toast.error("Invalid client ID format");
+      return;
+    }
+
     setMessageRecipient({
-      id: clientId,
-      name: clientName,
-      email: clientEmail || ''
+      id: booking.clientId,
+      name: booking.clientName || 'Client',
+      email: booking.clientEmail || ''
     });
     setShowMessageModal(true);
+  };
+
+  // Handle booking detail view
+  const handleViewBookingDetail = (booking: any) => {
+    if (!booking.$id) {
+      toast.error("Invalid booking data");
+      return;
+    }
+    setSelectedBooking(booking);
+    setShowBookingDetail(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -155,13 +196,15 @@ export default function WorkerDashboard() {
           <Calendar className="h-6 w-6 text-primary-600" />
         </div>
         <div>
-          <h4 className="font-medium text-neutral-900">{booking.service}</h4>
-          <p className="text-sm text-neutral-600">for {booking.client}</p>
+          <h4 className="font-medium text-neutral-900">{booking.title}</h4>
+          <p className="text-sm text-neutral-600">for {booking.clientName}</p>
           <div className="flex items-center space-x-2 mt-1">
             <Clock className="h-3 w-3 text-neutral-400" />
-            <span className="text-xs text-neutral-500">{booking.date}</span>
+            <span className="text-xs text-neutral-500">
+              {new Date(booking.scheduledDate).toLocaleString()}
+            </span>
             <MapPin className="h-3 w-3 text-neutral-400 ml-2" />
-            <span className="text-xs text-neutral-500">{booking.location}</span>
+            <span className="text-xs text-neutral-500">{booking.locationAddress}</span>
             <AlertCircle className={cn("h-3 w-3 ml-2", getUrgencyColor(booking.urgency))} />
             <span className={cn("text-xs capitalize", getUrgencyColor(booking.urgency))}>
               {booking.urgency}
@@ -173,54 +216,9 @@ export default function WorkerDashboard() {
         <Badge className={getStatusColor(booking.status)}>
           {getStatusText(booking.status)}
         </Badge>
-        <p className="text-sm font-medium text-neutral-900 mt-1">{booking.price}</p>
-        <p className="text-xs text-neutral-500 mt-1">{booking.duration}</p>
-        <div className="flex items-center space-x-2 mt-2">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleViewBookingDetail(booking);
-            }}
-          >
-            <Eye className="h-3 w-3 mr-1" />
-            View
-          </Button>
-          {!showAcceptButton && (
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenMessage(booking.clientId, booking.client);
-              }}
-            >
-              <MessageCircle className="h-3 w-3 mr-1" />
-              Message
-            </Button>
-          )}
-          {showAcceptButton && (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAcceptBooking(booking.id);
-              }}
-              disabled={acceptingBookingId === booking.id}
-            >
-              {acceptingBookingId === booking.id ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  Accepting...
-                </>
-              ) : (
-                'Accept Job'
-              )}
-            </Button>
-          )}
-        </div>
+        <p className="text-sm font-medium text-neutral-900 mt-1">
+          ₦{booking.budgetAmount.toLocaleString()}
+        </p>
       </div>
     </div>
   );
@@ -357,48 +355,40 @@ export default function WorkerDashboard() {
           </Card>
         </div>
 
+        {/* Sidebar Actions & Info */}
         <div className="space-y-6">
-          {/* Quick Stats Card */}
-          <Card variant="elevated">
-            <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-neutral-600">Profile Views</span>
-                <Badge variant="outline">
-                  <Eye className="h-3 w-3 mr-1" />
-                  {workerExtras.profileViews || 0}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-neutral-600">Active Chats</span>
-                <Badge variant="outline">
-                  <MessageCircle className="h-3 w-3 mr-1" />
-                  {workerExtras.activeChats || 0}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-neutral-600">Completion Rate</span>
-                <Badge variant="outline">
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  {workerExtras.completionRate || 0}%
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Balance Card */}
+          <BalanceCard
+            balance={balance}
+            userRole="worker"
+            isLoading={balanceLoading}
+            showDetails={false}
+            className="w-full"
+          />
 
-          {/* Tips Card */}
+          {/* Quick Actions */}
           <Card variant="outlined">
             <CardHeader>
-              <CardTitle className="text-lg">💡 Pro Tip</CardTitle>
+              <CardTitle className="text-lg">🚀 Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-neutral-600 mb-3">
-                Keep your calendar updated to get more booking requests and maintain a high response rate!
-              </p>
-              <Button size="sm" variant="outline" className="w-full" asChild>
-                <Link href="/worker/availability">Update Calendar</Link>
+            <CardContent className="space-y-3">
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/worker/wallet">
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  View Wallet
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/worker/profile">
+                  <User className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/worker/availability">
+                  <Clock className="h-4 w-4 mr-2" />
+                  Set Availability
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -417,10 +407,8 @@ export default function WorkerDashboard() {
       <MessageModal
         isOpen={showMessageModal}
         onClose={() => setShowMessageModal(false)}
-        worker={null}
-        recipientId={messageRecipient?.id}
-        recipientName={messageRecipient?.name}
-        recipientEmail={messageRecipient?.email}
+        clientId={messageRecipient?.id}
+        clientName={messageRecipient?.name}
       />
     </>
   );

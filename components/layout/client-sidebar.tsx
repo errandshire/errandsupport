@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Settings,
   User,
+  Wallet,
   Menu,
   X
 } from "lucide-react";
@@ -33,6 +34,11 @@ const sidebarItems = [
     title: "My Bookings",
     href: "/client/bookings",
     icon: Calendar,
+  },
+  {
+    title: "Wallet",
+    href: "/client/wallet",
+    icon: Wallet,
   },
   {
     title: "Messages",

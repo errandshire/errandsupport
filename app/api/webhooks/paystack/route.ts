@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { paystack } from '@/lib/paystack';
 import { databases, COLLECTIONS } from '@/lib/appwrite';
+import { VirtualWalletService } from '@/lib/virtual-wallet-service';
+import { Query } from 'appwrite';
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,12 +51,59 @@ async function handleChargeSuccess(data: any) {
   try {
     const { reference, amount, metadata, customer } = data;
     
-    if (!metadata || !metadata.bookingId) {
+    if (!metadata) {
+      console.error('Missing metadata in payment');
+      return;
+    }
+
+    // Handle wallet top-up payments
+    if (metadata.type === 'wallet_topup') {
+      await handleWalletTopUp(data);
+      return;
+    }
+
+    // Handle booking payments (existing functionality)
+    if (metadata.type === 'booking_payment') {
+      await handleBookingPayment(data);
+      return;
+    }
+
+    console.warn('Unknown payment type:', metadata.type);
+  } catch (error) {
+    console.error('Error handling charge success:', error);
+  }
+}
+
+async function handleWalletTopUp(data: any) {
+  try {
+    const { reference, amount, metadata } = data;
+    
+    console.log('Processing wallet top-up webhook:', { reference, amount: amount / 100, metadata });
+
+    // Process wallet top-up
+    await VirtualWalletService.processTopUpSuccess(
+      reference,
+      amount / 100, // Convert from kobo to NGN
+      metadata
+    );
+
+    console.log(`✅ Wallet top-up webhook processed: ${amount / 100} NGN for user ${metadata.userId}`);
+  } catch (error) {
+    console.error('❌ Failed to process wallet top-up webhook:', error);
+    throw error;
+  }
+}
+
+async function handleBookingPayment(data: any) {
+  try {
+    const { reference, amount, metadata, customer } = data;
+    
+    if (!metadata.bookingId) {
       console.error('Missing booking ID in payment metadata');
       return;
     }
 
-    // Update booking payment status
+    // Update booking payment status (existing functionality)
     await databases.updateDocument(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.BOOKINGS,
@@ -68,7 +117,7 @@ async function handleChargeSuccess(data: any) {
       }
     );
 
-    // Create or update payment record
+    // Create or update payment record (existing functionality)
     await databases.createDocument(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.PAYMENTS,
@@ -90,9 +139,33 @@ async function handleChargeSuccess(data: any) {
       }
     );
 
+    // 🆕 NEW: Create escrow transaction (Phase 1 Integration)
+    try {
+      const { EscrowService } = await import('@/lib/escrow-service');
+      
+      await EscrowService.createEscrowTransaction(
+        metadata.bookingId,
+        metadata.clientId,
+        metadata.workerId,
+        amount, // Keep in kobo
+        reference,
+        {
+          serviceName: metadata.serviceName || 'Service Booking',
+          workerName: metadata.workerName || 'Worker',
+          clientName: metadata.clientName || 'Client',
+          paymentMethod: data.channel
+        }
+      );
+      
+      console.log(`✅ Escrow transaction created via webhook for booking ${metadata.bookingId}`);
+    } catch (escrowError) {
+      console.error('❌ Failed to create escrow transaction via webhook:', escrowError);
+      // Don't throw - webhook should still succeed
+    }
+
     console.log(`Payment escrowed for booking ${metadata.bookingId}`);
   } catch (error) {
-    console.error('Error handling charge success:', error);
+    console.error('Error handling booking payment:', error);
   }
 }
 
@@ -105,7 +178,7 @@ async function handleTransferSuccess(data: any) {
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.PAYMENTS,
       [
-        { attribute: 'transferReference', value: reference }
+        Query.equal('transferReference', reference)
       ]
     );
 
@@ -146,14 +219,14 @@ async function handleTransferSuccess(data: any) {
 
 async function handleTransferFailed(data: any) {
   try {
-    const { reference, failures } = data;
+    const { reference, amount } = data;
     
     // Update payment status to failed
     const payments = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.PAYMENTS,
       [
-        { attribute: 'transferReference', value: reference }
+        Query.equal('transferReference', reference)
       ]
     );
 
@@ -165,15 +238,15 @@ async function handleTransferFailed(data: any) {
         COLLECTIONS.PAYMENTS,
         payment.$id,
         {
+          status: 'failed',
           transferStatus: 'failed',
-          transferFailureReason: failures?.[0]?.message || 'Transfer failed',
           updatedAt: new Date().toISOString()
         }
       );
 
-      console.log(`Transfer failed for booking ${payment.bookingId}: ${failures?.[0]?.message}`);
+      console.log(`Payment transfer failed for booking ${payment.bookingId}`);
     }
   } catch (error) {
-    console.error('Error handling transfer failed:', error);
+    console.error('Error handling transfer failure:', error);
   }
 } 

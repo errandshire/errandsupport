@@ -317,3 +317,45 @@ export interface WorkerState {
   isLoading: boolean;
   searchResults: SearchResults | null;
 } 
+
+// Phase 1: Escrow System Types
+export interface EscrowTransaction extends Models.Document {
+  bookingId: string;
+  clientId: string;
+  workerId: string;
+  amount: number;
+  platformFee: number;
+  workerAmount: number; // amount - platformFee
+  status: 'pending' | 'held' | 'released' | 'refunded';
+  paystackReference: string;
+  createdAt: string;
+  releasedAt?: string;
+  metadata: {
+    serviceName?: string;
+    workerName?: string;
+    clientName?: string;
+    paymentMethod?: string;
+    [key: string]: any;
+  };
+}
+
+export interface UserBalance extends Models.Document {
+  userId: string;
+  availableBalance: number;
+  pendingBalance: number; // money in escrow
+  totalEarnings: number;
+  totalWithdrawn: number;
+  currency: 'NGN';
+  updatedAt: string;
+}
+
+export interface Transaction extends Models.Document {
+  userId: string;
+  type: 'escrow_hold' | 'escrow_release' | 'withdrawal' | 'refund';
+  amount: number;
+  description: string;
+  reference: string;
+  bookingId?: string;
+  status: 'completed' | 'pending' | 'failed';
+  createdAt: string;
+} 
