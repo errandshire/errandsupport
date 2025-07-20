@@ -35,6 +35,7 @@ import { Query } from "appwrite";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
 
 interface ProcessedBooking {
   $id: string;
@@ -76,6 +77,7 @@ export default function ClientBookingsPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [selectedBooking, setSelectedBooking] = React.useState<ProcessedBooking | null>(null);
   const [showBookingModal, setShowBookingModal] = React.useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = React.useState(false);
 
   // Handle authentication
   React.useEffect(() => {
@@ -164,7 +166,12 @@ export default function ClientBookingsPage() {
         const booking = processedBookings.find(b => b.id === highlightBookingId);
         if (booking) {
           setSelectedBooking(booking);
-          setShowBookingModal(true);
+          // Show confirmation modal for bookings that need client confirmation
+          if (booking.status === 'worker_completed') {
+            setShowConfirmationModal(true);
+          } else {
+            setShowBookingModal(true);
+          }
         }
       }
 
@@ -261,7 +268,12 @@ export default function ClientBookingsPage() {
 
   const handleBookingClick = (booking: ProcessedBooking) => {
     setSelectedBooking(booking);
-    setShowBookingModal(true);
+    // Show confirmation modal for bookings that need client confirmation
+    if (booking.status === 'worker_completed') {
+      setShowConfirmationModal(true);
+    } else {
+      setShowBookingModal(true);
+    }
   };
 
   const handleMessageWorker = (booking: ProcessedBooking) => {
@@ -470,6 +482,23 @@ export default function ClientBookingsPage() {
                   </div>
 
                   <div className="flex items-center gap-2 mt-3 sm:mt-0 w-full sm:w-auto justify-end">
+                    {/* Special action button for bookings needing confirmation */}
+                    {booking.status === 'worker_completed' && (
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-orange-500 hover:bg-orange-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedBooking(booking);
+                          setShowConfirmationModal(true);
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        <span className="hidden sm:inline">Confirm Work</span>
+                        <span className="sm:hidden">Confirm</span>
+                      </Button>
+                    )}
+                    
                     {booking.worker && (
                       <Button
                         variant="outline"
@@ -649,6 +678,17 @@ export default function ClientBookingsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Booking Confirmation Modal - for worker_completed bookings */}
+      <BookingConfirmationModal
+        isOpen={showConfirmationModal}
+        onClose={() => setShowConfirmationModal(false)}
+        booking={selectedBooking}
+        onRefresh={() => {
+          fetchBookings();
+          setShowConfirmationModal(false);
+        }}
+      />
     </div>
   );
 } 

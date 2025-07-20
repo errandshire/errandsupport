@@ -122,13 +122,27 @@ export const Header = React.memo(function Header({ className, children, sidebarO
     const success = await realtimeNotificationService.markAsRead(notification.$id, user.$id);
     
     if (success) {
-      // If it's a message notification, navigate to messages
-      if (notification.title === 'New Message') {
-        // Navigate based on user role
+      // Use actionUrl if available, otherwise handle specific notification types
+      if ((notification as any).actionUrl) {
+        // Convert full URLs to relative paths for internal navigation
+        const actionPath = (notification as any).actionUrl.startsWith('http') 
+          ? new URL((notification as any).actionUrl).pathname + new URL((notification as any).actionUrl).search
+          : (notification as any).actionUrl;
+        
+        router.push(actionPath);
+      } else if (notification.title === 'New Message') {
+        // Navigate based on user role for message notifications
         if (user?.role === 'worker') {
           router.push('/worker/messages');
         } else if (user?.role === 'client') {
           router.push('/client/messages');
+        }
+      } else {
+        // Generic fallback based on user role
+        if (user?.role === 'worker') {
+          router.push('/worker/bookings');
+        } else if (user?.role === 'client') {
+          router.push('/client/bookings');
         }
       }
     }

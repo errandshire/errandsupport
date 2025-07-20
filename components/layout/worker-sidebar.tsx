@@ -37,8 +37,8 @@ const sidebarItems = [
     badge: null,
   },
   {
-    title: "Jobs",
-    href: "/worker/jobs",
+    title: "Bookings",
+    href: "/worker/bookings",
     icon: Calendar,
     badge: "3",
   },
@@ -60,12 +60,7 @@ const sidebarItems = [
     icon: Star,
     badge: null,
   },
-  {
-    title: "Analytics",
-    href: "/worker/analytics",
-    icon: BarChart3,
-    badge: null,
-  },
+  
   {
     title: "Availability",
     href: "/worker/availability",

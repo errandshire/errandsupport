@@ -113,7 +113,10 @@ const BookingCard = React.memo(({
   };
 
   return (
-    <div className="flex items-center justify-between p-4 border rounded-lg hover:border-primary-300 transition-colors">
+    <div 
+      className="flex items-center justify-between p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer"
+      onClick={() => onView(booking)}
+    >
       <div className="flex items-center space-x-4">
         <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
           <Calendar className="h-6 w-6 text-primary-600" />
@@ -137,36 +140,39 @@ const BookingCard = React.memo(({
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2" onClick={(e) => e.stopPropagation()}>
         <Button
           variant="outline"
           size="sm"
           onClick={() => onMessage(booking)}
+          className="h-8 px-2 sm:px-3"
         >
-          <MessageCircle className="h-3 w-3 mr-1" />
-          Message
+          <MessageCircle className="h-3 w-3 sm:mr-1" />
+          <span className="hidden sm:inline">Message</span>
         </Button>
         {isAvailable ? (
           <Button
             size="sm"
             onClick={() => onAccept?.(booking)}
             disabled={isAccepting}
+            className="h-8 px-2 sm:px-3"
           >
             {isAccepting ? (
-              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              <Loader2 className="h-3 w-3 animate-spin sm:mr-1" />
             ) : (
-              <CheckCircle className="h-3 w-3 mr-1" />
+              <CheckCircle className="h-3 w-3 sm:mr-1" />
             )}
-            Accept
+            <span className="hidden sm:inline">Accept</span>
           </Button>
         ) : (
           <Button
             variant="outline"
             size="sm"
             onClick={() => onView(booking)}
+            className="h-8 px-2 sm:px-3"
           >
-            <Eye className="h-3 w-3 mr-1" />
-            View
+            <Eye className="h-3 w-3 sm:mr-1" />
+            <span className="hidden sm:inline">View</span>
           </Button>
         )}
       </div>
@@ -188,7 +194,7 @@ export default function WorkerDashboard() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [acceptingBookingId, setAcceptingBookingId] = React.useState<string | null>(null);
-  const [selectedBooking, setSelectedBooking] = React.useState<ProcessedBooking | null>(null);
+  const [selectedBooking, setSelectedBooking] = React.useState<any | null>(null);
   const [showBookingDetail, setShowBookingDetail] = React.useState(false);
   const [showMessageModal, setShowMessageModal] = React.useState(false);
   const [messageRecipient, setMessageRecipient] = React.useState<{
@@ -202,14 +208,24 @@ export default function WorkerDashboard() {
     if (!user) return;
     
     try {
+      console.log('📊 Loading dashboard data...', { force, userId: user.$id });
+      
       if (force) {
         setIsRefreshing(true);
         workerDashboardService.clearUserCache(user.$id);
+        console.log('🗑️ Cleared cache for force refresh');
       } else {
         setIsLoading(true);
       }
 
       const { stats, bookings, balance } = await workerDashboardService.getDashboardData(user.$id);
+      
+      console.log('📋 Dashboard data loaded:', {
+        availableCount: bookings.availableBookings.length,
+        acceptedCount: bookings.acceptedBookings.length,
+        availableBookings: bookings.availableBookings.map(b => ({ id: b.id, status: b.status })),
+        acceptedBookings: bookings.acceptedBookings.map(b => ({ id: b.id, status: b.status }))
+      });
       
       setStats(stats);
       setAvailableBookings(bookings.availableBookings);
@@ -262,21 +278,83 @@ export default function WorkerDashboard() {
 
   // Handle booking actions
   const handleViewBooking = React.useCallback((booking: ProcessedBooking) => {
-    setSelectedBooking(booking);
+    console.log('🔍 handleViewBooking called with:', booking);
+    
+    // Transform ProcessedBooking to FlattenedBooking format for the modal
+    // Only use fields that are guaranteed to exist in ProcessedBooking
+    const flattenedBooking = {
+      $id: booking.id,
+      id: booking.id,
+      clientId: booking.client?.id || '',
+      client: booking.client?.id || '', // For legacy compatibility
+      workerId: user?.$id || '', // Use current user's ID since this is worker dashboard
+      title: booking.title,
+      service: booking.title, // For legacy compatibility
+      description: '', // ProcessedBooking doesn't have description
+      locationAddress: booking.locationAddress,
+      location: booking.locationAddress, // For legacy compatibility
+      scheduledDate: booking.scheduledDate,
+      date: booking.scheduledDate, // For legacy compatibility
+      estimatedDuration: booking.estimatedDuration,
+      duration: booking.estimatedDuration, // For legacy compatibility
+      budgetAmount: booking.budgetAmount,
+      price: booking.budgetAmount, // For legacy compatibility
+      budgetCurrency: booking.budgetCurrency || 'NGN',
+      budgetIsHourly: false, // ProcessedBooking doesn't have this field
+      urgency: booking.urgency,
+      status: booking.status,
+      paymentStatus: 'paid', // Assume paid if status is confirmed
+      requirements: booking.requirements || [],
+      attachments: [], // ProcessedBooking doesn't have attachments
+      createdAt: booking.createdAt,
+      updatedAt: booking.createdAt, // Use createdAt as fallback
+      acceptedAt: booking.acceptedAt,
+      startedAt: undefined, // ProcessedBooking doesn't have this
+      completedAt: booking.completedAt,
+      clientConfirmedAt: undefined, // ProcessedBooking doesn't have this
+      clientRating: undefined, // ProcessedBooking doesn't have this
+      clientReview: undefined, // ProcessedBooking doesn't have this
+      clientTip: undefined, // ProcessedBooking doesn't have this
+      // Add client info for the modal
+      clientName: booking.client?.name || 'Unknown Client',
+      clientEmail: booking.client?.email
+    };
+    
+    console.log('📋 Transformed booking for modal:', flattenedBooking);
+    
+    setSelectedBooking(flattenedBooking);
     setShowBookingDetail(true);
-  }, []);
+    
+    console.log('✅ Modal should now be open');
+  }, [user]);
 
   const handleAcceptBooking = React.useCallback(async (booking: ProcessedBooking) => {
     if (!user) return;
 
     try {
+      console.log('🚀 Starting accept booking process:', { bookingId: booking.id, userId: user.$id });
       setAcceptingBookingId(booking.id);
       
-      // Accept booking in backend
-      // await acceptBooking(booking.id);
+      // Use the new BookingActionService
+      const { BookingActionService } = await import('@/lib/booking-action-service');
       
-      toast.success("Booking accepted successfully");
-      loadDashboardData(true); // Refresh data
+      const result = await BookingActionService.acceptBooking({
+        bookingId: booking.id,
+        userId: user.$id,
+        userRole: 'worker',
+        action: 'accept'
+      });
+
+      console.log('📝 Accept booking result:', result);
+
+      if (result.success) {
+        toast.success(result.message);
+        console.log('🔄 Refreshing dashboard data after successful accept...');
+        await loadDashboardData(true); // Refresh data and wait for completion
+        console.log('✅ Dashboard data refresh completed');
+      } else {
+        toast.error(result.message);
+      }
       
     } catch (error) {
       console.error('Error accepting booking:', error);

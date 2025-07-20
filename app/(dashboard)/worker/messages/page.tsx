@@ -212,10 +212,9 @@ export default function WorkerMessagesPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
-      <WorkerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <WorkerSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
       <div className="flex-1 flex flex-col lg:ml-64">
-        <Header sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />
         
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto h-full">
@@ -299,7 +298,7 @@ export default function WorkerMessagesPage() {
                                 </div>
                               </div>
                               <p className="text-sm text-gray-600 truncate mt-1">
-                                {conversation.lastMessage?.content || 'No messages yet'}
+                                {conversation.lastMessage || 'No messages yet'}
                               </p>
                             </div>
                           </div>

@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface WorkerHeaderProps {
   sidebarOpen: boolean;
@@ -47,15 +48,27 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
     // Mark notification as read
     await notificationService.markAsRead(notification.$id);
     
-    // If it's a message notification, navigate to messages
-    if (notification.title === 'New Message') {
+    // Use actionUrl if available, otherwise handle specific notification types
+    if (notification.actionUrl) {
+      // Convert full URLs to relative paths for internal navigation
+      const actionPath = notification.actionUrl.startsWith('http') 
+        ? new URL(notification.actionUrl).pathname + new URL(notification.actionUrl).search
+        : notification.actionUrl;
+      
+      router.push(actionPath);
+    } else if (notification.title === 'New Message') {
+      // Fallback for message notifications without actionUrl
       router.push('/worker/messages');
+    } else {
+      // Generic fallback - show a helpful message
+      toast.info("Please check your bookings page for more details");
+      router.push('/worker/bookings');
     }
     
     // Refresh notifications
     if (user) {
       const updatedNotifs = await notificationService.getUserNotifications(user.$id, 5);
-      setNotifications(updatedNotifs as unknown as Notification[]);
+      setNotifications(updatedNotifs as Notification[]);
       setUnreadCount(updatedNotifs.filter(n => !n.isRead).length);
     }
   };
@@ -65,7 +78,7 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
     dashboard: '/worker/dashboard',
     profile: '/worker/profile',
     settings: '/worker/settings',
-    bookings: '/worker/jobs',
+    bookings: '/worker/bookings',
   };
 
   const userDisplayName = user?.name || 'Worker';

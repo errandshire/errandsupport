@@ -77,6 +77,16 @@ export function BookingDetailModal({
   const [clientInfo, setClientInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
+  
+  // Local booking state for immediate UI updates
+  const [localBooking, setLocalBooking] = React.useState<any>(null);
+
+  // Initialize local booking state when booking prop changes
+  React.useEffect(() => {
+    if (booking) {
+      setLocalBooking(booking);
+    }
+  }, [booking]);
 
   // Debug logging
   React.useEffect(() => {
@@ -231,41 +241,72 @@ export function BookingDetailModal({
 
   // Handle booking status updates
   const handleAcceptBooking = async () => {
-    if (!booking || !user) return;
+    if (!booking || !user) {
+      toast.error("Missing booking or user information");
+      return;
+    }
+    
     const b = booking as FlattenedBooking;
     
-    // Validate required fields
-    if (!b.$id || !b.clientId || !b.workerId) {
-      console.error('Missing required booking fields:', { booking: b });
-      toast.error("Invalid booking data");
+    // More detailed validation with specific error messages
+    const bookingId = b.$id || b.id;
+    const clientId = b.clientId || b.client;
+    const workerId = b.workerId || user.$id; // Fallback to current user
+    
+    console.log('🔍 Accept booking validation:', {
+      booking: b,
+      bookingId,
+      clientId,
+      workerId,
+      userRole: user.role
+    });
+    
+    if (!bookingId) {
+      console.error('Missing booking ID:', { booking: b });
+      toast.error("Invalid booking: Missing booking ID");
+      return;
+    }
+    
+    if (!clientId) {
+      console.error('Missing client ID:', { booking: b });
+      toast.error("Invalid booking: Missing client information");
+      return;
+    }
+    
+    if (!workerId) {
+      console.error('Missing worker ID:', { booking: b, currentUser: user });
+      toast.error("Invalid booking: Missing worker information");
       return;
     }
 
     try {
       setIsUpdating(true);
 
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        b.$id,
-        {
+      // Use the new BookingActionService
+      const { BookingActionService } = await import('@/lib/booking-action-service');
+      
+      const result = await BookingActionService.acceptBooking({
+        bookingId,
+        userId: user.$id,
+        userRole: 'worker',
+        action: 'accept'
+      });
+
+      if (result.success) {
+        // Update local booking state immediately for instant UI feedback
+        setLocalBooking((prev: any) => ({
+          ...prev,
           status: 'accepted',
           acceptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
-        }
-      );
-
-      // Send notifications to client
-      await BookingNotificationService.notifyBookingAccepted(
-        b.$id,
-        b.clientId,
-        b.workerId,
-        booking
-      );
-      
-      toast.success("Booking accepted successfully! Client has been notified.");
-      onRefresh?.();
-      onClose();
+        }));
+        
+        toast.success(result.message);
+        onRefresh?.(); // Update parent component data
+        // Don't close modal - let user see the immediate change
+      } else {
+        toast.error(result.message);
+      }
 
     } catch (error) {
       console.error('Error accepting booking:', error);
@@ -275,87 +316,194 @@ export function BookingDetailModal({
     }
   };
 
-  const handleStartWork = async () => {
-    if (!booking || !user) return;
+  const handleRejectBooking = async () => {
+    if (!booking || !user) {
+      toast.error("Missing booking or user information");
+      return;
+    }
+    
     const b = booking as FlattenedBooking;
     
-    // Validate required fields
-    if (!b.$id || !b.clientId || !b.workerId) {
-      console.error('Missing required booking fields:', { booking: b });
-      toast.error("Invalid booking data");
+    // More detailed validation with specific error messages
+    const bookingId = b.$id || b.id;
+    const clientId = b.clientId || b.client;
+    const workerId = b.workerId || user.$id; // Fallback to current user
+    
+    console.log('🔍 Reject booking validation:', {
+      booking: b,
+      bookingId,
+      clientId,
+      workerId,
+      userRole: user.role
+    });
+    
+    if (!bookingId) {
+      console.error('Missing booking ID:', { booking: b });
+      toast.error("Invalid booking: Missing booking ID");
+      return;
+    }
+    
+    if (!clientId) {
+      console.error('Missing client ID:', { booking: b });
+      toast.error("Invalid booking: Missing client information");
+      return;
+    }
+    
+    if (!workerId) {
+      console.error('Missing worker ID:', { booking: b, currentUser: user });
+      toast.error("Invalid booking: Missing worker information");
       return;
     }
 
     try {
       setIsUpdating(true);
 
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        b.$id,
-        {
+      // Use the new BookingActionService
+      const { BookingActionService } = await import('@/lib/booking-action-service');
+      
+      const result = await BookingActionService.rejectBooking({
+        bookingId,
+        userId: user.$id,
+        userRole: 'worker',
+        action: 'reject',
+        reason: 'Worker declined booking'
+      });
+
+      if (result.success) {
+        toast.success(result.message);
+        onRefresh?.();
+        onClose();
+      } else {
+        toast.error(result.message);
+      }
+
+    } catch (error) {
+      console.error('Error rejecting booking:', error);
+      toast.error("Failed to reject booking. Please try again.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleStartWork = async () => {
+    if (!booking || !user) {
+      toast.error("Missing booking or user information");
+      return;
+    }
+    
+    const b = booking as FlattenedBooking;
+    
+    // More detailed validation with specific error messages
+    const bookingId = b.$id || b.id;
+    const clientId = b.clientId || b.client;
+    const workerId = b.workerId || user.$id; // Fallback to current user
+    
+    console.log('🔍 Start work validation:', {
+      booking: b,
+      bookingId,
+      clientId,
+      workerId,
+      userRole: user.role
+    });
+    
+    if (!bookingId) {
+      console.error('Missing booking ID:', { booking: b });
+      toast.error("Invalid booking: Missing booking ID");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+
+      // Use the new BookingActionService
+      const { BookingActionService } = await import('@/lib/booking-action-service');
+      
+      const result = await BookingActionService.startWork({
+        bookingId,
+        userId: user.$id,
+        userRole: 'worker',
+        action: 'start_work'
+      });
+
+      if (result.success) {
+        // Update local booking state immediately for instant UI feedback
+        setLocalBooking((prev: any) => ({
+          ...prev,
           status: 'in_progress',
           startedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
-        }
-      );
-
-      // Send notifications to client
-      await BookingNotificationService.notifyWorkStarted(
-        b.$id,
-        b.clientId,
-        b.workerId,
-        booking
-      );
-
-      toast.success("Work started! Client has been notified.");
-      onRefresh?.();
-      onClose();
+        }));
+        
+        toast.success(result.message);
+        onRefresh?.(); // Update parent component data
+        // Don't close modal - let user see the immediate change
+      } else {
+        toast.error(result.message);
+      }
 
     } catch (error) {
       console.error('Error starting work:', error);
-      toast.error("Failed to update booking status. Please try again.");
+      toast.error("Failed to start work. Please try again.");
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleMarkCompleted = async () => {
-    if (!booking || !user) return;
+    if (!booking || !user) {
+      toast.error("Missing booking or user information");
+      return;
+    }
+    
     const b = booking as FlattenedBooking;
     
-    // Validate required fields
-    if (!b.$id || !b.clientId || !b.workerId) {
-      console.error('Missing required booking fields:', { booking: b });
-      toast.error("Invalid booking data");
+    // More detailed validation with specific error messages
+    const bookingId = b.$id || b.id;
+    const clientId = b.clientId || b.client;
+    const workerId = b.workerId || user.$id; // Fallback to current user
+    
+    console.log('🔍 Mark completed validation:', {
+      booking: b,
+      bookingId,
+      clientId,
+      workerId,
+      userRole: user.role
+    });
+    
+    if (!bookingId) {
+      console.error('Missing booking ID:', { booking: b });
+      toast.error("Invalid booking: Missing booking ID");
       return;
     }
 
     try {
       setIsUpdating(true);
 
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        b.$id,
-        {
+      // Use the new BookingActionService
+      const { BookingActionService } = await import('@/lib/booking-action-service');
+      
+      const result = await BookingActionService.markCompleted({
+        bookingId,
+        userId: user.$id,
+        userRole: 'worker',
+        action: 'mark_completed'
+      });
+
+      if (result.success) {
+        // Update local booking state immediately for instant UI feedback
+        setLocalBooking((prev: any) => ({
+          ...prev,
           status: 'worker_completed',
-          completedAt: new Date().toISOString(),
+          workerCompletedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
-        }
-      );
-
-      // Send notifications to client
-      await BookingNotificationService.notifyWorkCompleted(
-        b.$id,
-        b.clientId,
-        b.workerId,
-        booking
-      );
-
-      toast.success("Work marked as completed! Client has been notified and will confirm to release payment.");
-      onRefresh?.();
-      onClose();
+        }));
+        
+        toast.success(result.message);
+        onRefresh?.(); // Update parent component data
+        // Don't close modal - let user see the immediate change
+      } else {
+        toast.error(result.message);
+      }
 
     } catch (error) {
       console.error('Error marking completed:', error);
@@ -429,40 +577,44 @@ export function BookingDetailModal({
     }
   };
 
-  const canAccept = booking?.status === 'confirmed';
-  const canStart = booking?.status === 'accepted';
-  const canComplete = booking?.status === 'in_progress';
-  const isCompleted = booking?.status === 'completed' || booking?.status === 'worker_completed';
+  // Use localBooking for immediate UI updates
+  const currentBooking = localBooking || booking;
+  const canAccept = currentBooking?.status === 'confirmed';
+  const canStart = currentBooking?.status === 'accepted';
+  const canComplete = currentBooking?.status === 'in_progress';
+  const isCompleted = currentBooking?.status === 'completed' || currentBooking?.status === 'worker_completed';
 
   if (!booking) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+      <DialogContent className="sm:max-w-2xl max-h-[95vh] w-[95vw] sm:w-full overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="flex items-center justify-between text-lg sm:text-xl">
             <span>Booking Details</span>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 sm:h-10 sm:w-10">
               <X className="h-4 w-4" />
             </Button>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Booking Status and Actions */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Badge className={getBookingStatusDisplay(booking.status || '').color}>
-                {getBookingStatusDisplay(booking.status || '').text}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className={getBookingStatusDisplay(currentBooking?.status || '').color}>
+                {getBookingStatusDisplay(currentBooking?.status || '').text}
               </Badge>
-              <Badge className={getUrgencyColor(booking?.urgency || '')}>
-                {(booking?.urgency || 'Normal').charAt(0).toUpperCase() + (booking?.urgency || 'normal').slice(1)} Priority
-              </Badge>
+                              <Badge className={getUrgencyColor(currentBooking?.urgency || '')}>
+                  {(currentBooking?.urgency || 'Normal').charAt(0).toUpperCase() + (currentBooking?.urgency || 'normal').slice(1)} Priority
+                </Badge>
             </div>
             <Button
               onClick={handleMessageClient}
               disabled={loading || !clientInfo}
               variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
             >
               <MessageCircle className="h-4 w-4 mr-2" />
               Message Client
@@ -474,30 +626,42 @@ export function BookingDetailModal({
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                <div className="flex items-center justify-between">
-                  <span>
+                <div className="space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
+                  <span className="block text-sm sm:text-base">
                     {canAccept && "Ready to accept this booking?"}
                     {canStart && "Ready to start work?"}
                     {canComplete && "Work completed? Mark as done for client confirmation."}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                     {canAccept && (
-                      <Button 
-                        size="sm" 
-                        onClick={handleAcceptBooking}
-                        disabled={isUpdating}
-                        className="bg-emerald-500 hover:bg-emerald-600"
-                      >
-                        <Check className="h-3 w-3 mr-1" />
-                        Accept Booking
-                      </Button>
+                      <>
+                        <Button 
+                          size="sm" 
+                          onClick={handleRejectBooking}
+                          disabled={isUpdating}
+                          variant="outline"
+                          className="border-red-200 text-red-600 hover:bg-red-50 w-full sm:w-auto"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Reject
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={handleAcceptBooking}
+                          disabled={isUpdating}
+                          className="bg-emerald-500 hover:bg-emerald-600 w-full sm:w-auto"
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Accept
+                        </Button>
+                      </>
                     )}
                     {canStart && (
                       <Button 
                         size="sm" 
                         onClick={handleStartWork}
                         disabled={isUpdating}
-                        className="bg-blue-500 hover:bg-blue-600"
+                        className="bg-blue-500 hover:bg-blue-600 w-full sm:w-auto"
                       >
                         Start Work
                       </Button>
@@ -507,7 +671,7 @@ export function BookingDetailModal({
                         size="sm" 
                         onClick={handleMarkCompleted}
                         disabled={isUpdating}
-                        className="bg-purple-500 hover:bg-purple-600"
+                        className="bg-purple-500 hover:bg-purple-600 w-full sm:w-auto"
                       >
                         Mark Completed
                       </Button>
@@ -520,38 +684,38 @@ export function BookingDetailModal({
 
           {/* Client Information */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <User className="h-5 w-5" />
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="flex items-center space-x-2 text-base sm:text-lg">
+                <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Client Information</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {loading ? (
                 <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
-                  <span>Loading client information...</span>
+                  <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-primary-500" />
+                  <span className="text-sm sm:text-base">Loading client information...</span>
                 </div>
               ) : clientInfo ? (
-                <div className="flex items-center space-x-4">
-                  <Avatar className="h-12 w-12">
+                <div className="flex items-start space-x-3 sm:space-x-4">
+                  <Avatar className="h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0">
                     <AvatarImage src={clientInfo.avatar || clientInfo.profileImage} alt={clientInfo.name || clientInfo.displayName} />
                     <AvatarFallback>
                       {(clientInfo.name || clientInfo.displayName || 'C').charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{clientInfo.name || clientInfo.displayName || 'Client'}</h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-base sm:text-lg truncate">{clientInfo.name || clientInfo.displayName || 'Client'}</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-xs sm:text-sm text-gray-600 mt-1 space-y-1 sm:space-y-0">
                       {clientInfo.email && (
-                        <div className="flex items-center space-x-1">
-                          <Mail className="h-4 w-4" />
-                          <span>{clientInfo.email}</span>
+                        <div className="flex items-center space-x-1 min-w-0">
+                          <Mail className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">{clientInfo.email}</span>
                         </div>
                       )}
                       {clientInfo.phone && (
                         <div className="flex items-center space-x-1">
-                          <Phone className="h-4 w-4" />
+                          <Phone className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                           <span>{clientInfo.phone}</span>
                         </div>
                       )}
@@ -560,7 +724,7 @@ export function BookingDetailModal({
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-gray-500 mb-2">Failed to load client information</p>
+                  <p className="text-gray-500 mb-2 text-sm sm:text-base">Failed to load client information</p>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -573,6 +737,7 @@ export function BookingDetailModal({
                       }
                       fetchClientInfo(b.clientId);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     Try Again
                   </Button>
@@ -583,42 +748,42 @@ export function BookingDetailModal({
 
           {/* Service Booking */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{getBookingTitle()}</CardTitle>
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">{getBookingTitle()}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               <div>
-                <h4 className="font-medium text-gray-900 mb-2">Description</h4>
-                <p className="text-gray-600">
+                <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">Description</h4>
+                <p className="text-gray-600 text-sm sm:text-base">
                   {getBookingDescription()}
                 </p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-2 text-gray-600">
-                  <MapPin className="h-4 w-4" />
-                  <span>{getBookingLocation()}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="flex items-center gap-2 text-gray-600 text-sm sm:text-base">
+                  <MapPin className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{getBookingLocation()}</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Calendar className="h-4 w-4" />
-                  <span>{getFormattedDate(getBookingDate())}</span>
+                <div className="flex items-center gap-2 text-gray-600 text-sm sm:text-base">
+                  <Calendar className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{getFormattedDate(getBookingDate())}</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Clock className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-gray-600 text-sm sm:text-base">
+                  <Clock className="h-4 w-4 flex-shrink-0" />
                   <span>{getBookingDuration()} hour(s)</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <DollarSign className="h-4 w-4" />
-                  <span>{getFormattedAmount(getBookingAmount(), getBookingCurrency())}</span>
+                <div className="flex items-center gap-2 text-gray-600 text-sm sm:text-base">
+                  <DollarSign className="h-4 w-4 flex-shrink-0" />
+                  <span className="font-medium">{getFormattedAmount(getBookingAmount(), getBookingCurrency())}</span>
                 </div>
               </div>
 
               {(booking as FlattenedBooking)?.requirements?.length && (
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Requirements</h4>
-                  <ul className="list-disc list-inside text-gray-600 space-y-1">
+                  <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">Requirements</h4>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1 text-sm sm:text-base">
                     {(booking as FlattenedBooking).requirements!.map((req: string, index: number) => (
-                      <li key={index}>{req}</li>
+                      <li key={index} className="break-words">{req}</li>
                     ))}
                   </ul>
                 </div>
@@ -628,49 +793,49 @@ export function BookingDetailModal({
 
           {/* Booking Timeline */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Booking Timeline</CardTitle>
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Booking Timeline</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Created</span>
-                  <span className="font-medium">
+            <CardContent className="space-y-3 sm:space-y-4">
+              <div className="space-y-2 sm:space-y-3">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
+                  <span className="text-gray-600 text-sm sm:text-base">Created</span>
+                  <span className="font-medium text-sm sm:text-base">
                     {getFormattedDate(booking.createdAt || '')}
                   </span>
                 </div>
                 
                 {booking.acceptedAt && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Accepted</span>
-                    <span className="font-medium">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
+                    <span className="text-gray-600 text-sm sm:text-base">Accepted</span>
+                    <span className="font-medium text-sm sm:text-base">
                       {getFormattedDate(booking.acceptedAt || '')}
                     </span>
                   </div>
                 )}
                 
                 {booking.startedAt && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Started</span>
-                    <span className="font-medium">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
+                    <span className="text-gray-600 text-sm sm:text-base">Started</span>
+                    <span className="font-medium text-sm sm:text-base">
                       {getFormattedDate(booking.startedAt || '')}
                     </span>
                   </div>
                 )}
                 
                 {booking.completedAt && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Completed</span>
-                    <span className="font-medium">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
+                    <span className="text-gray-600 text-sm sm:text-base">Completed</span>
+                    <span className="font-medium text-sm sm:text-base">
                       {getFormattedDate(booking.completedAt || '')}
                     </span>
                   </div>
                 )}
                 
                 {booking.clientConfirmedAt && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Client Confirmed</span>
-                    <span className="font-medium">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
+                    <span className="text-gray-600 text-sm sm:text-base">Client Confirmed</span>
+                    <span className="font-medium text-sm sm:text-base">
                       {getFormattedDate(booking.clientConfirmedAt || '')}
                     </span>
                   </div>
@@ -681,17 +846,17 @@ export function BookingDetailModal({
 
           {/* Payment Information */}
           <Card>
-            <CardHeader>
-              <CardTitle>Payment Information</CardTitle>
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Payment Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 text-sm sm:text-base">
                 <div>
-                  <span className="text-gray-600">Amount</span>
+                  <span className="text-gray-600 block">Amount</span>
                   <p className="font-semibold">{getFormattedAmount(getBookingAmount(), getBookingCurrency())}</p>
                 </div>
                 <div>
-                  <span className="text-gray-600">Payment Status</span>
+                  <span className="text-gray-600 block">Payment Status</span>
                   <div className="mt-1">
                     <Badge className={getPaymentStatusDisplay(getBookingPaymentStatus()).color}>
                       {getPaymentStatusDisplay(getBookingPaymentStatus()).text}
@@ -699,11 +864,11 @@ export function BookingDetailModal({
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Currency</span>
+                  <span className="text-gray-600 block">Currency</span>
                   <p className="font-semibold">{getBookingCurrency()}</p>
                 </div>
                 <div>
-                  <span className="text-gray-600">Rate Type</span>
+                  <span className="text-gray-600 block">Rate Type</span>
                   <p className="font-semibold">{booking?.budgetIsHourly ? 'Hourly' : 'Fixed'}</p>
                 </div>
               </div>
@@ -711,8 +876,8 @@ export function BookingDetailModal({
               {booking?.status === 'worker_completed' && (
                 <Alert className="mt-4 border-orange-200 bg-orange-50">
                   <AlertTriangle className="h-4 w-4 text-orange-600" />
-                  <AlertDescription className="text-orange-800">
-                    Payment will be released once the client confirms work completion.
+                  <AlertDescription className="text-orange-800 text-sm sm:text-base">
+                    <strong>Payment Release:</strong> Payment will be released once the client confirms work completion.
                   </AlertDescription>
                 </Alert>
               )}
@@ -720,8 +885,8 @@ export function BookingDetailModal({
               {getBookingPaymentStatus() === 'paid' && (
                 <Alert className="mt-4 border-green-200 bg-green-50">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    Payment has been securely held in escrow and will be released upon completion.
+                  <AlertDescription className="text-green-800 text-sm sm:text-base">
+                    <strong>Secure Payment:</strong> Payment has been securely held in escrow and will be released upon completion.
                   </AlertDescription>
                 </Alert>
               )}

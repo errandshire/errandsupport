@@ -225,15 +225,15 @@ export default function WorkerProfilePage() {
             displayName: profile.displayName || user.name,
             bio: profile.bio,
             hourlyRate: profile.hourlyRate,
-            experienceYears: profile.experienceYears,
-            maxRadiusKm: profile.maxRadiusKm,
+            experienceYears: profile.experience,
+            maxRadiusKm: profile.serviceRadius,
             address: profile.address,
             city: profile.city,
             state: profile.state,
-            workingHoursStart: profile.workingHoursStart,
-            workingHoursEnd: profile.workingHoursEnd,
-            acceptsLastMinute: profile.acceptsLastMinute,
-            acceptsWeekends: profile.acceptsWeekends,
+            workingHoursStart: profile.availability?.startTime,
+            workingHoursEnd: profile.availability?.endTime,
+            acceptsLastMinute: profile.availability?.acceptsUrgent || false,
+            acceptsWeekends: profile.availability?.weekends || false,
           });
         }
       } catch (error) {

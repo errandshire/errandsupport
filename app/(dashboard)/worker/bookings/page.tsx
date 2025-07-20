@@ -234,7 +234,7 @@ export default function WorkerJobsPage() {
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-                  My Jobs
+                  My Bookings
                 </h1>
                 <p className="text-neutral-600">
                   Manage your bookings and track your progress
