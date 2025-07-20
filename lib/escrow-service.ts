@@ -139,6 +139,21 @@ export class EscrowService {
         'release'
       );
 
+      // 🆕 Credit worker's virtual wallet with earnings
+      try {
+        const { VirtualWalletService } = await import('./virtual-wallet-service');
+        await VirtualWalletService.creditWorkerEarnings(
+          escrowTransaction.workerId,
+          escrowTransaction.workerAmount,
+          bookingId,
+          `Payment released for booking #${bookingId.slice(-8)}`
+        );
+        console.log(`💰 Worker virtual wallet credited: ₦${escrowTransaction.workerAmount} for booking ${bookingId}`);
+      } catch (walletError) {
+        console.error('Error crediting worker virtual wallet:', walletError);
+        // Don't throw - escrow release succeeded, wallet credit is additional
+      }
+
       // Create transaction log for release
       await this.createTransactionLog(
         escrowTransaction.workerId,

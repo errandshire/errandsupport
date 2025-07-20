@@ -182,7 +182,7 @@ export function EnhancedBookingModal({
       const bookingData: Partial<BookingRequest> = {
         id: bookingId,
         ...formData,
-        workerId: worker.id || worker.$id,
+        workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
         categoryId: worker.categories?.[0] || 'general'
       };
 
@@ -192,7 +192,7 @@ export function EnhancedBookingModal({
           userId: user.$id,
           bookingId,
           amount: total,
-          workerId: worker.id || worker.$id,
+          workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
           clientId: user.$id,
           description: formData.title || 'Service Booking'
         });
@@ -220,7 +220,7 @@ export function EnhancedBookingModal({
           metadata: {
             bookingId,
             clientId: user.$id,
-            workerId: worker.id || worker.$id,
+            workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
             type: 'booking_payment' as const,
             workerName: worker.name || worker.displayName,
             serviceName: formData.title || 'Service Booking'
@@ -538,7 +538,7 @@ export function EnhancedBookingModal({
                     Instant confirmation - no payment delays!
                   </p>
                 )}
-              </Card>
+              </CardContent>
             </Card>
           </div>
         )}

@@ -549,15 +549,15 @@ export default function ClientWalletPage() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <Card className="hover:bg-gray-50 transition-colors cursor-pointer" asChild>
-          <Link href="/workers">
+        <Link href="/workers" className="block">
+          <Card className="hover:bg-gray-50 transition-colors cursor-pointer">
             <CardContent className="p-4 sm:p-6 text-center">
               <Plus className="h-6 w-6 sm:h-8 sm:w-8 text-emerald-500 mx-auto mb-2" />
               <h3 className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Book a Service</h3>
               <p className="text-xs sm:text-sm text-gray-600">Find and hire workers</p>
             </CardContent>
-          </Link>
-        </Card>
+          </Card>
+        </Link>
 
         <Card 
           className="hover:bg-gray-50 transition-colors cursor-pointer" 

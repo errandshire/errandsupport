@@ -185,18 +185,14 @@ export class VirtualWalletService {
         reference,
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/wallet/topup/callback`,
         metadata: {
-          type: 'wallet_topup' as const,
+          type: 'wallet_topup',
           userId,
           walletId: wallet.$id!,
-          description: description || 'Wallet top-up',
-          // Add required fields for PaystackPaymentData compatibility
-          bookingId: '', // Not applicable for wallet top-up
-          clientId: userId,
-          workerId: '', // Not applicable for wallet top-up
+          description: description || 'Wallet top-up'
         }
       };
 
-      const paymentResponse = await paystack.initializePayment(paymentData);
+      const paymentResponse = await paystack.initializePayment(paymentData as any);
 
       if (!paymentResponse.status) {
         throw new Error('Failed to initialize payment');
@@ -673,6 +669,93 @@ export class VirtualWalletService {
     } catch (error) {
       console.error('Error getting wallet transactions:', error);
       return [];
+    }
+  }
+
+  /**
+   * Credit worker earnings to virtual wallet (called when escrow is released)
+   */
+  static async creditWorkerEarnings(
+    workerId: string,
+    amount: number,
+    bookingId: string,
+    description: string = 'Booking payment released'
+  ): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      // Try to find actual user ID if workerId might be a worker profile ID
+      let actualUserId = workerId;
+      
+      try {
+        // Check if this is a worker profile ID by looking it up in WORKERS collection
+        const workerProfile = await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WORKERS,
+          workerId
+        );
+        
+        // If found and has userId field, use that instead
+        if (workerProfile.userId) {
+          actualUserId = workerProfile.userId;
+          console.log(`🔄 Mapping worker profile ${workerId} to user ${actualUserId}`);
+        }
+      } catch (error) {
+        // Not a worker profile ID, treat as user ID directly
+        console.log(`✅ Using ${workerId} as user ID directly`);
+      }
+
+      // Get or create worker's virtual wallet using the actual user ID
+      let wallet = await this.getUserWallet(actualUserId);
+      if (!wallet) {
+        wallet = await this.initializeWallet(actualUserId);
+      }
+
+      // Generate earnings reference
+      const reference = EscrowUtils.generateTransactionReference('worker_earnings', actualUserId);
+
+      // Credit the wallet
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id!,
+        {
+          availableBalance: wallet.availableBalance + amount,
+          totalDeposits: wallet.totalDeposits + amount,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      // Create transaction record
+      await this.createWalletTransaction({
+        userId: actualUserId,
+        walletId: wallet.$id!,
+        type: 'earnings_credit',
+        amount,
+        reference,
+        description,
+        status: 'completed',
+        metadata: {
+          bookingId,
+          source: 'escrow_release',
+          earnedAt: new Date().toISOString()
+        }
+      });
+
+      console.log(`✅ Worker earnings credited: ₦${amount} to worker ${actualUserId} for booking ${bookingId}`);
+
+      return {
+        success: true,
+        message: `₦${amount.toLocaleString()} credited to your virtual wallet`
+      };
+
+    } catch (error) {
+      console.error('Error crediting worker earnings:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to credit earnings'
+      };
     }
   }
 

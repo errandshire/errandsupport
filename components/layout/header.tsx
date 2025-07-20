@@ -330,20 +330,18 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                 </div>
               )}
 
-              {/* Mobile Menu Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onClick={isAuthenticated && user ? onSidebarToggle : handleMenuToggle}
-                aria-label="Open menu"
-              >
-                {isAuthenticated && user && sidebarOpen ? (
-                  <X className="h-5 w-5" />
-                ) : (
+              {/* Mobile Menu Button - Only show when not signed in */}
+              {!isAuthenticated && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={handleMenuToggle}
+                  aria-label="Open menu"
+                >
                   <Menu className="h-5 w-5" />
-                )}
-              </Button>
+                </Button>
+              )}
             </div>
           </div>
 

@@ -1,8 +1,12 @@
-import { databases, COLLECTIONS } from './appwrite';
+import { databases } from '@/lib/appwrite';
+import { COLLECTIONS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { EscrowService } from './escrow-service';
 import { VirtualWalletService } from './virtual-wallet-service';
-import type { UserBalance, EscrowTransaction } from './types';
+import type { 
+  UserBalance,
+  EscrowTransaction
+} from './types';
 
 export interface WorkerStats {
   totalEarnings: number;
@@ -182,7 +186,22 @@ class WorkerDashboardService {
     if (cached) return cached;
 
     try {
-      // Fetch all relevant bookings
+      // Get worker profile to check if there's a separate worker ID
+      let workerProfileId = userId;
+      try {
+        const workerProfile = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WORKERS,
+          [Query.equal('userId', userId)]
+        );
+        if (workerProfile.documents.length > 0) {
+          workerProfileId = workerProfile.documents[0].$id;
+        }
+      } catch (error) {
+        console.warn('Could not find worker profile, using user ID directly');
+      }
+
+      // Fetch all relevant bookings using both user ID and worker profile ID
       const [availableResponse, acceptedResponse] = await Promise.all([
         databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -197,7 +216,10 @@ class WorkerDashboardService {
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.BOOKINGS,
           [
-            Query.equal('workerId', userId),
+            Query.or([
+              Query.equal('workerId', userId),
+              Query.equal('workerId', workerProfileId)
+            ]),
             Query.notEqual('status', 'completed'),
             Query.orderDesc('$createdAt'),
             Query.limit(50)
@@ -284,12 +306,28 @@ class WorkerDashboardService {
     if (cached) return cached;
 
     try {
-      const [balance, escrowTransactions] = await Promise.all([
+      const [legacyBalance, virtualWallet, escrowTransactions] = await Promise.all([
+        EscrowService.getUserBalance(userId),
         VirtualWalletService.getUserWallet(userId),
         EscrowService.getUserEscrowTransactions(userId, 'worker', 50)
       ]);
 
-      const result = { balance, escrowTransactions };
+      // Combine legacy and virtual wallet balances
+      const combinedBalance: UserBalance = {
+        $id: legacyBalance?.$id || 'combined',
+        userId: userId,
+        availableBalance: (legacyBalance?.availableBalance || 0) + (virtualWallet?.availableBalance || 0),
+        pendingBalance: (legacyBalance?.pendingBalance || 0) + (virtualWallet?.pendingBalance || 0),
+        totalEarnings: (legacyBalance?.totalEarnings || 0) + (virtualWallet?.totalDeposits || 0),
+        totalWithdrawn: legacyBalance?.totalWithdrawn || 0,
+        currency: legacyBalance?.currency || 'NGN',
+        updatedAt: new Date().toISOString(),
+        // Add virtual wallet info for extended functionality
+        virtualWallet: virtualWallet,
+        legacyBalance: legacyBalance
+      } as UserBalance & { virtualWallet: any | null; legacyBalance: UserBalance | null };
+
+      const result = { balance: combinedBalance, escrowTransactions };
       this.setCache(cacheKey, result, this.CACHE_TTL.balance);
       return result;
 

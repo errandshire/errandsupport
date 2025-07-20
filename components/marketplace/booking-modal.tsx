@@ -307,7 +307,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
       // Create booking in database before payment
       const bookingData: Partial<BookingRequest> = {
         ...updatedFormData,
-        workerId: worker.id,
+        workerId: worker.userId || worker.id, // Use userId first, then fallback
         categoryId: worker.categories[0], // Use first category
       };
       
@@ -330,7 +330,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
         metadata: {
           bookingId: bookingId,
           clientId: user.$id,
-          workerId: worker.id,
+          workerId: worker.userId || worker.id, // Use userId first, then fallback
           type: 'booking_payment' as const,
           workerName: worker.displayName,
           serviceName: formData.title || 'Service Booking'

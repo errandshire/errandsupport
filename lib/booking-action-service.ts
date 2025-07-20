@@ -56,6 +56,7 @@ export class BookingActionService {
         bookingId,
         {
           status: 'accepted',
+          workerId: userId,
           acceptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }

@@ -166,7 +166,7 @@ export function WalletOnlyBookingModal({
       const bookingData: Partial<BookingRequest> = {
         id: bookingId,
         ...formData,
-        workerId: worker.id || worker.$id,
+        workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
         categoryId: worker.categories?.[0] || 'general'
       };
 
@@ -175,7 +175,7 @@ export function WalletOnlyBookingModal({
         userId: user.$id,
         bookingId,
         amount: total,
-        workerId: worker.id || worker.$id,
+        workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
         clientId: user.$id,
         description: formData.title || 'Service Booking'
       });

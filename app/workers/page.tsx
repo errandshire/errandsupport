@@ -118,7 +118,7 @@ function WorkersPageContent() {
       const flattenedBookingRequest = {
         id: bookingId,
         clientId: user.$id,
-        workerId: bookingModal.selectedWorker.$id,
+        workerId: bookingModal.selectedWorker.userId || bookingModal.selectedWorker.$id, // Use userId first, fallback to $id
         categoryId: bookingModal.selectedWorker.categories[0],
         title: bookingData.title || '',
         description: bookingData.description || '',
