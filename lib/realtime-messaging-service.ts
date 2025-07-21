@@ -138,7 +138,8 @@ class RealtimeMessagingService {
         ]
       );
 
-      const messages = response.documents as unknown as Message[];
+      // Map $id to id for all messages
+      const messages = response.documents.map((doc: any) => ({ ...doc, id: doc.$id })) as Message[];
       
       // Group by conversation
       const conversationMap = new Map<string, {
@@ -447,6 +448,42 @@ class RealtimeMessagingService {
       const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
       return timeB - timeA;
     });
+  }
+
+  // Delete a conversation and all its messages
+  async deleteConversation(conversationId: string, userId: string) {
+    try {
+      // Find all messages in the conversation
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.MESSAGES,
+        [
+          Query.equal('conversationId', conversationId),
+          Query.limit(200)
+        ]
+      );
+      // Delete each message document
+      const deletePromises = response.documents.map((msg: any) =>
+        databases.deleteDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.MESSAGES,
+          msg.$id
+        )
+      );
+      await Promise.all(deletePromises);
+      // Remove from local cache
+      this.conversations.delete(conversationId);
+      this.messages.delete(conversationId);
+      // Notify global subscribers (for UI update)
+      this.notifySubscribers('*', {
+        type: 'conversation_updated',
+        conversation: undefined,
+        userId
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      throw error;
+    }
   }
 
   // Cleanup

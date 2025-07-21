@@ -7,7 +7,8 @@ import {
   MessageCircle,
   Clock,
   VolumeX,
-  Volume2
+  Volume2,
+  Trash2
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,10 @@ import { Message } from "@/lib/types/marketplace";
 import { toast } from "sonner";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { realtimeMessagingService, type Conversation } from "@/lib/realtime-messaging-service";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { ChatInterface } from "@/components/chat/chat-interface";
 
 export default function ClientMessagesPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -35,6 +40,9 @@ export default function ClientMessagesPage() {
     name: string;
     email: string;
   } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [conversationToDelete, setConversationToDelete] = React.useState<Conversation | null>(null);
+  const isMobile = useMediaQuery("(max-width: 1023px)"); // Tailwind lg breakpoint
 
   React.useEffect(() => {
     if (loading) return;
@@ -81,8 +89,9 @@ export default function ClientMessagesPage() {
   };
 
   const handleConversationClick = (conversation: Conversation) => {
+    if (!user) return; // Guard for null user
     // Get the other participant (not the current user)
-    const otherParticipant = conversation.participants.find(p => p !== user?.$id);
+    const otherParticipant = conversation.participants.find(p => p !== user.$id);
     if (!otherParticipant) return;
     
     const participantInfo = conversation.participantInfo[otherParticipant];
@@ -92,12 +101,31 @@ export default function ClientMessagesPage() {
       name: participantInfo?.name || 'User',
       email: participantInfo?.email || ''
     });
-    setShowMessageModal(true);
     setSelectedConversation(conversation);
     
     // Mark messages as read
     if (conversation.unreadCount > 0) {
       realtimeMessagingService.markMessagesAsRead(conversation.id, user!.$id);
+    }
+    if (isMobile) {
+      setShowMessageModal(true);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!conversationToDelete || !user) return; // Guard for null user
+    // Optimistically remove from UI
+    const prevConversations = [...conversations];
+    setConversations(conversations.filter(c => c.id !== conversationToDelete.id));
+    setDeleteDialogOpen(false);
+    try {
+      await realtimeMessagingService.deleteConversation(conversationToDelete.id, user.$id);
+      toast.success("Conversation deleted");
+    } catch (error) {
+      setConversations(prevConversations); // Restore
+      toast.error("Failed to delete conversation");
+    } finally {
+      setConversationToDelete(null);
     }
   };
 
@@ -207,6 +235,18 @@ export default function ClientMessagesPage() {
                               <span className="text-xs text-gray-500">
                                   {conversation.lastMessageTime ? new Date(conversation.lastMessageTime).toLocaleString() : ''}
                               </span>
+                              {/* Delete button */}
+                              <button
+                                className="ml-2 p-1 rounded hover:bg-red-100 text-red-600"
+                                title="Delete conversation"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setConversationToDelete(conversation);
+                                  setDeleteDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </div>
                           </div>
                           <p className="text-sm text-gray-600 truncate mt-1">
@@ -223,12 +263,24 @@ export default function ClientMessagesPage() {
 
             {/* Message Area */}
             <Card className="lg:col-span-2">
-              <CardContent className="h-full flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
-                  <p>Choose a conversation from the list to start messaging</p>
-                </div>
+              <CardContent className="h-full p-0">
+                {selectedConversation && !isMobile ? (
+                  <ChatInterface
+                    recipientId={messageRecipient?.id || ''}
+                    recipientName={messageRecipient?.name || 'User'}
+                    recipientAvatar={Object.values(selectedConversation.participantInfo)[0]?.avatar}
+                    recipientEmail={messageRecipient?.email}
+                    className="h-[600px]"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-center text-gray-500">
+                    <div>
+                      <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
+                      <p>Choose a conversation from the list to start messaging</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -237,14 +289,30 @@ export default function ClientMessagesPage() {
       
 
       {/* Message Modal */}
-      <MessageModal
-        isOpen={showMessageModal}
-        onClose={() => setShowMessageModal(false)}
-        worker={null}
-        recipientId={messageRecipient?.id}
-        recipientName={messageRecipient?.name}
-        recipientEmail={messageRecipient?.email}
-      />
+      {isMobile && (
+        <MessageModal
+          isOpen={showMessageModal}
+          onClose={() => setShowMessageModal(false)}
+          worker={null}
+          recipientId={messageRecipient?.id}
+          recipientName={messageRecipient?.name}
+          recipientEmail={messageRecipient?.email}
+        />
+      )}
+
+      {/* Delete Conversation Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Conversation</DialogTitle>
+          </DialogHeader>
+          <div>Are you sure you want to delete this conversation? This action cannot be undone.</div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteConversation}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

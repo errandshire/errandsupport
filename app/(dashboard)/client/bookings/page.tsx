@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
+import { MessageModal } from "@/components/marketplace/message-modal";
 
 interface ProcessedBooking {
   $id: string;
@@ -78,6 +79,12 @@ export default function ClientBookingsPage() {
   const [selectedBooking, setSelectedBooking] = React.useState<ProcessedBooking | null>(null);
   const [showBookingModal, setShowBookingModal] = React.useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = React.useState(false);
+  const [showMessageModal, setShowMessageModal] = React.useState(false);
+  const [messageRecipient, setMessageRecipient] = React.useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
 
   // Handle authentication
   React.useEffect(() => {
@@ -278,7 +285,12 @@ export default function ClientBookingsPage() {
 
   const handleMessageWorker = (booking: ProcessedBooking) => {
     if (booking.worker) {
-      router.push(`/client/messages?worker=${booking.worker.id}`);
+      setMessageRecipient({
+        id: booking.worker.id,
+        name: booking.worker.name,
+        email: booking.worker.email || ''
+      });
+      setShowMessageModal(true);
     } else {
       toast.error("Worker information not available");
     }
@@ -688,6 +700,16 @@ export default function ClientBookingsPage() {
           fetchBookings();
           setShowConfirmationModal(false);
         }}
+      />
+
+      {/* Message Modal for direct chat with worker */}
+      <MessageModal
+        isOpen={showMessageModal}
+        onClose={() => setShowMessageModal(false)}
+        worker={null}
+        recipientId={messageRecipient?.id}
+        recipientName={messageRecipient?.name}
+        recipientEmail={messageRecipient?.email}
       />
     </div>
   );

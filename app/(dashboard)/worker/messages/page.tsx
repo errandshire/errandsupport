@@ -7,7 +7,8 @@ import {
   MessageCircle,
   Clock,
   VolumeX,
-  Volume2
+  Volume2,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,10 @@ import { Query } from "appwrite";
 import { Message } from "@/lib/types/marketplace";
 import { toast } from "sonner";
 import { MessageModal } from "@/components/marketplace/message-modal";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { ChatInterface } from "@/components/chat/chat-interface";
+import { realtimeMessagingService, type Conversation } from "@/lib/realtime-messaging-service";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface Conversation {
   id: string;
@@ -60,6 +65,10 @@ export default function WorkerMessagesPage() {
     name: string;
     email: string;
   } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [conversationToDelete, setConversationToDelete] = React.useState<Conversation | null>(null);
+
+  const isMobile = useMediaQuery("(max-width: 1023px)");
 
   React.useEffect(() => {
     if (loading) return;
@@ -74,129 +83,87 @@ export default function WorkerMessagesPage() {
       return;
     }
 
-    fetchConversations();
-    setupRealtimeSubscription();
+    setupRealtimeMessaging();
   }, [loading, isAuthenticated, user, router]);
 
-  const fetchConversations = async () => {
+  const setupRealtimeMessaging = async () => {
     if (!user) return;
-    
     try {
       setIsLoading(true);
-      
-      // Fetch all messages where user is either sender or recipient
-      const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.MESSAGES,
-        [
-          Query.or([
-            Query.equal('senderId', user.$id),
-            Query.equal('recipientId', user.$id)
-          ]),
-          Query.orderDesc('createdAt'),
-          Query.limit(100)
-        ]
-      );
-
-      const messages = response.documents as unknown as Message[];
-      
-      // Group messages by conversation
-      const conversationMap = new Map<string, Conversation>();
-      
-      for (const message of messages) {
-        const otherUserId = message.senderId === user.$id ? message.recipientId : message.senderId;
-        const conversationId = message.conversationId;
-        
-        if (!conversationMap.has(conversationId)) {
-          // Fetch other user's info
-          try {
-            const userInfo = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              COLLECTIONS.USERS,
-              otherUserId
-            );
-            
-            conversationMap.set(conversationId, {
-              id: conversationId,
-              clientId: otherUserId,
-              clientName: userInfo.name,
-              clientAvatar: userInfo.avatar || '',
-              lastMessage: message.content,
-              lastMessageTime: new Date(message.createdAt).toLocaleString(),
-              unreadCount: 0,
-              isOnline: false, // Would need a separate online status system
-              messages: [],
-              participants: [], // Initialize participants
-              participantInfo: {} // Initialize participantInfo
-            });
-          } catch (error) {
-            console.error('Error fetching user info:', error);
-          }
+      await realtimeMessagingService.initialize(user.$id);
+      const userConversations = await realtimeMessagingService.loadUserConversations(user.$id);
+      setConversations(userConversations);
+      realtimeMessagingService.subscribe('*', (update) => {
+        // Update unread count in local state for message_read or conversation_updated
+        if (update.type === 'message_read' || update.type === 'conversation_updated') {
+          setConversations(prev => prev.map(c =>
+            update.conversation && c.id === update.conversation.id
+              ? { ...c, unreadCount: update.conversation.unreadCount }
+              : c
+          ));
+        } else {
+          const updatedConversations = realtimeMessagingService.getConversations();
+          setConversations(updatedConversations);
         }
-        
-        const conversation = conversationMap.get(conversationId);
-        if (conversation) {
-          conversation.messages.push(message);
-          
-          // Update unread count
-          if (message.senderId !== user.$id && !message.isRead) {
-            conversation.unreadCount++;
-          }
-          
-          // Update last message if this is the most recent
-          if (new Date(message.createdAt) > new Date(conversation.lastMessageTime)) {
-            conversation.lastMessage = message.content;
-            conversation.lastMessageTime = new Date(message.createdAt).toLocaleString();
-          }
-        }
-      }
-      
-      setConversations(Array.from(conversationMap.values()));
+      });
     } catch (error) {
-      console.error('Error fetching conversations:', error);
+      console.error('Error setting up real-time messaging:', error);
       toast.error("Failed to load conversations");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const setupRealtimeSubscription = () => {
+  const handleConversationClick = async (conversation: Conversation) => {
     if (!user) return;
-
-    const unsubscribe = client.subscribe(
-      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`,
-      (response) => {
-        if (response.events.includes('databases.*.collections.*.documents.*.create')) {
-          const newMessage = response.payload as Message;
-          
-          // Check if this message involves the current user
-          if (newMessage.senderId === user.$id || newMessage.recipientId === user.$id) {
-            fetchConversations(); // Refresh conversations
-          }
-        }
-      }
-    );
-
-    return () => unsubscribe();
-  };
-
-  const handleConversationClick = (conversation: Conversation) => {
+    const otherParticipant = conversation.participants.find(p => p !== user.$id);
+    if (!otherParticipant) return;
+    const participantInfo = conversation.participantInfo[otherParticipant];
     setMessageRecipient({
-      id: conversation.clientId,
-      name: conversation.clientName,
-      email: '' // Email would need to be fetched separately
+      id: otherParticipant,
+      name: participantInfo?.name || 'User',
+      email: participantInfo?.email || ''
     });
-    setShowMessageModal(true);
+    setSelectedConversation(conversation);
+    if (conversation.unreadCount > 0) {
+      setConversations(prev => prev.map(c =>
+        c.id === conversation.id ? { ...c, unreadCount: 0 } : c
+      ));
+      await realtimeMessagingService.markMessagesAsRead(conversation.id, user.$id);
+      // Reload conversations from backend to ensure sync
+      const updatedConversations = await realtimeMessagingService.loadUserConversations(user.$id);
+      setConversations(updatedConversations);
+    }
+    if (isMobile) {
+      setShowMessageModal(true);
+    }
   };
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleDeleteConversation = async () => {
+    if (!conversationToDelete || !user) return;
+    const prevConversations = [...conversations];
+    setConversations(conversations.filter(c => c.id !== conversationToDelete.id));
+    setDeleteDialogOpen(false);
+    try {
+      await realtimeMessagingService.deleteConversation(conversationToDelete.id, user.$id);
+      toast.success("Conversation deleted");
+    } catch (error) {
+      setConversations(prevConversations);
+      toast.error("Failed to delete conversation");
+    } finally {
+      setConversationToDelete(null);
+    }
+  };
+
+  const filteredConversations = conversations.filter(conv => {
+    return Object.values(conv.participantInfo).some(participant =>
+      participant.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
 
   const getParticipantInfo = (conversation: Conversation) => {
-    // Get the other participant (not the current user)
     const otherParticipantId = conversation.participants.find(p => p !== user?.$id);
     if (!otherParticipantId) return null;
     return conversation.participantInfo[otherParticipantId];
@@ -212,9 +179,8 @@ export default function WorkerMessagesPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
-      <WorkerSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div className="flex-1 flex flex-col lg:ml-64">
+      <>
         
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto h-full">
@@ -265,7 +231,6 @@ export default function WorkerMessagesPage() {
                       filteredConversations.map((conversation) => {
                         const participantInfo = getParticipantInfo(conversation);
                         if (!participantInfo) return null;
-
                         return (
                           <div
                             key={conversation.id}
@@ -295,10 +260,22 @@ export default function WorkerMessagesPage() {
                                   <span className="text-xs text-gray-500">
                                     {conversation.lastMessageTime ? new Date(conversation.lastMessageTime).toLocaleString() : ''}
                                   </span>
+                                  {/* Delete button */}
+                                  <button
+                                    className="ml-2 p-1 rounded hover:bg-red-100 text-red-600"
+                                    title="Delete conversation"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setConversationToDelete(conversation);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
                                 </div>
                               </div>
                               <p className="text-sm text-gray-600 truncate mt-1">
-                                {conversation.lastMessage || 'No messages yet'}
+                                {conversation.lastMessage?.content || 'No messages yet'}
                               </p>
                             </div>
                           </div>
@@ -311,20 +288,33 @@ export default function WorkerMessagesPage() {
 
               {/* Message Area */}
               <Card className="lg:col-span-2">
-                <CardContent className="h-full flex items-center justify-center">
-                  <div className="text-center text-gray-500">
+                <CardContent className="h-full p-0">
+                  {selectedConversation && !isMobile ? (
+                    <ChatInterface
+                      recipientId={messageRecipient?.id || ''}
+                      recipientName={messageRecipient?.name || 'User'}
+                      recipientAvatar={selectedConversation.clientAvatar}
+                      recipientEmail={messageRecipient?.email}
+                      className="h-[600px]"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-center text-gray-500">
+                      <div>
                     <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                     <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
                     <p>Choose a conversation from the list to start messaging</p>
                   </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
           </div>
         </main>
-      </div>
+      </>
 
       {/* Message Modal */}
+      {isMobile && (
       <MessageModal
         isOpen={showMessageModal}
         onClose={() => setShowMessageModal(false)}
@@ -333,6 +323,20 @@ export default function WorkerMessagesPage() {
         recipientName={messageRecipient?.name}
         recipientEmail={messageRecipient?.email}
       />
+      )}
+      {/* Delete Conversation Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Conversation</DialogTitle>
+          </DialogHeader>
+          <div>Are you sure you want to delete this conversation? This action cannot be undone.</div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteConversation}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
