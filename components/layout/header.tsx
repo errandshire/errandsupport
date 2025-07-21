@@ -201,7 +201,7 @@ export const Header = React.memo(function Header({ className, children, sidebarO
             {/* Logo */}
             <Link href="/" className="flex items-center">
               <span className="text-lg md:text-xl font-bold text-black">
-                ErrandPro
+                ErandWork
               </span>
             </Link>
 
