@@ -52,7 +52,7 @@ export const metadata: Metadata = {
   keywords: ["errand services", "local workers", "marketplace", "home services", "task assistance"],
   authors: [{ name: "Errand Support Platform" }],
   creator: "Errand Support Platform",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://errand-support-platform.vercel.app"),
   openGraph: {
     title: "Errand Support Platform - Premium Marketplace for Local Services",
     description: "Premium web-based marketplace connecting clients with local errand-support workers.",
