@@ -23,6 +23,8 @@ import { EscrowUtils } from "@/lib/escrow-utils";
 import { VirtualWalletService } from "@/lib/virtual-wallet-service";
 import { BalanceCard } from "@/components/wallet/balance-card";
 import { TransactionList } from "@/components/wallet/transaction-list";
+import { BankAccountSetup } from "@/components/wallet/bank-account-setup";
+import { WithdrawalRequest } from "@/components/wallet/withdrawal-request";
 import type { UserBalance, Transaction, EscrowTransaction } from "@/lib/types";
 import type { VirtualWallet } from "@/lib/virtual-wallet-service";
 import { toast } from "sonner";
@@ -327,6 +329,7 @@ export default function WorkerWalletPage() {
       <Tabs defaultValue="wallet" className="space-y-6">
         <TabsList>
           <TabsTrigger value="wallet">Wallet Earnings</TabsTrigger>
+          <TabsTrigger value="payout">Payouts</TabsTrigger>
           <TabsTrigger value="all">All Transactions</TabsTrigger>
           <TabsTrigger value="earnings">Legacy Earnings</TabsTrigger>
           <TabsTrigger value="escrow">Escrow History</TabsTrigger>
@@ -407,6 +410,20 @@ export default function WorkerWalletPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="payout">
+          <div className="space-y-6">
+            <BankAccountSetup 
+              userId={user?.$id || ''} 
+              onBankAccountAdded={fetchWalletData}
+            />
+            <WithdrawalRequest 
+              userId={user?.$id || ''} 
+              availableBalance={stats?.virtualWalletBalance || 0}
+              onWithdrawalRequested={fetchWalletData}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="all">

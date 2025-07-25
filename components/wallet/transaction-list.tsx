@@ -35,13 +35,18 @@ export function TransactionList({
   // Combine and sort transactions
   const allTransactions = React.useMemo(() => {
     const combined = [
-      ...transactions.map(tx => ({ ...tx, source: 'transaction' as const })),
+      ...transactions.map(tx => ({ 
+        ...tx, 
+        source: 'transaction' as const,
+        uniqueId: `tx_${tx.id || tx.$id}`
+      })),
       ...escrowTransactions.map(tx => ({ 
         ...tx, 
         source: 'escrow' as const,
         type: 'escrow_payment',
         description: `Escrow payment for booking ${tx.bookingId}`,
-        status: tx.status === 'held' ? 'pending' : tx.status === 'released' ? 'completed' : 'cancelled'
+        status: tx.status === 'held' ? 'pending' : tx.status === 'released' ? 'completed' : 'cancelled',
+        uniqueId: `escrow_${tx.$id}`
       }))
     ];
 
@@ -199,7 +204,7 @@ export function TransactionList({
               
               return (
                 <div
-                  key={transaction.id || transaction.$id}
+                  key={transaction.uniqueId}
                   className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center space-x-3">
@@ -219,9 +224,9 @@ export function TransactionList({
                       </p>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <span>{new Date(transaction.createdAt).toLocaleDateString()}</span>
-                        {transaction.reference && (
+                        {(transaction as any).reference && (
                           <span className="px-2 py-1 bg-gray-100 rounded text-xs font-mono">
-                            {transaction.reference.slice(-8)}
+                            {(transaction as any).reference.slice(-8)}
                           </span>
                         )}
                       </div>
@@ -244,7 +249,7 @@ export function TransactionList({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => onViewDetail(transaction)}
+                        onClick={() => onViewDetail(transaction as any)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
