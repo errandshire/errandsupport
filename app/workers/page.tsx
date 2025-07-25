@@ -175,7 +175,7 @@ function WorkersPageContent() {
     });
   };
 
-  // Handle worker messaging (placeholder for now)
+  // Handle worker messaging
   const handleMessageWorker = (worker: WorkerProfile) => {
     if (!isAuthenticated) {
       toast.error("Please log in to message workers");
@@ -382,12 +382,12 @@ function WorkersPageContent() {
                       {worker.profileImage ? (
                         <img 
                           src={worker.profileImage} 
-                          alt={worker.name || 'Worker'}
+                          alt={worker.displayName || 'Worker'}
                           className="h-full w-full object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-emerald-500 flex items-center justify-center text-white font-medium text-lg">
-                          {(worker.name || 'W').charAt(0)}
+                          {(worker.displayName || 'W').charAt(0)}
                         </div>
                       )}
                       {worker.isActive && (
@@ -397,7 +397,7 @@ function WorkersPageContent() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-medium text-gray-900 truncate">{worker.name || 'Worker'}</h3>
+                          <h3 className="font-medium text-gray-900 truncate">{worker.displayName || 'Worker'}</h3>
                           <div className="flex items-center gap-1 text-sm text-gray-600">
                             <MapPin className="h-3 w-3 flex-shrink-0" />
                             <span className="truncate">{worker.city}, {worker.state}</span>
@@ -490,6 +490,9 @@ function WorkersPageContent() {
         isOpen={messageModal.isOpen}
         onClose={handleCloseMessageModal}
         worker={messageModal.selectedWorker}
+        recipientId={messageModal.selectedWorker?.userId || messageModal.selectedWorker?.$id}
+        recipientName={messageModal.selectedWorker?.name}
+        recipientEmail={messageModal.selectedWorker?.email}
       />
 
       {/* Worker Profile Modal */}

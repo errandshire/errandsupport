@@ -760,6 +760,72 @@ export class VirtualWalletService {
   }
 
   /**
+   * Credit client refund to virtual wallet
+   */
+  static async creditClientRefund(
+    clientId: string,
+    amount: number,
+    bookingId: string,
+    description: string = 'Booking refund'
+  ): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    try {
+      // Get or create client's virtual wallet
+      let wallet = await this.getUserWallet(clientId);
+      if (!wallet) {
+        wallet = await this.initializeWallet(clientId);
+      }
+
+      // Generate refund reference
+      const reference = EscrowUtils.generateTransactionReference('client_refund', clientId);
+
+      // Credit the wallet
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id!,
+        {
+          availableBalance: wallet.availableBalance + amount,
+          totalDeposits: wallet.totalDeposits + amount,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      // Create transaction record
+      await this.createWalletTransaction({
+        userId: clientId,
+        walletId: wallet.$id!,
+        type: 'refund_credit',
+        amount,
+        reference,
+        description,
+        status: 'completed',
+        metadata: {
+          bookingId,
+          source: 'escrow_refund',
+          refundedAt: new Date().toISOString()
+        }
+      });
+
+      console.log(`✅ Client refund credited: ₦${amount} to client ${clientId} for booking ${bookingId}`);
+
+      return {
+        success: true,
+        message: `₦${amount.toLocaleString()} refunded to your virtual wallet`
+      };
+
+    } catch (error) {
+      console.error('Error crediting client refund:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to credit refund'
+      };
+    }
+  }
+
+  /**
    * Get wallet statistics
    */
   static async getWalletStats(userId: string): Promise<{

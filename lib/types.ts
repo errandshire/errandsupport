@@ -132,6 +132,13 @@ export interface Booking extends Models.Document {
   cancelledAt?: string;
   cancellationReason?: string;
   cancellationFee?: number;
+  clientConfirmed?: boolean;
+  workerConfirmed?: boolean;
+  completionNote?: string;
+  clientRating?: number;
+  clientReview?: string;
+  workerRating?: number;
+  workerReview?: string;
 }
 
 export type BookingStatus = 

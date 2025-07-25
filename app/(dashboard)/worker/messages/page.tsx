@@ -135,7 +135,7 @@ export default function WorkerMessagesPage() {
       setConversations(updatedConversations);
     }
     if (isMobile) {
-      setShowMessageModal(true);
+    setShowMessageModal(true);
     }
   };
 
@@ -158,7 +158,7 @@ export default function WorkerMessagesPage() {
   const filteredConversations = conversations.filter(conv => {
     return Object.values(conv.participantInfo).some(participant =>
       participant.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  );
   });
 
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);

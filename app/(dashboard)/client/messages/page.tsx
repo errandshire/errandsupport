@@ -275,10 +275,10 @@ export default function ClientMessagesPage() {
                 ) : (
                   <div className="flex items-center justify-center h-full text-center text-gray-500">
                     <div>
-                      <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
-                      <p>Choose a conversation from the list to start messaging</p>
-                    </div>
+                  <MessageCircle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
+                  <p>Choose a conversation from the list to start messaging</p>
+                </div>
                   </div>
                 )}
               </CardContent>
@@ -290,14 +290,14 @@ export default function ClientMessagesPage() {
 
       {/* Message Modal */}
       {isMobile && (
-        <MessageModal
-          isOpen={showMessageModal}
-          onClose={() => setShowMessageModal(false)}
-          worker={null}
-          recipientId={messageRecipient?.id}
-          recipientName={messageRecipient?.name}
-          recipientEmail={messageRecipient?.email}
-        />
+      <MessageModal
+        isOpen={showMessageModal}
+        onClose={() => setShowMessageModal(false)}
+        worker={null}
+        recipientId={messageRecipient?.id}
+        recipientName={messageRecipient?.name}
+        recipientEmail={messageRecipient?.email}
+      />
       )}
 
       {/* Delete Conversation Confirmation Dialog */}

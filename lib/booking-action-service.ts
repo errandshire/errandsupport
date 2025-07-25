@@ -3,6 +3,7 @@ import { ID, Query } from 'appwrite';
 import { EscrowService } from './escrow-service';
 import { VirtualWalletService } from './virtual-wallet-service';
 import { notificationService } from './notification-service';
+import { emailService, EmailHelpers } from './email-service';
 import { BOOKING_STATUS } from './constants';
 import type { Booking } from './types';
 
@@ -73,11 +74,40 @@ export class BookingActionService {
       });
 
       // Send email notification
-      await this.sendEmailNotification(
-        booking.clientId,
-        'Booking Accepted',
-        `Good news! Your booking "${booking.title}" has been accepted and the worker will contact you soon.`
-      );
+      try {
+        const [clientInfo, workerInfo] = await Promise.all([
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId),
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, userId)
+        ]);
+
+        if (EmailHelpers.isValidEmail(clientInfo.email)) {
+          await emailService.sendBookingAcceptedEmail({
+            client: {
+              id: clientInfo.$id,
+              name: clientInfo.name,
+              email: clientInfo.email
+            },
+            worker: {
+              id: workerInfo.$id,
+              name: workerInfo.name,
+              email: workerInfo.email
+            },
+            booking: {
+              id: booking.$id,
+              title: booking.title,
+              description: booking.description,
+              scheduledDate: booking.scheduledDate,
+              budgetAmount: booking.budgetAmount,
+              budgetCurrency: booking.budgetCurrency,
+              locationAddress: booking.locationAddress
+            },
+            bookingUrl: EmailHelpers.getBookingUrl(booking.$id)
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send booking accepted email:', emailError);
+        // Don't fail the booking acceptance if email fails
+      }
 
       console.log(`✅ Booking ${bookingId} accepted by worker ${userId}`);
       
@@ -138,14 +168,12 @@ export class BookingActionService {
         await EscrowService.refundEscrowPayment(bookingId, userId, reason);
         
         // Add funds to client's virtual wallet
-        await VirtualWalletService.addFunds({
-          userId: booking.clientId,
-          amount: booking.budgetAmount,
-          type: 'refund',
-          description: `Refund for rejected booking: ${booking.title}`,
-          reference: `refund_${bookingId}_${Date.now()}`,
-          bookingId
-        });
+        await VirtualWalletService.creditClientRefund(
+          booking.clientId,
+          booking.budgetAmount,
+          bookingId,
+          `Refund for rejected booking: ${booking.title}`
+        );
         
         refundProcessed = true;
         console.log(`💰 Instant refund processed for booking ${bookingId}`);

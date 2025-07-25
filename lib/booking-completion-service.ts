@@ -4,6 +4,7 @@ import { AutoReleaseService } from '@/lib/auto-release-service';
 import { EscrowService } from '@/lib/escrow-service';
 import { BOOKING_STATUS } from '@/lib/escrow-utils';
 import type { Booking } from '@/lib/types';
+import { emailService } from '@/lib/email-service';
 
 /**
  * Booking Completion Service - Phase 2 Integration
@@ -41,11 +42,13 @@ export class BookingCompletionService {
   static async completeBooking(request: BookingCompletionRequest): Promise<BookingCompletionResult> {
     const { bookingId, completedBy, userId, completionNote, clientConfirmation, workerConfirmation, rating } = request;
     
+    let booking: Booking | null = null;
+    
     try {
       console.log(`📋 Processing booking completion: ${bookingId} by ${completedBy}`);
 
       // Get current booking
-      const booking = await databases.getDocument(
+      booking = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
@@ -96,6 +99,12 @@ export class BookingCompletionService {
       );
 
       console.log(`✅ Booking ${bookingId} marked as completed`);
+
+      // Update worker's completed jobs count if both parties confirmed
+      await this.updateWorkerCompletedJobs(booking, updateData);
+
+      // Send email notifications
+      await this.sendCompletionEmails(booking, updateData);
 
       // Check for immediate auto-release eligibility
       const autoReleaseResult = await this.evaluateForAutoRelease(bookingId, completedBy);
@@ -251,6 +260,130 @@ export class BookingCompletionService {
   }
 
   /**
+   * Update worker's completed jobs count when both parties confirm completion
+   */
+  private static async updateWorkerCompletedJobs(
+    booking: Booking, 
+    updateData: Partial<Booking>
+  ): Promise<void> {
+    try {
+      // Check if both client and worker have confirmed
+      const clientConfirmed = updateData.clientConfirmed ?? booking.clientConfirmed;
+      const workerConfirmed = updateData.workerConfirmed ?? booking.workerConfirmed;
+      
+      if (!clientConfirmed || !workerConfirmed) {
+        console.log(`📊 Skipping worker stats update - clientConfirmed: ${clientConfirmed}, workerConfirmed: ${workerConfirmed}`);
+        return;
+      }
+
+      console.log(`📊 Updating worker completed jobs count for worker: ${booking.workerId}`);
+
+      // Find the worker profile in the WORKERS collection
+      const workerProfiles = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        [Query.equal('userId', booking.workerId)]
+      );
+
+      if (workerProfiles.documents.length === 0) {
+        console.warn(`⚠️ No worker profile found for workerId: ${booking.workerId}`);
+        return;
+      }
+
+      const workerProfile = workerProfiles.documents[0];
+      const currentCompletedJobs = workerProfile.completedJobs || 0;
+      const newCompletedJobs = currentCompletedJobs + 1;
+
+      // Update the worker's completed jobs count
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        workerProfile.$id,
+        {
+          completedJobs: newCompletedJobs,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      console.log(`✅ Worker ${booking.workerId} completed jobs updated: ${currentCompletedJobs} → ${newCompletedJobs}`);
+
+    } catch (error) {
+      console.error(`❌ Error updating worker completed jobs count:`, error);
+      // Don't throw error to avoid breaking the booking completion flow
+      // The booking completion should still succeed even if stats update fails
+    }
+  }
+
+  /**
+   * Send email notifications for booking completion
+   */
+  private static async sendCompletionEmails(
+    booking: Booking, 
+    updateData: Partial<Booking>
+  ): Promise<void> {
+    try {
+      // Get user information for email
+      const [clientInfo, workerInfo] = await Promise.all([
+        databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          booking.clientId
+        ),
+        databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          booking.workerId
+        )
+      ]);
+
+      // Prepare email data
+      const emailData = {
+        client: {
+          id: clientInfo.$id,
+          name: clientInfo.name,
+          email: clientInfo.email
+        },
+        worker: {
+          id: workerInfo.$id,
+          name: workerInfo.name,
+          email: workerInfo.email
+        },
+        booking: {
+          id: booking.$id,
+          title: booking.notes || 'Service Booking',
+          description: booking.notes || 'Service completed successfully',
+          scheduledDate: booking.scheduledDate,
+          budgetAmount: booking.totalAmount,
+          budgetCurrency: 'NGN',
+          locationAddress: booking.location?.address || 'Location not specified'
+        },
+        completedAt: updateData.completedAt || new Date().toISOString(),
+        bookingUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/bookings?id=${booking.$id}`
+      };
+
+      // Send completion email to client
+      await emailService.sendBookingCompletedEmail(emailData);
+      console.log(`📧 Completion email sent to client: ${clientInfo.email}`);
+
+      // Send notification to worker about completion
+      const workerNotificationData = {
+        client: emailData.client,
+        worker: emailData.worker,
+        booking: emailData.booking,
+        bookingUrl: emailData.bookingUrl
+      };
+      
+      await emailService.sendWorkerCompletionNotification(workerNotificationData);
+      console.log(`📧 Worker completion notification sent to: ${workerInfo.email}`);
+
+    } catch (error) {
+      console.error(`❌ Error sending completion emails:`, error);
+      // Don't throw error to avoid breaking the booking completion flow
+      // The booking completion should still succeed even if email sending fails
+    }
+  }
+
+  /**
    * Format time for user display
    */
   private static formatRelativeTime(hours: number): string {
@@ -338,8 +471,8 @@ export class BookingCompletionService {
         }
       );
 
-      // Process refund if payment was escrowed
-      if (booking.paymentStatus === 'escrowed') {
+      // Process refund if payment was pending
+      if (booking.paymentStatus === 'pending') {
         try {
           await EscrowService.refundEscrowPayment(bookingId, userId, reason);
           console.log(`💰 Refund processed for cancelled booking ${bookingId}`);

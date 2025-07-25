@@ -261,24 +261,8 @@ export class EscrowService {
       );
 
       if (response.documents.length === 0) {
-        // Create default balance if none exists
-        const defaultBalance: Partial<UserBalance> = {
-          userId,
-          availableBalance: 0,
-          pendingBalance: 0,
-          totalEarnings: 0,
-          totalWithdrawn: 0,
-          updatedAt: new Date().toISOString()
-        };
-
-        const newBalance = await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.USER_BALANCES,
-          ID.unique(),
-          defaultBalance
-        );
-
-        return newBalance as unknown as UserBalance;
+        // Use upsert approach to avoid race conditions
+        return await this.createUserBalance(userId);
       }
 
       return response.documents[0] as unknown as UserBalance;
@@ -289,15 +273,9 @@ export class EscrowService {
     }
   }
 
-  // Initialize user balance (create if doesn't exist)
-  static async initializeUserBalance(userId: string): Promise<UserBalance> {
+  // Create user balance (separate method to avoid circular dependency)
+  private static async createUserBalance(userId: string): Promise<UserBalance> {
     try {
-      // Check if balance already exists
-      const existingBalance = await this.getUserBalance(userId);
-      if (existingBalance) {
-        return existingBalance;
-      }
-
       // Create new balance record
       const balanceData = {
         userId,
@@ -316,8 +294,42 @@ export class EscrowService {
         balanceData
       ) as unknown as UserBalance;
 
-      console.log(`User balance initialized for: ${userId}`);
+      console.log(`User balance created for: ${userId}`);
       return balance;
+
+    } catch (error) {
+      console.error('Error creating user balance:', error);
+      // If document already exists, try to fetch it
+      if (error instanceof Error && error.message?.includes('already exists')) {
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USER_BALANCES,
+          [Query.equal('userId', userId)]
+        );
+        if (response.documents.length > 0) {
+          return response.documents[0] as unknown as UserBalance;
+        }
+      }
+      throw new Error('Failed to create user balance');
+    }
+  }
+
+  // Initialize user balance (create if doesn't exist)
+  static async initializeUserBalance(userId: string): Promise<UserBalance> {
+    try {
+      // Check if balance already exists by direct query to avoid circular dependency
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.USER_BALANCES,
+        [Query.equal('userId', userId)]
+      );
+
+      if (response.documents.length > 0) {
+        return response.documents[0] as unknown as UserBalance;
+      }
+
+      // Create new balance record
+      return await this.createUserBalance(userId);
 
     } catch (error) {
       console.error('Error initializing user balance:', error);

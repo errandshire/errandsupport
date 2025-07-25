@@ -285,6 +285,37 @@ class RealtimeMessagingService {
       // Create notification for recipient
       await this.createMessageNotification(recipientId, senderId, content);
 
+      // Send email notification to recipient
+      try {
+        const [senderInfo, recipientInfo] = await Promise.all([
+          this.getUserInfo(senderId),
+          this.getUserInfo(recipientId)
+        ]);
+
+        // Import email service dynamically to avoid circular dependencies
+        const { emailService } = await import('./email-service');
+        
+        await emailService.sendMessageNotification({
+          sender: {
+            id: senderId,
+            name: senderInfo.name,
+            email: senderInfo.email
+          },
+          recipient: {
+            id: recipientId,
+            name: recipientInfo.name,
+            email: recipientInfo.email
+          },
+          messageContent: content,
+          conversationUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/messages?conversation=${conversationId}`
+        });
+
+        console.log('📧 Email notification sent to:', recipientInfo.email);
+      } catch (emailError) {
+        console.error('Failed to send email notification:', emailError);
+        // Don't fail the message sending if email fails
+      }
+
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
