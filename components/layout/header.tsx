@@ -34,7 +34,7 @@ const navigationItems = [
   { href: "/workers", label: "Find Workers" },
   { href: "/categories", label: "Categories" },
   { href: "/how-it-works", label: "How It Works" },
-  { href: "/about", label: "About" },
+  // { href: "/about", label: "About" },
 ];
 
 export const Header = React.memo(function Header({ className, children, sidebarOpen, onSidebarToggle }: HeaderProps) {
