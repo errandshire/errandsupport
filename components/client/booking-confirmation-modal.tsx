@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { ReviewService } from "@/lib/review-service";
+import { cn } from "@/lib/utils";
 
 interface BookingConfirmationModalProps {
   isOpen: boolean;
@@ -33,7 +35,8 @@ export function BookingConfirmationModal({
   const [action, setAction] = React.useState<'confirm' | 'dispute' | null>(null);
   
   // Confirmation state
-  const [rating, setRating] = React.useState(5);
+  const [rating, setRating] = React.useState(0);
+  const [hoveredRating, setHoveredRating] = React.useState(0);
   const [review, setReview] = React.useState('');
   const [tip, setTip] = React.useState('');
   
@@ -54,24 +57,36 @@ export function BookingConfirmationModal({
   const handleConfirmCompletion = async () => {
     if (!booking || !user) return;
 
+    if (rating === 0) {
+      toast.error("Please select a rating before confirming completion");
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
+      // First, create the review using ReviewService
+      await ReviewService.createReview({
+        bookingId: booking.$id || booking.id,
+        clientId: user.$id,
+        workerId: booking.workerId,
+        rating,
+        comment: review.trim() || undefined,
+        isPublic: true,
+      });
+
+      // Then confirm completion using BookingActionService
       const { BookingActionService } = await import('@/lib/booking-action-service');
       
       const result = await BookingActionService.confirmCompletion({
         bookingId: booking.$id || booking.id,
         userId: user.$id,
         userRole: 'client',
-        action: 'confirm_completion',
-        rating: {
-          score: rating,
-          review: review.trim()
-        }
+        action: 'confirm_completion'
       });
 
       if (result.success) {
-        toast.success(result.message);
+        toast.success("Work completed and review submitted successfully!");
         onRefresh?.();
         onClose();
       } else {
@@ -128,29 +143,59 @@ export function BookingConfirmationModal({
   };
 
   const renderStarRating = () => {
+    const currentRating = hoveredRating || rating;
+    
     return (
-      <div className="flex items-center space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => setRating(star)}
-            className={`p-1 ${
-              star <= rating ? 'text-yellow-400' : 'text-gray-300'
-            } hover:text-yellow-400 transition-colors`}
-          >
-            <Star className="h-6 w-6 fill-current" />
-          </button>
-        ))}
-        <span className="ml-2 text-sm text-gray-600">
-          {rating} out of 5 stars
-        </span>
+      <div className="space-y-2">
+        <div className="flex items-center space-x-1">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => setRating(star)}
+              onMouseEnter={() => setHoveredRating(star)}
+              onMouseLeave={() => setHoveredRating(0)}
+              className="focus:outline-none transition-transform hover:scale-110"
+            >
+              <Star
+                className={cn(
+                  "h-8 w-8 transition-colors",
+                  star <= currentRating
+                    ? "text-yellow-400 fill-current"
+                    : "text-gray-300 hover:text-yellow-200"
+                )}
+              />
+            </button>
+          ))}
+        </div>
+        <div className="text-sm text-gray-600">
+          {rating > 0 ? (
+            <span className="font-medium">
+              {rating} out of 5 stars - {getRatingText(rating)}
+            </span>
+          ) : (
+            <span className="text-gray-400">Click to rate the service</span>
+          )}
+        </div>
       </div>
     );
   };
 
+  const getRatingText = (rating: number) => {
+    switch (rating) {
+      case 1: return "Poor";
+      case 2: return "Fair";
+      case 3: return "Good";
+      case 4: return "Very Good";
+      case 5: return "Excellent";
+      default: return "";
+    }
+  };
+
   const resetForm = () => {
     setAction(null);
-    setRating(5);
+    setRating(0);
+    setHoveredRating(0);
     setReview('');
     setTip('');
     setDisputeCategory('');
@@ -273,7 +318,7 @@ export function BookingConfirmationModal({
                   </Button>
                   <Button 
                     onClick={handleConfirmCompletion}
-                    disabled={isProcessing}
+                    disabled={isProcessing || rating === 0}
                     className="bg-green-500 hover:bg-green-600 flex-1"
                   >
                     {isProcessing ? 'Processing...' : 'Confirm & Release Payment'}

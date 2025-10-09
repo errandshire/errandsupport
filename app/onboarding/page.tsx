@@ -4,9 +4,10 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, ChevronRight, Upload, MapPin, DollarSign, Clock, Star, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload, MapPin, DollarSign, Clock, Star, X, Camera, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/forms/form-input";
+import { DocumentUpload } from "@/components/forms/document-upload";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/use-auth";
 import { SERVICE_CATEGORIES, EXPERIENCE_LEVELS, ID_TYPES } from "@/lib/constants";
 import { clientProfileSchema, onboardingWorkerProfileSchema, onboardingVerificationSchema } from "@/lib/validations";
-import { cn } from "@/lib/utils";
+import { cn, joinDocumentUrls } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface OnboardingStep {
@@ -41,6 +42,7 @@ export default function OnboardingPage() {
 
     // If user is already onboarded, redirect to their dashboard
     if (user.isOnboarded) {
+      console.log('User is already onboarded, redirecting to dashboard');
       router.replace(`/${user.role}`);
       return;
     }
@@ -96,6 +98,8 @@ export default function OnboardingPage() {
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   const handleNext = () => {
+    console.log(`Moving from step ${currentStep} to step ${currentStep + 1}`);
+    console.log('Available steps:', steps.map((step, index) => `${index}: ${step.title}`));
     setCompletedSteps(prev => new Set([...prev, currentStep]));
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -291,7 +295,7 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
   const onSubmit = async (data: any) => {
     try {
       const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID } = await import('appwrite');
+      const { ID, Query } = await import('appwrite');
 
       // Create worker profile data
       const workerProfileData = {
@@ -336,24 +340,42 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
         updatedAt: new Date().toISOString(),
       };
 
-      // Create worker profile in WORKERS collection
-      await databases.createDocument(
+      // Upsert worker profile in WORKERS collection to avoid duplicates per user
+      const existing = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.WORKERS,
+        [Query.equal('userId', user.$id), Query.limit(1)]
+      );
+
+      if (existing.documents && existing.documents.length > 0) {
+        const docId = (existing.documents[0] as any).$id as string;
+        await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.WORKERS,
+          docId,
+          { ...workerProfileData, updatedAt: new Date().toISOString() }
+        );
+      } else {
+        await databases.createDocument(
         DATABASE_ID,
         COLLECTIONS.WORKERS,
         ID.unique(),
         workerProfileData
       );
+      }
 
       // Update user profile with worker-specific data
       const profileData = {
         ...data,
         categories: selectedCategories,
-        isOnboarded: true,
+        // Don't mark as onboarded yet - wait for verification step
+        isOnboarded: false,
       };
       
       const result = await updateProfile(profileData);
       
       if (result.success) {
+        console.log('Professional profile created successfully, moving to next step');
         toast.success("Professional profile created successfully!");
         onNext();
       } else {
@@ -471,9 +493,18 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
 
 // Verification Step
 function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
-  const [uploadedFiles, setUploadedFiles] = React.useState<{file: File, url?: string, uploading?: boolean}[]>([]);
-  const [isDragOver, setIsDragOver] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  // Preview URLs for UI; actual uploads will happen on submit
+  const [idDocumentUrl, setIdDocumentUrl] = React.useState<string>("");
+  const [selfieWithIdUrl, setSelfieWithIdUrl] = React.useState<string>("");
+  const [additionalDocuments, setAdditionalDocuments] = React.useState<string[]>([]);
+  // Hold File objects locally until submit
+  const [idDocumentFile, setIdDocumentFile] = React.useState<File | null>(null);
+  const [selfieWithIdFile, setSelfieWithIdFile] = React.useState<File | null>(null);
+  const [additionalFiles, setAdditionalFiles] = React.useState<File[]>([]);
+  const [uploading, setUploading] = React.useState<{idDocument: boolean, selfieWithId: boolean}>({
+    idDocument: false,
+    selfieWithId: false
+  });
   
   const {
     register,
@@ -483,6 +514,18 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
   } = useForm({
     resolver: zodResolver(onboardingVerificationSchema),
   });
+
+  // Register form fields that are updated programmatically
+  React.useEffect(() => {
+    // Ensure these fields exist in the form state so setValue validates properly
+    // We deliberately don't set defaults here to avoid premature validation failures
+    // Hidden inputs are not necessary if we register programmatically
+    (register as any)("idType");
+    (register as any)("idDocument");
+    (register as any)("selfieWithId");
+    (register as any)("additionalDocuments");
+    // combined helper not persisted to DB
+  }, [register]);
 
   const uploadFileToStorage = async (file: File): Promise<string> => {
     try {
@@ -501,103 +544,123 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
     }
   };
 
-  const validateFile = (file: File): string | null => {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    
-    if (!allowedTypes.includes(file.type)) {
-      return 'Only JPEG, PNG, and PDF files are allowed';
-    }
-    
-    if (file.size > maxSize) {
-      return 'File size must be less than 5MB';
-    }
-    
-    return null;
+  const handleIdDocumentUpload = async (files: File[]): Promise<string[]> => {
+    // Do not upload now; just store locally and create preview URL
+    const file = files[0];
+    if (!file) return [];
+    // Revoke existing preview to avoid leaks
+    if (idDocumentUrl.startsWith('blob:')) URL.revokeObjectURL(idDocumentUrl);
+    const previewUrl = URL.createObjectURL(file);
+    setIdDocumentFile(file);
+    setIdDocumentUrl(previewUrl);
+    setValue("idDocument", previewUrl, { shouldValidate: true, shouldDirty: true });
+    return [previewUrl];
   };
 
-  const handleFileUpload = async (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    
-    for (const file of fileArray) {
-      const validationError = validateFile(file);
-      if (validationError) {
-        toast.error(`${file.name}: ${validationError}`);
-        continue;
-      }
-      
-      // Add file to state as uploading
-      const fileObj = { file, uploading: true };
-      setUploadedFiles(prev => [...prev, fileObj]);
-      
-      try {
-        const url = await uploadFileToStorage(file);
-        
-        // Update file with URL and remove uploading state
-        setUploadedFiles(prev => 
-          prev.map(f => 
-            f.file === file 
-              ? { ...f, url, uploading: false }
-              : f
-          )
-        );
-      } catch (error) {
-        // Remove file from state if upload failed
-        setUploadedFiles(prev => prev.filter(f => f.file !== file));
-        toast.error(`Failed to upload ${file.name}`);
-      }
-    }
+  const handleSelfieWithIdUpload = async (files: File[]): Promise<string[]> => {
+    const file = files[0];
+    if (!file) return [];
+    if (selfieWithIdUrl.startsWith('blob:')) URL.revokeObjectURL(selfieWithIdUrl);
+    const previewUrl = URL.createObjectURL(file);
+    setSelfieWithIdFile(file);
+    setSelfieWithIdUrl(previewUrl);
+    setValue("selfieWithId", previewUrl, { shouldValidate: true, shouldDirty: true });
+    return [previewUrl];
   };
 
-  const removeFile = (fileToRemove: File) => {
-    setUploadedFiles(prev => prev.filter(f => f.file !== fileToRemove));
+  const handleAdditionalDocumentsUpload = async (files: File[]): Promise<string[]> => {
+    const previews: string[] = [];
+    const adds: File[] = [];
+    files.forEach(f => {
+      adds.push(f);
+      previews.push(URL.createObjectURL(f));
+    });
+    setAdditionalFiles(prev => [...prev, ...adds]);
+    setAdditionalDocuments(prev => {
+      const next = [...prev, ...previews];
+      setValue("additionalDocuments", joinDocumentUrls(next), { shouldValidate: false, shouldDirty: true });
+      return next;
+    });
+    return previews;
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+  const removeIdDocument = () => {
+    setIdDocumentUrl("");
+    setValue("idDocument", "", { shouldValidate: true, shouldDirty: true });
+    setIdDocumentFile(null);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+  const removeSelfieWithId = () => {
+    setSelfieWithIdUrl("");
+    setValue("selfieWithId", "", { shouldValidate: true, shouldDirty: true });
+    setSelfieWithIdFile(null);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileUpload(files);
-    }
-  };
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileUpload(files);
-    }
+  const removeAdditionalDocument = (url: string) => {
+    setAdditionalDocuments(prev => {
+      const index = prev.indexOf(url);
+      const next = prev.filter(doc => doc !== url);
+      if (index > -1) setAdditionalFiles(files => files.filter((_, i) => i !== index));
+      setValue("additionalDocuments", joinDocumentUrls(next), { shouldValidate: false, shouldDirty: true });
+      return next;
+    });
   };
 
   const onSubmit = async (data: any) => {
     try {
-      const uploadedFileUrls = uploadedFiles
-        .filter(f => f.url && !f.uploading)
-        .map(f => f.url);
-      
-      if (uploadedFileUrls.length === 0) {
-        toast.error('Please upload at least one verification document');
+      if (!idDocumentUrl || !selfieWithIdUrl) {
+        toast.error('Please upload both ID document and selfie with ID');
         return;
       }
+      // Upload files now (deferred upload)
+      setUploading({ idDocument: true, selfieWithId: true });
+      const [finalIdUrl, finalSelfieUrl] = await Promise.all([
+        idDocumentFile ? uploadFileToStorage(idDocumentFile) : Promise.resolve(idDocumentUrl),
+        selfieWithIdFile ? uploadFileToStorage(selfieWithIdFile) : Promise.resolve(selfieWithIdUrl)
+      ]);
+      setUploading({ idDocument: false, selfieWithId: false });
+
+      // Upload additional files if any local files exist
+      let additionalUrls = additionalDocuments;
+      if (additionalFiles.length > 0) {
+        const uploaded = await Promise.all(additionalFiles.map(uploadFileToStorage));
+        additionalUrls = [...additionalUrls, ...uploaded];
+      }
+
+      // Update the WORKERS collection with verification documents
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
       
-      const verificationData = {
-        ...data,
-        verificationDocuments: uploadedFileUrls,
+      // Find the worker document to update
+      const existingWorkers = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.WORKERS,
+        [Query.equal('userId', user.$id), Query.limit(1)]
+      );
+
+      if (existingWorkers.documents.length > 0) {
+        // Update existing worker document with verification data
+        await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.WORKERS,
+          existingWorkers.documents[0].$id,
+          {
+            // Individual document fields
+            idDocument: finalIdUrl,
+            selfieWithId: finalSelfieUrl,
+            // Additional documents as comma-separated string (Appwrite limitation)
+            additionalDocuments: joinDocumentUrls(additionalUrls),
         verificationStatus: 'pending',
         submittedAt: new Date().toISOString(),
-      };
+            updatedAt: new Date().toISOString(),
+          }
+        );
+      }
+
+      // Update user profile to mark as onboarded
+      const result = await updateProfile({
+        isOnboarded: true,
+      });
       
-      const result = await updateProfile(verificationData);
       if (result.success) {
         toast.success('Verification documents submitted successfully!');
         onNext();
@@ -611,19 +674,19 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <h4 className="font-medium text-blue-900 mb-2">Why do we need verification?</h4>
+        <h4 className="font-medium text-blue-900 mb-2">Identity Verification Required</h4>
         <p className="text-sm text-blue-700">
-          Identity verification helps build trust between clients and workers, ensuring a safe platform for everyone.
+          To ensure platform safety and build trust, we need to verify your identity. Please upload clear, high-quality images of your documents.
         </p>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-neutral-700 mb-2">
-          ID Type
+          ID Type <span className="text-red-500">*</span>
         </label>
-        <Select onValueChange={(value) => setValue("idType", value as any)}>
+        <Select onValueChange={(value) => setValue("idType", value as any, { shouldValidate: true, shouldDirty: true })}>
           <SelectTrigger>
-            <SelectValue placeholder="Select ID type" />
+            <SelectValue placeholder="Select your ID type" />
           </SelectTrigger>
           <SelectContent>
             {ID_TYPES.map((type) => (
@@ -633,6 +696,9 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
             ))}
           </SelectContent>
         </Select>
+        {errors.idType && (
+          <p className="text-sm text-red-600 mt-1">{errors.idType.message}</p>
+        )}
       </div>
 
       <FormInput
@@ -641,106 +707,57 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
         error={errors.idNumber?.message}
         disabled={isSubmitting}
         required
+        placeholder="Enter your ID number"
       />
 
-      <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-2">
-          Upload Documents
-        </label>
-        <div
-          className={cn(
-            "border-2 border-dashed rounded-xl p-8 text-center transition-colors",
-            isDragOver
-              ? "border-primary-500 bg-primary-50"
-              : "border-neutral-300 hover:border-neutral-400"
-          )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <Upload className="mx-auto h-12 w-12 text-neutral-400 mb-4" />
-          <p className="text-sm text-neutral-600 mb-2">
-            Drag and drop your ID documents here, or click to select
-          </p>
-          <p className="text-xs text-neutral-500 mb-4">
-            Supported formats: JPEG, PNG, PDF (Max 5MB each)
-          </p>
-          <Button 
-            type="button" 
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Choose Files
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".jpg,.jpeg,.png,.pdf"
-            onChange={handleFileInputChange}
-            className="hidden"
-          />
-        </div>
+      <DocumentUpload
+        title="ID Document"
+        description="Upload a clear photo of your ID document (front side)"
+        required
+        acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+        maxSize={5}
+        maxFiles={1}
+        onUpload={handleIdDocumentUpload}
+        onRemove={removeIdDocument}
+        uploadedFiles={idDocumentUrl ? [idDocumentUrl] : []}
+        uploading={uploading.idDocument}
+        icon={<FileText className="h-8 w-8" />}
+      />
 
-        {/* Display uploaded files */}
-        {uploadedFiles.length > 0 && (
-          <div className="mt-4 space-y-3">
-            <h4 className="text-sm font-medium text-neutral-700">Uploaded Documents</h4>
-            {uploadedFiles.map((fileObj, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg border"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    {fileObj.file.type.startsWith('image/') ? (
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <span className="text-blue-600 text-xs font-medium">IMG</span>
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                        <span className="text-red-600 text-xs font-medium">PDF</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 truncate">
-                      {fileObj.file.name}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      {(fileObj.file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {fileObj.uploading ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                      <span className="text-xs text-neutral-500">Uploading...</span>
-                    </div>
-                  ) : fileObj.url ? (
-                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                      Uploaded
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-xs">
-                      Failed
-                    </Badge>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => removeFile(fileObj.file)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <DocumentUpload
+        title="Selfie with ID"
+        description="Take a selfie holding your ID document next to your face"
+        required
+        acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+        maxSize={5}
+        maxFiles={1}
+        onUpload={handleSelfieWithIdUpload}
+        onRemove={removeSelfieWithId}
+        uploadedFiles={selfieWithIdUrl ? [selfieWithIdUrl] : []}
+        uploading={uploading.selfieWithId}
+        icon={<Camera className="h-8 w-8" />}
+      />
+
+      <DocumentUpload
+        title="Additional Documents (Optional)"
+        description="Upload any additional verification documents (certificates, references, etc.)"
+        acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
+        maxSize={5}
+        maxFiles={3}
+        onUpload={handleAdditionalDocumentsUpload}
+        onRemove={removeAdditionalDocument}
+        uploadedFiles={additionalDocuments}
+        icon={<Upload className="h-8 w-8" />}
+      />
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <h4 className="font-medium text-amber-900 mb-2">📸 Photo Guidelines</h4>
+        <ul className="text-sm text-amber-700 space-y-1">
+          <li>• Ensure good lighting and clear visibility</li>
+          <li>• All text on documents should be readable</li>
+          <li>• Avoid glare, shadows, or blurry images</li>
+          <li>• For selfie: hold ID next to your face, both should be clearly visible</li>
+        </ul>
       </div>
 
       <div className="flex justify-between">
@@ -752,8 +769,10 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
           type="submit" 
           disabled={
             isSubmitting || 
-            uploadedFiles.length === 0 || 
-            uploadedFiles.some(f => f.uploading || !f.url)
+            !idDocumentUrl || 
+            !selfieWithIdUrl ||
+            uploading.idDocument ||
+            uploading.selfieWithId
           }
         >
           {isSubmitting ? "Submitting..." : "Submit for Review"}

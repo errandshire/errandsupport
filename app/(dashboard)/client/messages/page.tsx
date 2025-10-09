@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Search,
   MessageCircle,
@@ -30,6 +30,8 @@ import { ChatInterface } from "@/components/chat/chat-interface";
 export default function ClientMessagesPage() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const senderId = searchParams.get('sender');
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = React.useState<Conversation | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -87,6 +89,24 @@ export default function ClientMessagesPage() {
       setIsLoading(false);
     }
   };
+
+  // Handle URL parameter to auto-select conversation
+  React.useEffect(() => {
+    if (senderId && conversations.length > 0 && user) {
+      // Find conversation with the sender
+      const targetConversation = conversations.find(conv => 
+        conv.participants.includes(senderId) && conv.participants.includes(user.$id)
+      );
+      
+      if (targetConversation) {
+        handleConversationClick(targetConversation);
+        // Clear the URL parameter after selecting
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('sender');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [senderId, conversations, user]);
 
   const handleConversationClick = (conversation: Conversation) => {
     if (!user) return; // Guard for null user

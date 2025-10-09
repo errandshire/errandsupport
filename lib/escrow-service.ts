@@ -44,6 +44,18 @@ export class EscrowService {
       const platformFee = EscrowUtils.calculatePlatformFee(amount);
       const workerAmount = EscrowUtils.calculateWorkerAmount(amount);
 
+      // Check for existing escrow transaction with same paystack reference
+      const existingEscrow = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.ESCROW_TRANSACTIONS,
+        [Query.equal('paystackReference', paystackReference), Query.limit(1)]
+      );
+
+      if (existingEscrow.documents.length > 0) {
+        console.log('Escrow transaction already exists for paystack reference:', paystackReference);
+        return existingEscrow.documents[0] as unknown as EscrowTransaction;
+      }
+
       // Create escrow transaction
       const escrowData = {
         bookingId,

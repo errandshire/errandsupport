@@ -1,7 +1,7 @@
 # Tolu Development Guidelines & Warnings
 
 ## Project Context
-This is a fullstack applicaton with next js and appwrite. Don't code, think to understand the issue then ask me if you should proceed or not. All code changes must be professional, well-reasoned, and follow established patterns to maintain team standards and avoid PR complications.
+This is a standard application. Don't just start coding, think to understand the issue then ask me if you should proceed or not. All code changes must be professional, well-reasoned, and follow established patterns to maintain team standards and avoid PR complications.
 
 ## Core Development Principles
 

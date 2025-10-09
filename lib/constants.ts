@@ -208,10 +208,10 @@ export const EXPERIENCE_LEVELS = [
 
 // ID Types for Verification
 export const ID_TYPES = [
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'passport', label: 'Passport' },
   { value: 'national_id', label: 'National ID' },
-  { value: 'state_id', label: 'State ID' },
+  { value: 'voter_card', label: 'Voter Card' },
+  { value: 'international_passport', label: 'International Passport' },
+  { value: 'drivers_license', label: "Driver's License" },
 ] as const;
 
 // Payment Methods

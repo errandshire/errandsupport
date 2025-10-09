@@ -3,6 +3,7 @@ import { COLLECTIONS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { EscrowService } from './escrow-service';
 import { VirtualWalletService } from './virtual-wallet-service';
+import { ReviewService } from './review-service';
 import type { 
   UserBalance,
   EscrowTransaction
@@ -124,11 +125,10 @@ class WorkerDashboardService {
         .filter(b => new Date(b.completedAt) >= thisWeek)
         .reduce((sum, b) => sum + (b.budgetAmount || 0), 0);
 
-      // Calculate ratings
-      const ratedBookings = completedBookings.filter(b => b.clientRating && b.clientRating > 0);
-      const avgRating = ratedBookings.length > 0
-        ? ratedBookings.reduce((sum, b) => sum + b.clientRating, 0) / ratedBookings.length
-        : 0;
+      // Get rating stats from review service
+      const reviewStats = await ReviewService.getWorkerReviewStats(userId);
+      const avgRating = reviewStats.averageRating;
+      const totalReviews = reviewStats.totalReviews;
 
       // Calculate response and completion rates
       const totalResponded = bookings.filter(b => b.status !== 'confirmed').length;
@@ -144,7 +144,7 @@ class WorkerDashboardService {
         activeBookings: activeBookings.length,
         pendingBookings: pendingBookings.length,
         avgRating: Math.round(avgRating * 10) / 10,
-        totalReviews: ratedBookings.length,
+        totalReviews,
         monthlyEarnings,
         weeklyEarnings,
         responseRate: Math.round(responseRate),
@@ -208,6 +208,7 @@ class WorkerDashboardService {
           COLLECTIONS.BOOKINGS,
           [
             Query.equal('status', 'confirmed'),
+            Query.isNull('workerId'), // Only show bookings that haven't been assigned to any worker yet
             Query.orderDesc('$createdAt'),
             Query.limit(50)
           ]

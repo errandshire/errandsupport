@@ -128,7 +128,14 @@ export class VirtualWalletService {
         return null;
       }
 
-      const wallet = response.documents[0] as unknown as VirtualWallet;
+      // Gracefully resolve duplicates by always choosing the most recently updated/created
+      const docs = response.documents as unknown as VirtualWallet[];
+      if (docs.length > 1) {
+        console.warn('[Wallet] getUserWallet:duplicate-wallets-detected', { userId, count: docs.length, walletIds: docs.map(d => d.$id) });
+      }
+      const wallet = docs
+        .slice()
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())[0];
       
       // Reset daily/monthly counters if needed
       const updatedWallet = await this.resetSpendingCountersIfNeeded(wallet);
@@ -250,6 +257,26 @@ export class VirtualWalletService {
   ): Promise<void> {
     try {
       const { userId, walletId } = metadata;
+      console.log('[Wallet] processTopUpSuccess:start', { reference, amount, userId, walletId });
+
+      // Idempotency: if we already marked this reference as completed, exit early
+      try {
+        const existing = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WALLET_TRANSACTIONS,
+          [
+            Query.equal('reference', reference),
+            Query.equal('type', 'topup_completed'),
+            Query.equal('status', 'completed'),
+          ]
+        );
+        console.log('[Wallet] processTopUpSuccess:idempotency-check', { reference, found: existing.total });
+        if (existing.total > 0) {
+          console.log('[Wallet] processTopUpSuccess:skip-existing', { reference });
+          // Already processed; do nothing
+          return;
+        }
+      } catch {}
 
       // Get wallet
       const wallet = await databases.getDocument(
@@ -257,19 +284,31 @@ export class VirtualWalletService {
         COLLECTIONS.VIRTUAL_WALLETS,
         walletId
       ) as unknown as VirtualWallet;
+      console.log('[Wallet] processTopUpSuccess:wallet-before', {
+        walletId,
+        availableBalance: wallet.availableBalance,
+        pendingBalance: wallet.pendingBalance,
+        totalDeposits: wallet.totalDeposits
+      });
 
-      // Update wallet balances
+      // Update wallet balances (clamp pending to avoid negatives if init step failed)
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         walletId,
         {
           availableBalance: wallet.availableBalance + amount,
-          pendingBalance: wallet.pendingBalance - amount,
+          pendingBalance: Math.max((wallet.pendingBalance || 0) - amount, 0),
           totalDeposits: wallet.totalDeposits + amount,
           updatedAt: new Date().toISOString()
         }
       );
+      console.log('[Wallet] processTopUpSuccess:wallet-after', {
+        walletId,
+        availableBalance: wallet.availableBalance + amount,
+        pendingBalance: Math.max((wallet.pendingBalance || 0) - amount, 0),
+        totalDeposits: wallet.totalDeposits + amount
+      });
 
       // Update transaction status
       await this.updateWalletTransactionStatus(reference, 'completed');
@@ -405,6 +444,7 @@ export class VirtualWalletService {
   static async requestWithdrawal(request: WalletWithdrawalRequest): Promise<{
     success: boolean;
     withdrawalId?: string;
+    reference?: string;
     message: string;
   }> {
     try {
@@ -417,7 +457,7 @@ export class VirtualWalletService {
       }
 
       // Validate withdrawal amount
-      if (amount < 500) {
+      if (amount < 50) {
         throw new Error('Minimum withdrawal amount is ₦500');
       }
 
@@ -444,6 +484,23 @@ export class VirtualWalletService {
         processedAt: null,
         transferReference: null
       };
+
+      // Check for existing withdrawal request with same reference
+      const existingWithdrawals = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_WITHDRAWALS,
+        [Query.equal('reference', reference), Query.limit(1)]
+      );
+
+      if (existingWithdrawals.documents.length > 0) {
+        console.log('Withdrawal request already exists for reference:', reference);
+        return {
+          success: true,
+          withdrawalId: existingWithdrawals.documents[0].$id,
+          reference,
+          message: 'Withdrawal request already exists'
+        };
+      }
 
       // Store withdrawal request
       await databases.createDocument(
@@ -591,6 +648,18 @@ export class VirtualWalletService {
     metadata?: any;
   }): Promise<void> {
     try {
+      // Check for existing transaction with same reference to prevent duplicates
+      const existingTransactions = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_TRANSACTIONS,
+        [Query.equal('reference', data.reference), Query.limit(1)]
+      );
+
+      if (existingTransactions.documents.length > 0) {
+        console.log('Wallet transaction already exists for reference:', data.reference);
+        return;
+      }
+
       const transactionId = ID.unique();
       
       const transaction = {

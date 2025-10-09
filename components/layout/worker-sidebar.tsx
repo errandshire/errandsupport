@@ -32,7 +32,7 @@ interface WorkerSidebarProps {
 const sidebarItems = [
   {
     title: "Dashboard",
-    href: "/worker",
+    href: "/worker/dashboard",
     icon: Home,
     badge: null,
   },
@@ -61,12 +61,7 @@ const sidebarItems = [
     badge: null,
   },
   
-  {
-    title: "Availability",
-    href: "/worker/availability",
-    icon: Clock,
-    badge: null,
-  },
+  
   {
     title: "Profile",
     href: "/worker/profile",

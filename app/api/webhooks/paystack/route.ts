@@ -80,6 +80,23 @@ async function handleWalletTopUp(data: any) {
     
     console.log('Processing wallet top-up webhook:', { reference, amount: amount / 100, metadata });
 
+    // Idempotency guard: if we already created a completed tx for this reference, skip
+    try {
+      const existing = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_TRANSACTIONS,
+        [
+          Query.equal('reference', reference),
+          Query.equal('type', 'topup_completed'),
+          Query.equal('status', 'completed'),
+        ]
+      );
+      if (existing.total > 0) {
+        console.log('Top-up already processed for reference', reference);
+        return;
+      }
+    } catch {}
+
     // Process wallet top-up
     await VirtualWalletService.processTopUpSuccess(
       reference,
@@ -101,6 +118,18 @@ async function handleBookingPayment(data: any) {
     if (!metadata.bookingId) {
       console.error('Missing booking ID in payment metadata');
       return;
+    }
+
+    // Get booking details for notification
+    let booking;
+    try {
+      booking = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        metadata.bookingId
+      );
+    } catch (error) {
+      console.error('Failed to fetch booking for notification:', error);
     }
 
     // Update booking payment status (existing functionality)
@@ -163,6 +192,24 @@ async function handleBookingPayment(data: any) {
       // Don't throw - webhook should still succeed
     }
 
+    // Send notification to worker about new booking (webhook)
+    try {
+      const { notificationService } = await import('@/lib/notification-service');
+      await notificationService.createNotification({
+        userId: metadata.workerId,
+        title: 'New Booking Request! 🎉',
+        message: `You have a new booking request for "${booking?.title || metadata.serviceName || 'Service'}" from a client. Payment has been confirmed and escrowed.`,
+        type: 'success',
+        bookingId: metadata.bookingId,
+        actionUrl: `/worker/bookings?id=${metadata.bookingId}`,
+        idempotencyKey: `new_booking_webhook_${metadata.bookingId}_${metadata.workerId}`
+      });
+      console.log('✅ Notification sent to worker about new booking (webhook)');
+    } catch (notificationError) {
+      console.error('Failed to send notification to worker via webhook:', notificationError);
+      // Don't fail the webhook if notification fails
+    }
+
     console.log(`Payment escrowed for booking ${metadata.bookingId}`);
   } catch (error) {
     console.error('Error handling booking payment:', error);
@@ -173,7 +220,7 @@ async function handleTransferSuccess(data: any) {
   try {
     const { reference, amount, recipient } = data;
     
-    // Update payment status to released
+    // Handle payment transfers (existing functionality)
     const payments = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.PAYMENTS,
@@ -211,6 +258,29 @@ async function handleTransferSuccess(data: any) {
       );
 
       console.log(`Payment released for booking ${payment.bookingId}`);
+      return;
+    }
+
+    // Handle withdrawal transfers (new functionality)
+    const withdrawals = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      COLLECTIONS.WITHDRAWALS || 'withdrawals',
+      [
+        Query.equal('reference', reference)
+      ]
+    );
+
+    if (withdrawals.documents.length > 0) {
+      const withdrawal = withdrawals.documents[0];
+      
+      // Use WorkerPayoutService to handle withdrawal completion
+      const { WorkerPayoutService } = await import('@/lib/worker-payout-service');
+      await WorkerPayoutService.handleWithdrawalCompletion(
+        withdrawal.$id,
+        'completed'
+      );
+
+      console.log(`Withdrawal completed for user ${withdrawal.userId}`);
     }
   } catch (error) {
     console.error('Error handling transfer success:', error);
@@ -219,9 +289,9 @@ async function handleTransferSuccess(data: any) {
 
 async function handleTransferFailed(data: any) {
   try {
-    const { reference, amount } = data;
+    const { reference, amount, reason } = data;
     
-    // Update payment status to failed
+    // Handle payment transfers (existing functionality)
     const payments = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.PAYMENTS,
@@ -245,6 +315,30 @@ async function handleTransferFailed(data: any) {
       );
 
       console.log(`Payment transfer failed for booking ${payment.bookingId}`);
+      return;
+    }
+
+    // Handle withdrawal transfers (new functionality)
+    const withdrawals = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      COLLECTIONS.WITHDRAWALS || 'withdrawals',
+      [
+        Query.equal('reference', reference)
+      ]
+    );
+
+    if (withdrawals.documents.length > 0) {
+      const withdrawal = withdrawals.documents[0];
+      
+      // Use WorkerPayoutService to handle withdrawal failure
+      const { WorkerPayoutService } = await import('@/lib/worker-payout-service');
+      await WorkerPayoutService.handleWithdrawalCompletion(
+        withdrawal.$id,
+        'failed',
+        reason || 'Transfer failed'
+      );
+
+      console.log(`Withdrawal failed for user ${withdrawal.userId}: ${reason || 'Transfer failed'}`);
     }
   } catch (error) {
     console.error('Error handling transfer failure:', error);

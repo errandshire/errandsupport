@@ -564,13 +564,7 @@ export default function WorkerDashboard() {
               </CardContent>
             </Card>
           }>
-            <BalanceCard
-              balance={balance}
-              userRole="worker"
-              isLoading={isLoading}
-              showDetails={false}
-              className="w-full"
-            />
+            
           </React.Suspense>
 
           {/* Quick Actions */}

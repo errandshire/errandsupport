@@ -1,6 +1,7 @@
 import { databases, COLLECTIONS } from '@/lib/appwrite';
 import { EscrowService } from '@/lib/escrow-service';
 import { BookingNotificationService } from '@/lib/booking-notification-service';
+import { ReviewService } from '@/lib/review-service';
 import { toast } from 'sonner';
 
 /**
@@ -86,14 +87,19 @@ export class ClientBookingService {
 
       // Create review if provided
       if (rating && rating > 0) {
-        await this.createWorkerReview({
-          bookingId,
-          clientId,
-          workerId,
-          rating,
-          review: review || '',
-          tip: tip || 0
-        });
+        try {
+          await ReviewService.createReview({
+            bookingId,
+            clientId,
+            workerId,
+            rating,
+            comment: review || undefined,
+            isPublic: true,
+          });
+        } catch (reviewError) {
+          console.error('Error creating review:', reviewError);
+          // Don't fail the main flow if review creation fails
+        }
       }
 
       return {
@@ -206,43 +212,6 @@ export class ClientBookingService {
     }
   }
 
-  /**
-   * Create worker review
-   */
-  private static async createWorkerReview(data: {
-    bookingId: string;
-    clientId: string;
-    workerId: string;
-    rating: number;
-    review: string;
-    tip: number;
-  }): Promise<void> {
-    try {
-      const { ID } = await import('appwrite');
-      
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.REVIEWS,
-        ID.unique(),
-        {
-          bookingId: data.bookingId,
-          clientId: data.clientId,
-          workerId: data.workerId,
-          rating: data.rating,
-          review: data.review,
-          tip: data.tip,
-          createdAt: new Date().toISOString()
-        }
-      );
-
-      // Update worker rating average (simplified - you might want more complex logic)
-      await this.updateWorkerRating(data.workerId, data.rating);
-
-    } catch (error) {
-      console.error('Error creating worker review:', error);
-      // Don't throw - review failure shouldn't break main flow
-    }
-  }
 
   /**
    * Process full refund
@@ -297,38 +266,6 @@ export class ClientBookingService {
     }
   }
 
-  /**
-   * Update worker rating average
-   */
-  private static async updateWorkerRating(workerId: string, newRating: number): Promise<void> {
-    try {
-      // Get current worker data
-      const worker = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WORKERS,
-        workerId
-      );
-
-      // Calculate new average (simplified)
-      const totalReviews = (worker.totalReviews || 0) + 1;
-      const currentTotal = (worker.ratingAverage || 0) * (worker.totalReviews || 0);
-      const newAverage = (currentTotal + newRating) / totalReviews;
-
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WORKERS,
-        workerId,
-        {
-          ratingAverage: Math.round(newAverage * 10) / 10, // Round to 1 decimal
-          totalReviews: totalReviews,
-          updatedAt: new Date().toISOString()
-        }
-      );
-
-    } catch (error) {
-      console.error('Error updating worker rating:', error);
-    }
-  }
 
   /**
    * Get booking details with worker info

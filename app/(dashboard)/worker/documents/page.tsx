@@ -35,85 +35,111 @@ import { Footer } from "@/components/layout/footer";
 import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { Query } from "appwrite";
+import { parseDocumentUrls } from "@/lib/utils";
 
 interface Document {
   id: string;
   name: string;
   type: string;
-  category: "certificate" | "portfolio" | "contract" | "invoice" | "other";
-  size: string;
+  category: "id_document" | "selfie_with_id" | "additional_documents" | "other";
+  size?: string;
   uploadDate: string;
   status: "verified" | "pending" | "rejected";
   description?: string;
   expiryDate?: string;
-  url?: string;
+  url: string;
 }
 
-const mockDocuments: Document[] = [
-  {
-    id: "1",
-    name: "Plumbing License Certificate",
-    type: "pdf",
-    category: "certificate",
-    size: "2.4 MB",
-    uploadDate: "2024-01-15",
-    status: "verified",
-    description: "Professional plumbing license",
-    expiryDate: "2025-01-15"
-  },
-  {
-    id: "2",
-    name: "Portfolio - Kitchen Renovation",
-    type: "jpg",
-    category: "portfolio",
-    size: "5.2 MB",
-    uploadDate: "2024-01-10",
-    status: "verified",
-    description: "Before and after photos of kitchen renovation project"
-  },
-  {
-    id: "3",
-    name: "Service Contract Template",
-    type: "docx",
-    category: "contract",
-    size: "156 KB",
-    uploadDate: "2024-01-08",
-    status: "pending",
-    description: "Standard service agreement template"
-  },
-  {
-    id: "4",
-    name: "Insurance Certificate",
-    type: "pdf",
-    category: "certificate",
-    size: "1.8 MB",
-    uploadDate: "2024-01-05",
-    status: "verified",
-    description: "Public liability insurance certificate",
-    expiryDate: "2024-12-31"
-  },
-  {
-    id: "5",
-    name: "January Invoice - Sarah Johnson",
-    type: "pdf",
-    category: "invoice",
-    size: "234 KB",
-    uploadDate: "2024-01-20",
-    status: "verified",
-    description: "Service invoice for house cleaning"
-  }
-];
 
 export default function WorkerDocumentsPage() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
-  const [documents, setDocuments] = React.useState<Document[]>(mockDocuments);
+  const [documents, setDocuments] = React.useState<Document[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [isUploadOpen, setIsUploadOpen] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
+
+  // Fetch worker documents
+  const fetchDocuments = React.useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Get worker profile to access verification documents
+      const workerResponse = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        [Query.equal('userId', user.$id), Query.limit(1)]
+      );
+
+      if (workerResponse.documents.length === 0) {
+        setDocuments([]);
+        return;
+      }
+
+      const worker = workerResponse.documents[0];
+      const docs: Document[] = [];
+
+      // Add ID Document
+      if (worker.idDocument) {
+        docs.push({
+          id: 'id-document',
+          name: 'ID Document',
+          type: 'pdf',
+          category: 'id_document',
+          uploadDate: worker.submittedAt || worker.$createdAt,
+          status: worker.isVerified ? 'verified' : 'pending',
+          description: 'Government issued identification document',
+          url: worker.idDocument
+        });
+      }
+
+      // Add Selfie with ID
+      if (worker.selfieWithId) {
+        docs.push({
+          id: 'selfie-with-id',
+          name: 'Selfie with ID',
+          type: 'jpg',
+          category: 'selfie_with_id',
+          uploadDate: worker.submittedAt || worker.$createdAt,
+          status: worker.isVerified ? 'verified' : 'pending',
+          description: 'Photo of yourself holding your ID document',
+          url: worker.selfieWithId
+        });
+      }
+
+      // Add Additional Documents
+      if (worker.additionalDocuments) {
+        const additionalUrls = parseDocumentUrls(worker.additionalDocuments);
+        additionalUrls.forEach((url, index) => {
+          docs.push({
+            id: `additional-doc-${index}`,
+            name: `Additional Document ${index + 1}`,
+            type: 'pdf',
+            category: 'additional_documents',
+            uploadDate: worker.submittedAt || worker.$createdAt,
+            status: worker.isVerified ? 'verified' : 'pending',
+            description: 'Additional supporting document',
+            url: url
+          });
+        });
+      }
+
+      setDocuments(docs);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      setDocuments([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   React.useEffect(() => {
     if (loading) return;
@@ -127,7 +153,10 @@ export default function WorkerDocumentsPage() {
       router.replace(`/${user.role}`);
       return;
     }
-  }, [loading, isAuthenticated, user, router]);
+
+    // Fetch documents when user is authenticated
+    fetchDocuments();
+  }, [loading, isAuthenticated, user, router, fetchDocuments]);
 
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -181,14 +210,12 @@ export default function WorkerDocumentsPage() {
 
   const getCategoryName = (category: string) => {
     switch (category) {
-      case "certificate":
-        return "Certificate";
-      case "portfolio":
-        return "Portfolio";
-      case "contract":
-        return "Contract";
-      case "invoice":
-        return "Invoice";
+      case "id_document":
+        return "ID Document";
+      case "selfie_with_id":
+        return "Selfie with ID";
+      case "additional_documents":
+        return "Additional Document";
       default:
         return "Other";
     }
@@ -214,10 +241,9 @@ export default function WorkerDocumentsPage() {
 
   const documentCounts = {
     all: documents.length,
-    certificate: documents.filter(d => d.category === "certificate").length,
-    portfolio: documents.filter(d => d.category === "portfolio").length,
-    contract: documents.filter(d => d.category === "contract").length,
-    invoice: documents.filter(d => d.category === "invoice").length,
+    id_document: documents.filter(d => d.category === "id_document").length,
+    selfie_with_id: documents.filter(d => d.category === "selfie_with_id").length,
+    additional_documents: documents.filter(d => d.category === "additional_documents").length,
     other: documents.filter(d => d.category === "other").length,
   };
 
@@ -336,10 +362,9 @@ export default function WorkerDocumentsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories ({documentCounts.all})</SelectItem>
-                  <SelectItem value="certificate">Certificates ({documentCounts.certificate})</SelectItem>
-                  <SelectItem value="portfolio">Portfolio ({documentCounts.portfolio})</SelectItem>
-                  <SelectItem value="contract">Contracts ({documentCounts.contract})</SelectItem>
-                  <SelectItem value="invoice">Invoices ({documentCounts.invoice})</SelectItem>
+                  <SelectItem value="id_document">ID Documents ({documentCounts.id_document})</SelectItem>
+                  <SelectItem value="selfie_with_id">Selfie with ID ({documentCounts.selfie_with_id})</SelectItem>
+                  <SelectItem value="additional_documents">Additional Documents ({documentCounts.additional_documents})</SelectItem>
                   <SelectItem value="other">Other ({documentCounts.other})</SelectItem>
                 </SelectContent>
               </Select>
@@ -366,7 +391,19 @@ export default function WorkerDocumentsPage() {
 
               <TabsContent value="all" className="mt-6">
                 <div className="grid gap-4">
-                  {filteredDocuments.length === 0 ? (
+                  {isLoading ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                          Loading documents...
+                        </h3>
+                        <p className="text-neutral-600">
+                          Please wait while we fetch your verification documents
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : filteredDocuments.length === 0 ? (
                     <Card>
                       <CardContent className="text-center py-12">
                         <FileText className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
@@ -376,11 +413,11 @@ export default function WorkerDocumentsPage() {
                         <p className="text-neutral-600 mb-4">
                           {searchQuery || categoryFilter !== "all" || statusFilter !== "all"
                             ? "Try adjusting your search or filters"
-                            : "Upload your first document to get started"}
+                            : "Complete your verification to upload documents"}
                         </p>
-                        <Button onClick={() => setIsUploadOpen(true)}>
+                        <Button onClick={() => router.push('/onboarding')}>
                           <Plus className="mr-2 h-4 w-4" />
-                          Upload Document
+                          Complete Verification
                         </Button>
                       </CardContent>
                     </Card>
@@ -435,21 +472,24 @@ export default function WorkerDocumentsPage() {
                             </div>
                             
                             <div className="flex items-center space-x-2">
-                              <Button variant="ghost" size="sm">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => window.open(doc.url, '_blank')}
+                              >
                                 <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
                               </Button>
                               <Button 
                                 variant="ghost" 
                                 size="sm"
-                                onClick={() => handleDeleteDocument(doc.id)}
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = doc.url;
+                                  link.download = doc.name;
+                                  link.click();
+                                }}
                               >
-                                <Trash2 className="h-4 w-4 text-red-600" />
+                                <Download className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>

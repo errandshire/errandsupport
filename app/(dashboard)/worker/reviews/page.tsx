@@ -29,86 +29,65 @@ import { Footer } from "@/components/layout/footer";
 import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { ReviewService, type ReviewWithDetails, type WorkerReviewStats } from "@/lib/review-service";
+import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { Query } from "appwrite";
+import { toast } from "sonner";
 
-interface Review {
-  id: string;
-  clientName: string;
-  clientAvatar?: string;
-  jobTitle: string;
-  rating: number;
-  comment: string;
-  date: string;
-  category: string;
-  isPublic: boolean;
-  helpful: number;
-  response?: string;
-  verified: boolean;
-}
+// Using ReviewWithDetails from review service
 
-const mockReviews: Review[] = [
-  {
-    id: "1",
-    clientName: "Sarah Johnson",
-    clientAvatar: "/api/placeholder/40/40",
-    jobTitle: "House Cleaning Service",
-    rating: 5,
-    comment: "Excellent service! The worker was punctual, professional, and did an amazing job cleaning my house. I will definitely book again.",
-    date: "2024-01-15",
-    category: "Cleaning",
-    isPublic: true,
-    helpful: 12,
-    verified: true
-  },
-  {
-    id: "2",
-    clientName: "David Wilson",
-    clientAvatar: "/api/placeholder/40/40",
-    jobTitle: "Plumbing Repair",
-    rating: 4,
-    comment: "Good work fixing the leaky faucet. The worker was knowledgeable and completed the job quickly. Only minor issue was arriving 15 minutes late.",
-    date: "2024-01-14",
-    category: "Plumbing",
-    isPublic: true,
-    helpful: 8,
-    response: "Thank you for the feedback! I apologize for the delay and will ensure to be more punctual in the future.",
-    verified: true
-  },
-  {
-    id: "3",
-    clientName: "Maria Garcia",
-    clientAvatar: "/api/placeholder/40/40",
-    jobTitle: "Garden Maintenance",
-    rating: 5,
-    comment: "Outstanding work! My garden looks beautiful now. The worker was very careful with my plants and gave great advice on maintenance.",
-    date: "2024-01-13",
-    category: "Gardening",
-    isPublic: true,
-    helpful: 15,
-    verified: true
-  },
-  {
-    id: "4",
-    clientName: "John Smith",
-    clientAvatar: "/api/placeholder/40/40",
-    jobTitle: "Electrical Work",
-    rating: 3,
-    comment: "The work was done correctly but took longer than expected. Communication could have been better throughout the process.",
-    date: "2024-01-12",
-    category: "Electrical",
-    isPublic: true,
-    helpful: 3,
-    verified: true
-  }
-];
 
 export default function WorkerReviewsPage() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [reviews, setReviews] = React.useState<ReviewWithDetails[]>([]);
+  const [reviewStats, setReviewStats] = React.useState<WorkerReviewStats | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [ratingFilter, setRatingFilter] = React.useState("all");
   const [replyingTo, setReplyingTo] = React.useState<string | null>(null);
   const [replyText, setReplyText] = React.useState("");
+
+  // Fetch reviews data
+  const fetchReviews = React.useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Get worker ID from user
+      const workerResponse = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        [Query.equal('userId', user.$id), Query.limit(1)]
+      );
+
+      if (workerResponse.documents.length === 0) {
+        setReviews([]);
+        setReviewStats(null);
+        return;
+      }
+
+      const workerId = workerResponse.documents[0].$id;
+
+      // Fetch reviews and stats in parallel
+      const [reviewsData, statsData] = await Promise.all([
+        ReviewService.getWorkerReviews(workerId),
+        ReviewService.getWorkerReviewStats(workerId)
+      ]);
+
+      setReviews(reviewsData);
+      setReviewStats(statsData);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      toast.error('Failed to load reviews');
+      setReviews([]);
+      setReviewStats(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   React.useEffect(() => {
     if (loading) return;
@@ -122,25 +101,38 @@ export default function WorkerReviewsPage() {
       router.replace(`/${user.role}`);
       return;
     }
-  }, [loading, isAuthenticated, user, router]);
 
-  const filteredReviews = mockReviews.filter(review => {
-    const matchesSearch = review.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         review.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         review.comment.toLowerCase().includes(searchQuery.toLowerCase());
+    // Fetch reviews when user is authenticated
+    fetchReviews();
+  }, [loading, isAuthenticated, user, router, fetchReviews]);
+
+  const filteredReviews = reviews.filter(review => {
+    const matchesSearch = (review.clientName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (review.jobTitle || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (review.comment || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRating = ratingFilter === "all" || review.rating.toString() === ratingFilter;
     return matchesSearch && matchesRating;
   });
 
-  const averageRating = mockReviews.reduce((sum, review) => sum + review.rating, 0) / mockReviews.length;
-  const totalReviews = mockReviews.length;
+  const averageRating = reviewStats?.averageRating || 0;
+  const totalReviews = reviewStats?.totalReviews || 0;
+  const ratingDistribution = reviewStats?.ratingDistribution || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
 
-  const ratingDistribution = {
-    5: mockReviews.filter(r => r.rating === 5).length,
-    4: mockReviews.filter(r => r.rating === 4).length,
-    3: mockReviews.filter(r => r.rating === 3).length,
-    2: mockReviews.filter(r => r.rating === 2).length,
-    1: mockReviews.filter(r => r.rating === 1).length,
+  // Handle review response
+  const handleReplySubmit = async (reviewId: string) => {
+    if (!replyText.trim()) return;
+
+    try {
+      await ReviewService.addReviewResponse(reviewId, replyText);
+      toast.success('Response added successfully');
+      setReplyText('');
+      setReplyingTo(null);
+      // Refresh reviews to show the new response
+      fetchReviews();
+    } catch (error) {
+      console.error('Error adding response:', error);
+      toast.error('Failed to add response');
+    }
   };
 
   const renderStars = (rating: number, size: "sm" | "md" | "lg" = "md") => {
@@ -312,7 +304,34 @@ export default function WorkerReviewsPage() {
 
               <TabsContent value="all">
                 <div className="space-y-4">
-                  {filteredReviews.map((review) => (
+                  {isLoading ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                          Loading reviews...
+                        </h3>
+                        <p className="text-neutral-600">
+                          Please wait while we fetch your reviews
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : filteredReviews.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <MessageSquare className="h-12 w-12 text-neutral-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                          No reviews yet
+                        </h3>
+                        <p className="text-neutral-600">
+                          {searchQuery || ratingFilter !== "all"
+                            ? "No reviews match your search criteria"
+                            : "You haven't received any reviews yet. Complete jobs to start receiving feedback from clients."}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredReviews.map((review) => (
                     <Card key={review.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between mb-4">
@@ -398,7 +417,7 @@ export default function WorkerReviewsPage() {
                               </Button>
                               <Button 
                                 size="sm"
-                                onClick={() => handleReply(review.id)}
+                                onClick={() => handleReplySubmit(review.id)}
                                 disabled={!replyText.trim()}
                               >
                                 Send Reply
@@ -408,7 +427,8 @@ export default function WorkerReviewsPage() {
                         )}
                       </CardContent>
                     </Card>
-                  ))}
+                    ))
+                  )}
                 </div>
               </TabsContent>
 
@@ -540,7 +560,7 @@ export default function WorkerReviewsPage() {
                               </Button>
                               <Button 
                                 size="sm"
-                                onClick={() => handleReply(review.id)}
+                                onClick={() => handleReplySubmit(review.id)}
                                 disabled={!replyText.trim()}
                               >
                                 Send Reply

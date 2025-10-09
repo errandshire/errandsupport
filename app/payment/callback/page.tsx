@@ -80,9 +80,10 @@ function PaymentCallbackContent() {
         paymentReference: paymentData.reference
       });
 
-      // First verify the booking exists
+      // First verify the booking exists and get its details
+      let booking;
       try {
-        await databases.getDocument(
+        booking = await databases.getDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.BOOKINGS,
           bookingId
@@ -153,6 +154,24 @@ function PaymentCallbackContent() {
         console.error('❌ Failed to create escrow transaction:', escrowError);
         // Don't throw - let the existing payment flow continue
         // The payment is still valid even if escrow tracking fails
+      }
+
+      // Send notification to worker about new booking (card payment)
+      try {
+        const { notificationService } = await import('@/lib/notification-service');
+        await notificationService.createNotification({
+          userId: metadata.workerId,
+          title: 'New Booking Request! 🎉',
+          message: `You have a new booking request for "${booking.title || metadata.serviceName || 'Service'}" from a client. Payment has been confirmed and escrowed.`,
+          type: 'success',
+          bookingId: bookingId,
+          actionUrl: `/worker/bookings?id=${bookingId}`,
+          idempotencyKey: `new_booking_${bookingId}_${metadata.workerId}`
+        });
+        console.log('✅ Notification sent to worker about new booking (card payment)');
+      } catch (notificationError) {
+        console.error('Failed to send notification to worker:', notificationError);
+        // Don't fail the payment flow if notification fails
       }
 
     } catch (error) {

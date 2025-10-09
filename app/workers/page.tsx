@@ -76,17 +76,20 @@ function WorkersPageContent() {
         setLoading(true);
         setError(null);
 
+        // Only fetch approved and active workers for public display
         const response = await databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.WORKERS,
           [
+            Query.equal('isVerified', true), // Only show approved workers
+            Query.equal('isActive', true), // Only show active workers
             Query.orderDesc('$createdAt'), // Order by creation date instead since ratingAverage might not exist
             Query.limit(100)
           ]
         );
 
         if (response.documents.length === 0) {
-          console.log('No workers found in the database');
+          console.log('No approved workers found in the database');
         }
 
         setWorkers(response.documents as unknown as WorkerProfile[]);
@@ -147,6 +150,24 @@ function WorkersPageContent() {
         flattenedBookingRequest.id,
         flattenedBookingRequest
       );
+
+      // Send notification to worker about new booking
+      try {
+        const { notificationService } = await import('@/lib/notification-service');
+        await notificationService.createNotification({
+          userId: flattenedBookingRequest.workerId,
+          title: 'New Booking Request! 🎉',
+          message: `You have a new booking request for "${flattenedBookingRequest.title}" from a client. Please review and accept if you're available.`,
+          type: 'success',
+          bookingId: flattenedBookingRequest.id,
+          actionUrl: `/worker/bookings?id=${flattenedBookingRequest.id}`,
+          idempotencyKey: `new_booking_${flattenedBookingRequest.id}_${flattenedBookingRequest.workerId}`
+        });
+        console.log('✅ Notification sent to worker about new booking');
+      } catch (notificationError) {
+        console.error('Failed to send notification to worker:', notificationError);
+        // Don't fail the booking creation if notification fails
+      }
 
       console.log('✅ Booking created successfully with wallet payment');
     } catch (error) {

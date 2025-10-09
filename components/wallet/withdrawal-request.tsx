@@ -14,26 +14,39 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowUpRight, Loader2, AlertCircle, CheckCircle, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { WorkerPayoutService, type BankAccount, type WithdrawalRequest } from "@/lib/worker-payout-service";
+import { WithdrawalWorkflowService } from "@/lib/withdrawal-workflow-service";
 
 interface WithdrawalRequestProps {
   userId: string;
   availableBalance: number;
   onWithdrawalRequested?: () => void;
+  isDialogOpen?: boolean;
+  onDialogOpenChange?: (open: boolean) => void;
 }
 
-export function WithdrawalRequest({ userId, availableBalance, onWithdrawalRequested }: WithdrawalRequestProps) {
+export function WithdrawalRequest({ 
+  userId, 
+  availableBalance, 
+  onWithdrawalRequested,
+  isDialogOpen: externalDialogOpen,
+  onDialogOpenChange: externalDialogOpenChange
+}: WithdrawalRequestProps) {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRequesting, setIsRequesting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [internalDialogOpen, setInternalDialogOpen] = useState(false);
+  
+  // Use external dialog control if provided, otherwise use internal state
+  const isDialogOpen = externalDialogOpen !== undefined ? externalDialogOpen : internalDialogOpen;
+  const setIsDialogOpen = externalDialogOpenChange || setInternalDialogOpen;
   
   // Form state
   const [selectedBankAccount, setSelectedBankAccount] = useState("");
   const [amount, setAmount] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(false);
 
-  const MIN_WITHDRAWAL = 1000; // ₦1,000
+  const MIN_WITHDRAWAL = 10; // ₦1,000
 
   // Load data
   useEffect(() => {
@@ -43,16 +56,21 @@ export function WithdrawalRequest({ userId, availableBalance, onWithdrawalReques
   const loadData = async () => {
     try {
       setIsLoadingData(true);
+      if (!userId) {
+        console.error('No userId provided');
+        toast.error('User ID is required');
+        return;
+      }
+      
       const [accounts, withdrawalHistory] = await Promise.all([
         WorkerPayoutService.getUserBankAccounts(userId),
         WorkerPayoutService.getWithdrawalHistory(userId, 20)
       ]);
-      
       setBankAccounts(accounts);
       setWithdrawals(withdrawalHistory);
     } catch (error) {
       console.error('Error loading withdrawal data:', error);
-      toast.error('Failed to load withdrawal information');
+      toast.error(`Failed to load withdrawal information: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoadingData(false);
       setIsLoading(false);
@@ -66,6 +84,8 @@ export function WithdrawalRequest({ userId, availableBalance, onWithdrawalReques
     }
 
     const withdrawalAmount = parseFloat(amount);
+    console.log('[WithdrawalRequest] User input:', { amount, withdrawalAmount });
+    
     if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
       toast.error('Please enter a valid amount');
       return;
@@ -84,24 +104,43 @@ export function WithdrawalRequest({ userId, availableBalance, onWithdrawalReques
     try {
       setIsRequesting(true);
       
-      const result = await WorkerPayoutService.requestWithdrawal(
+      // Use the new withdrawal workflow service
+      const result = await WithdrawalWorkflowService.initiateWithdrawal({
         userId,
-        selectedBankAccount,
-        withdrawalAmount
-      );
+        amount: withdrawalAmount,
+        bankAccountId: selectedBankAccount,
+        reason: 'Withdrawal request from worker dashboard'
+      });
 
       if (result.success) {
-        toast.success('Withdrawal request submitted successfully');
+        toast.success(result.message);
         setIsDialogOpen(false);
         resetForm();
         loadData();
+        console.log('[WithdrawalRequest] Calling onWithdrawalRequested callback');
         onWithdrawalRequested?.();
       } else {
         toast.error(result.message);
       }
     } catch (error) {
       console.error('Error requesting withdrawal:', error);
-      toast.error('Failed to process withdrawal request');
+      
+      // Provide specific error messages based on the error type
+      if (error instanceof Error) {
+        if (error.message.includes('recipient code') || error.message.includes('re-add your bank account')) {
+          toast.error('Bank account setup issue. Please re-add your bank account in Settings > Payment Methods.');
+        } else if (error.message.includes('Insufficient balance')) {
+          toast.error(error.message);
+        } else if (error.message.includes('Paystack account balance')) {
+          toast.error('Withdrawal temporarily unavailable due to platform funding issue. Please contact support.');
+        } else if (error.message.includes('starter business')) {
+          toast.error('Withdrawal temporarily unavailable. Please contact support.');
+        } else {
+          toast.error(`Withdrawal failed: ${error.message}`);
+        }
+      } else {
+        toast.error('Failed to process withdrawal request. Please try again.');
+      }
     } finally {
       setIsRequesting(false);
     }
@@ -156,6 +195,64 @@ export function WithdrawalRequest({ userId, availableBalance, onWithdrawalReques
     );
   }
 
+  // If externally controlled, only show the dialog
+  if (externalDialogOpen !== undefined) {
+    return (
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Request Withdrawal</DialogTitle>
+            <DialogDescription>
+              Withdraw your earnings to your bank account
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="bankAccount">Bank Account</Label>
+              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select bank account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((account, index) => (
+                    <SelectItem key={account.$id || `bank-account-${index}`} value={account.$id}>
+                      {account.bankName} - {account.accountNumber}
+                      {account.isDefault && ' (Default)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="amount">Amount (₦)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder={`Minimum ₦${MIN_WITHDRAWAL.toLocaleString()}`}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min={MIN_WITHDRAWAL}
+                max={availableBalance}
+              />
+              <p className="text-sm text-gray-500">
+                Available: ₦{availableBalance.toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleWithdrawalRequest} disabled={isRequesting}>
+              {isRequesting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Request Withdrawal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -180,7 +277,7 @@ export function WithdrawalRequest({ userId, availableBalance, onWithdrawalReques
               <DialogHeader>
                 <DialogTitle>Request Withdrawal</DialogTitle>
                 <DialogDescription>
-                  Withdraw funds from your virtual wallet to your bank account
+                  Withdraw your earnings to your bank account
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">

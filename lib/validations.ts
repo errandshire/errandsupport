@@ -78,8 +78,15 @@ export const verificationSchema = z.object({
 
 // Onboarding verification schema (simpler for step-by-step flow)
 export const onboardingVerificationSchema = z.object({
-  idType: z.enum(['drivers_license', 'passport', 'national_id', 'state_id']).optional(),
-  idNumber: z.string().min(5, 'ID number must be at least 5 characters').optional(),
+  idType: z.enum(['national_id', 'voter_card', 'international_passport', 'drivers_license']),
+  idNumber: z.string().min(5, 'ID number must be at least 5 characters'),
+  // Document uploads (stored as individual fields in Appwrite)
+  idDocument: z.string().min(1, 'ID document is required'),
+  selfieWithId: z.string().min(1, 'Selfie with ID is required'),
+  // Additional documents stored as comma-separated string
+  additionalDocuments: z.string().optional(),
+  // Combined documents string is derived client-side; keep optional to avoid blocking submit
+  verificationDocuments: z.string().optional(),
 });
 
 // Booking Schemas

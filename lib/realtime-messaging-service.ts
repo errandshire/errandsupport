@@ -330,6 +330,12 @@ class RealtimeMessagingService {
     try {
       const senderInfo = await this.getUserInfo(senderId);
       
+      // Get recipient user info to determine role-based path
+      const recipientInfo = await this.getUserInfo(recipientId);
+      const messagesPath = recipientInfo.role === 'worker' 
+        ? `/worker/messages?sender=${senderId}`
+        : `/client/messages?sender=${senderId}`;
+      
       await notificationService.createNotification({
         userId: recipientId,
         title: `New message from ${senderInfo.name}`,
@@ -337,7 +343,7 @@ class RealtimeMessagingService {
         type: 'info',
         senderId: senderId,
         recipientId: recipientId,
-        actionUrl: `/messages?sender=${senderId}`
+        actionUrl: messagesPath
       });
     } catch (error) {
       console.error('Error creating message notification:', error);

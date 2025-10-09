@@ -56,7 +56,7 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
         : notification.actionUrl;
       
       router.push(actionPath);
-    } else if (notification.title === 'New Message') {
+    } else if (notification.title?.includes('message') || notification.title?.includes('Message')) {
       // Fallback for message notifications without actionUrl
       router.push('/worker/messages');
     } else {

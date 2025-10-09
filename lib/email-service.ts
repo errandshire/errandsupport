@@ -42,6 +42,44 @@ export interface BookingCompletionData extends BookingEmailData {
   tip?: number;
 }
 
+export interface WorkerVerificationData {
+  worker: EmailUser;
+  action: 'approved' | 'rejected';
+  rejectionReason?: string;
+  adminName?: string;
+}
+
+export interface WithdrawalRequestData {
+  to: string;
+  userName: string;
+  amount: string;
+  bankName: string;
+  accountNumber: string;
+  withdrawalId: string;
+}
+
+export interface WithdrawalApprovalData {
+  to: string;
+  userName: string;
+  amount: string;
+  bankName: string;
+  accountNumber: string;
+}
+
+export interface WithdrawalRejectionData extends WithdrawalApprovalData {
+  reason: string;
+}
+
+export interface AdminWithdrawalNotificationData {
+  to: string;
+  userName: string;
+  userEmail: string;
+  amount: string;
+  bankName: string;
+  accountNumber: string;
+  withdrawalId: string;
+}
+
 // Email template builder
 class EmailTemplateBuilder {
   private static getBaseTemplate(content: string, title: string): string {
@@ -221,6 +259,189 @@ class EmailTemplateBuilder {
     `;
     return this.getBaseTemplate(content, 'Job Completed');
   }
+
+  static workerApproved(data: WorkerVerificationData): string {
+    const content = `
+      <h2>🎉 Congratulations! Your Application Has Been Approved</h2>
+      <p>Hello ${data.worker.name},</p>
+      <p>Great news! Your application to join ${EMAIL_CONFIG.company} as a service provider has been <strong>approved</strong>!</p>
+      
+      <div class="highlight">
+        <p><strong>Status:</strong> <span style="color: #059669; font-weight: bold;">APPROVED</span></p>
+        <p><strong>Approved On:</strong> ${new Date().toLocaleDateString()}</p>
+        ${data.adminName ? `<p><strong>Reviewed By:</strong> ${data.adminName}</p>` : ''}
+      </div>
+      
+      <p>You can now:</p>
+      <ul>
+        <li>✅ Start receiving booking requests from clients</li>
+        <li>✅ Set your availability and working hours</li>
+        <li>✅ Update your profile and service offerings</li>
+        <li>✅ Begin earning money through our platform</li>
+      </ul>
+      
+      <a href="${EMAIL_CONFIG.baseUrl}/worker/dashboard" class="button">Access Your Dashboard</a>
+      
+      <p>Welcome to the ${EMAIL_CONFIG.company} community! We're excited to have you on board.</p>
+      <p>If you have any questions, feel free to contact our support team.</p>
+    `;
+    return this.getBaseTemplate(content, 'Application Approved');
+  }
+
+  static workerRejected(data: WorkerVerificationData): string {
+    const content = `
+      <h2>Application Status Update</h2>
+      <p>Hello ${data.worker.name},</p>
+      <p>Thank you for your interest in joining ${EMAIL_CONFIG.company} as a service provider.</p>
+      
+      <div class="highlight">
+        <p><strong>Status:</strong> <span style="color: #dc2626; font-weight: bold;">NOT APPROVED</span></p>
+        <p><strong>Reviewed On:</strong> ${new Date().toLocaleDateString()}</p>
+        ${data.adminName ? `<p><strong>Reviewed By:</strong> ${data.adminName}</p>` : ''}
+        ${data.rejectionReason ? `<p><strong>Reason:</strong> ${data.rejectionReason}</p>` : ''}
+      </div>
+      
+      ${data.rejectionReason ? `
+        <p><strong>What you can do:</strong></p>
+        <ul>
+          <li>Review the feedback provided above</li>
+          <li>Address any issues mentioned</li>
+          <li>Resubmit your application with improvements</li>
+        </ul>
+      ` : `
+        <p>Unfortunately, your application did not meet our current requirements. This could be due to various factors including documentation completeness, experience level, or other platform criteria.</p>
+      `}
+      
+      <p>You're welcome to reapply in the future once you've addressed any concerns. We appreciate your interest in our platform.</p>
+      
+      <a href="${EMAIL_CONFIG.baseUrl}/support" class="button">Contact Support</a>
+      
+      <p>If you have any questions about this decision, please don't hesitate to reach out to our support team.</p>
+    `;
+    return this.getBaseTemplate(content, 'Application Status Update');
+  }
+
+  static withdrawalRequest(data: WithdrawalRequestData): string {
+    const content = `
+      <h2>Withdrawal Request Submitted 📤</h2>
+      <p>Hello ${data.userName},</p>
+      <p>Your withdrawal request has been successfully submitted and the amount has been <strong>immediately deducted</strong> from your account. It's now pending admin approval.</p>
+      
+      <div class="highlight">
+        <p><strong>Withdrawal Amount:</strong> <span class="amount">₦${data.amount}</span></p>
+        <p><strong>Bank:</strong> ${data.bankName}</p>
+        <p><strong>Account Number:</strong> ${data.accountNumber}</p>
+        <p><strong>Request ID:</strong> ${data.withdrawalId}</p>
+        <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">PENDING APPROVAL</span></p>
+        <p><strong>Account Status:</strong> <span style="color: #dc2626; font-weight: bold;">AMOUNT DEDUCTED</span></p>
+      </div>
+      
+      <p><strong>What happens next?</strong></p>
+      <ul>
+        <li>✅ Your request is being reviewed by our admin team</li>
+        <li>⏳ You'll receive an email notification once approved or rejected</li>
+        <li>💰 Approved withdrawals are typically processed within 24-48 hours</li>
+        <li>🏦 Funds will be transferred to your bank account</li>
+        <li>🔄 If rejected, the amount will be returned to your available balance</li>
+      </ul>
+      
+      <p>You can track the status of your withdrawal in your wallet dashboard.</p>
+      
+      <a href="${EMAIL_CONFIG.baseUrl}/worker/wallet" class="button">View Wallet Dashboard</a>
+      
+      <p>If you have any questions about your withdrawal, please contact our support team.</p>
+    `;
+    return this.getBaseTemplate(content, 'Withdrawal Request Submitted');
+  }
+
+  static withdrawalApproved(data: WithdrawalApprovalData): string {
+    const content = `
+      <h2>🎉 Withdrawal Approved - Processing Now!</h2>
+      <p>Hello ${data.userName},</p>
+      <p>Great news! Your withdrawal request has been <strong>approved</strong> and is now being processed.</p>
+      
+      <div class="highlight">
+        <p><strong>Withdrawal Amount:</strong> <span class="amount">₦${data.amount}</span></p>
+        <p><strong>Bank:</strong> ${data.bankName}</p>
+        <p><strong>Account Number:</strong> ${data.accountNumber}</p>
+        <p><strong>Status:</strong> <span style="color: #059669; font-weight: bold;">APPROVED & PROCESSING</span></p>
+      </div>
+      
+      <p><strong>What happens next?</strong></p>
+      <ul>
+        <li>✅ Your withdrawal has been approved by our admin team</li>
+        <li>🔄 The transfer is being processed to your bank account</li>
+        <li>⏰ Funds should appear in your account within 1-3 business days</li>
+        <li>📧 You'll receive another notification once the transfer is completed</li>
+      </ul>
+      
+      <p>Thank you for using ${EMAIL_CONFIG.company}! Your earnings are on their way to you.</p>
+      
+      <a href="${EMAIL_CONFIG.baseUrl}/worker/wallet" class="button">View Wallet Dashboard</a>
+    `;
+    return this.getBaseTemplate(content, 'Withdrawal Approved');
+  }
+
+  static withdrawalRejected(data: WithdrawalRejectionData): string {
+    const content = `
+      <h2>Withdrawal Request Update</h2>
+      <p>Hello ${data.userName},</p>
+      <p>We regret to inform you that your withdrawal request has been <strong>rejected</strong>.</p>
+      
+      <div class="highlight">
+        <p><strong>Withdrawal Amount:</strong> <span class="amount">₦${data.amount}</span></p>
+        <p><strong>Bank:</strong> ${data.bankName}</p>
+        <p><strong>Account Number:</strong> ${data.accountNumber}</p>
+        <p><strong>Status:</strong> <span style="color: #dc2626; font-weight: bold;">REJECTED</span></p>
+        <p><strong>Reason:</strong> ${data.reason}</p>
+        <p><strong>Account Status:</strong> <span style="color: #059669; font-weight: bold;">AMOUNT RETURNED</span></p>
+      </div>
+      
+      <p><strong>What this means:</strong></p>
+      <ul>
+        <li>💰 Your funds have been returned to your available balance</li>
+        <li>🔄 You can submit a new withdrawal request if needed</li>
+        <li>📞 Contact support if you need clarification on the rejection reason</li>
+        <li>✅ The deducted amount is now back in your wallet</li>
+      </ul>
+      
+      <p>We apologize for any inconvenience. If you believe this is an error or need assistance, please contact our support team.</p>
+      
+      <a href="${EMAIL_CONFIG.baseUrl}/worker/wallet" class="button">View Wallet Dashboard</a>
+      <a href="${EMAIL_CONFIG.baseUrl}/support" class="button" style="background-color: #6b7280; margin-left: 10px;">Contact Support</a>
+    `;
+    return this.getBaseTemplate(content, 'Withdrawal Request Update');
+  }
+
+  static adminWithdrawalNotification(data: AdminWithdrawalNotificationData): string {
+    const content = `
+      <h2>⚠️ New Withdrawal Request - Admin Action Required</h2>
+      <p>Hello Admin,</p>
+      <p>A new withdrawal request has been submitted and requires your review and approval.</p>
+      
+      <div class="highlight">
+        <p><strong>User:</strong> ${data.userName} (${data.userEmail})</p>
+        <p><strong>Withdrawal Amount:</strong> <span class="amount">₦${data.amount}</span></p>
+        <p><strong>Bank:</strong> ${data.bankName}</p>
+        <p><strong>Account Number:</strong> ${data.accountNumber}</p>
+        <p><strong>Request ID:</strong> ${data.withdrawalId}</p>
+        <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">PENDING APPROVAL</span></p>
+      </div>
+      
+      <p><strong>Action Required:</strong></p>
+      <ul>
+        <li>🔍 Review the withdrawal request details</li>
+        <li>✅ Approve if all details are correct and user is verified</li>
+        <li>❌ Reject if there are any issues (provide reason)</li>
+        <li>⏰ Process approved withdrawals within 24-48 hours</li>
+      </ul>
+      
+      <a href="${EMAIL_CONFIG.baseUrl}/admin/withdrawals" class="button">Review Withdrawal Request</a>
+      
+      <p>Please process this request promptly to maintain good user experience.</p>
+    `;
+    return this.getBaseTemplate(content, 'New Withdrawal Request - Admin Action Required');
+  }
 }
 
 // Email service class
@@ -303,6 +524,44 @@ class EmailService {
     const subject = `Booking cancelled - ${data.booking.title}`;
     const html = EmailTemplateBuilder.bookingCancelled(data, cancelledBy, reason);
     return this.sendEmail(recipient.email, subject, html, 'booking_cancelled');
+  }
+
+  // Worker verification emails
+  async sendWorkerApprovalEmail(data: WorkerVerificationData): Promise<boolean> {
+    const subject = `🎉 Welcome to ${EMAIL_CONFIG.company} - Your Application is Approved!`;
+    const html = EmailTemplateBuilder.workerApproved(data);
+    return this.sendEmail(data.worker.email, subject, html, 'worker_approved');
+  }
+
+  async sendWorkerRejectionEmail(data: WorkerVerificationData): Promise<boolean> {
+    const subject = `Application Status Update - ${EMAIL_CONFIG.company}`;
+    const html = EmailTemplateBuilder.workerRejected(data);
+    return this.sendEmail(data.worker.email, subject, html, 'worker_rejected');
+  }
+
+  // Withdrawal-related emails
+  async sendWithdrawalRequestEmail(data: WithdrawalRequestData): Promise<boolean> {
+    const subject = `Withdrawal Request Submitted - ₦${data.amount}`;
+    const html = EmailTemplateBuilder.withdrawalRequest(data);
+    return this.sendEmail(data.to, subject, html, 'withdrawal_request');
+  }
+
+  async sendWithdrawalApprovedEmail(data: WithdrawalApprovalData): Promise<boolean> {
+    const subject = `🎉 Withdrawal Approved - ₦${data.amount}`;
+    const html = EmailTemplateBuilder.withdrawalApproved(data);
+    return this.sendEmail(data.to, subject, html, 'withdrawal_approved');
+  }
+
+  async sendWithdrawalRejectedEmail(data: WithdrawalRejectionData): Promise<boolean> {
+    const subject = `Withdrawal Request Update - ₦${data.amount}`;
+    const html = EmailTemplateBuilder.withdrawalRejected(data);
+    return this.sendEmail(data.to, subject, html, 'withdrawal_rejected');
+  }
+
+  async sendAdminWithdrawalNotification(data: AdminWithdrawalNotificationData): Promise<boolean> {
+    const subject = `⚠️ New Withdrawal Request - ₦${data.amount} from ${data.userName}`;
+    const html = EmailTemplateBuilder.adminWithdrawalNotification(data);
+    return this.sendEmail(data.to, subject, html, 'admin_withdrawal_notification');
   }
 
   // Bulk email sending for notifications

@@ -41,10 +41,16 @@ export const Header = React.memo(function Header({ className, children, sidebarO
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
   
   const { user, isAuthenticated, logout } = useAuth();
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
+
+  // Ensure component is mounted before showing auth-dependent content
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Close menu when route changes
   React.useEffect(() => {
@@ -242,7 +248,12 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                 <Search className="h-5 w-5" />
               </Button>
 
-              {isAuthenticated && user ? (
+              {/* Show loading state during hydration */}
+              {!isMounted ? (
+                <div className="flex items-center space-x-4">
+                  <div className="h-10 w-10 rounded-full bg-neutral-200 animate-pulse" />
+                </div>
+              ) : isAuthenticated && user ? (
                 <>
                   {/* Notifications */}
                   <DropdownMenu>
@@ -331,7 +342,7 @@ export const Header = React.memo(function Header({ className, children, sidebarO
               )}
 
               {/* Mobile Menu Button - Only show when not signed in */}
-              {!isAuthenticated && (
+              {isMounted && !isAuthenticated && (
                 <Button
                   variant="ghost"
                   size="icon"

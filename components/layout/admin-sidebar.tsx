@@ -17,7 +17,9 @@ import {
   DollarSign,
   Menu,
   X,
-  Clock
+  Clock,
+  Banknote,
+  CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,24 +62,9 @@ const sidebarItems = [
     icon: Shield,
     badge: "5",
   },
-  {
-    title: "Reports",
-    href: "/admin/reports",
-    icon: FileText,
-    badge: null,
-  },
-  {
-    title: "Analytics",
-    href: "/admin/analytics",
-    icon: BarChart3,
-    badge: null,
-  },
-  {
-    title: "System Health",
-    href: "/admin/system",
-    icon: Activity,
-    badge: null,
-  },
+ 
+  
+  
   {
     title: "Commission Settings",
     href: "/admin/commission",
@@ -85,10 +72,16 @@ const sidebarItems = [
     badge: null,
   },
   {
-    title: "System Alerts",
-    href: "/admin/alerts",
-    icon: AlertTriangle,
-    badge: "2",
+    title: "Paystack",
+    href: "/admin/paystack",
+    icon: CreditCard,
+    badge: null,
+  },
+  {
+    title: "Withdrawals",
+    href: "/admin/withdrawals",
+    icon: Banknote,
+    badge: null,
   },
   {
     title: "Settings",

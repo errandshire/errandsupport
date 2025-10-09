@@ -44,7 +44,7 @@ export class EscrowUtils {
       return { isValid: false, error: 'Amount must be greater than 0' };
     }
     
-    if (amount < 50000) { // Minimum 500 NGN
+    if (amount < 50) { // Minimum 500 NGN
       return { isValid: false, error: 'Amount must be at least ₦500' };
     }
     
@@ -58,7 +58,12 @@ export class EscrowUtils {
   // Format amount for display
   static formatAmount(amountInKobo: number, currency: string = 'NGN'): string {
     const amountInNGN = this.toNGN(amountInKobo);
-    return `₦${amountInNGN.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Only show decimals if there are cents
+    const hasDecimals = amountInNGN % 1 !== 0;
+    return `₦${amountInNGN.toLocaleString('en-NG', { 
+      minimumFractionDigits: hasDecimals ? 2 : 0, 
+      maximumFractionDigits: 2 
+    })}`;
   }
   
   // Validate escrow status transition

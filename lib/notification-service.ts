@@ -83,14 +83,35 @@ class NotificationService {
     messageId,
     senderId,
     recipientId,
-    actionUrl
-  }: Partial<Notification>): Promise<void> {
+    actionUrl,
+    idempotencyKey
+  }: Partial<Notification> & { idempotencyKey?: string }): Promise<void> {
     if (!userId || !message) {
       console.warn('Invalid notification data:', { userId, message });
       return;
     }
 
     try {
+      // Check for recent duplicate notifications (last 5 minutes) if no idempotency key
+      if (!idempotencyKey) {
+        const recentNotifications = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.NOTIFICATIONS,
+          [
+            Query.equal('userId', userId),
+            Query.equal('title', title || 'Notification'),
+            Query.equal('message', message),
+            Query.greaterThan('createdAt', new Date(Date.now() - 5 * 60 * 1000).toISOString()),
+            Query.limit(1)
+          ]
+        );
+
+        if (recentNotifications.documents.length > 0) {
+          console.log('Duplicate notification prevented:', { userId, title, message });
+          return;
+        }
+      }
+
       // Create a clean notification object with only valid fields
       const notificationData: NotificationData = {
         userId,
@@ -103,6 +124,7 @@ class NotificationService {
         senderId,
         recipientId,
         actionUrl,
+        idempotencyKey,
         createdAt: new Date().toISOString()
       };
 

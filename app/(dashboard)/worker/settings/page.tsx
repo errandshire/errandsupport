@@ -33,6 +33,12 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { PasswordService } from "@/lib/password-service";
+import { PaymentMethodsService, type PaymentMethod } from "@/lib/payment-methods-service";
+import { PasswordStrengthIndicator } from "@/components/forms/password-strength-indicator";
+import { PaymentMethodForm } from "@/components/forms/payment-method-form";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function WorkerSettingsPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -41,6 +47,93 @@ export default function WorkerSettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  
+  // Password change state
+  const [passwordData, setPasswordData] = React.useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = React.useState(false);
+  
+  // Payment methods state
+  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethod[]>([]);
+  const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = React.useState(true);
+  const [showAddPaymentMethod, setShowAddPaymentMethod] = React.useState(false);
+
+  // Fetch payment methods
+  const fetchPaymentMethods = React.useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoadingPaymentMethods(true);
+      const methods = await PaymentMethodsService.getUserPaymentMethods(user.$id);
+      setPaymentMethods(methods);
+    } catch (error) {
+      console.error('Error fetching payment methods:', error);
+      toast.error('Failed to load payment methods');
+    } finally {
+      setIsLoadingPaymentMethods(false);
+    }
+  }, [user]);
+
+  // Handle password change
+  const handlePasswordChange = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      toast.error('Please fill in all password fields');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      const result = await PasswordService.changePassword(passwordData);
+      
+      if (result.success) {
+        toast.success(result.message);
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Handle payment method actions
+  const handleSetPrimary = async (paymentMethodId: string) => {
+    if (!user) return;
+    
+    try {
+      await PaymentMethodsService.setPrimaryPaymentMethod(user.$id, paymentMethodId);
+      toast.success('Primary payment method updated');
+      fetchPaymentMethods();
+    } catch (error) {
+      console.error('Error setting primary payment method:', error);
+      toast.error('Failed to update primary payment method');
+    }
+  };
+
+  const handleDeletePaymentMethod = async (paymentMethodId: string) => {
+    if (!confirm('Are you sure you want to delete this payment method?')) {
+      return;
+    }
+
+    try {
+      await PaymentMethodsService.deletePaymentMethod(paymentMethodId);
+      toast.success('Payment method deleted');
+      fetchPaymentMethods();
+    } catch (error) {
+      console.error('Error deleting payment method:', error);
+      toast.error('Failed to delete payment method');
+    }
+  };
 
   React.useEffect(() => {
     if (loading) return;
@@ -54,7 +147,10 @@ export default function WorkerSettingsPage() {
       router.replace(`/${user.role}`);
       return;
     }
-  }, [loading, isAuthenticated, user, router]);
+
+    // Fetch payment methods when user is authenticated
+    fetchPaymentMethods();
+  }, [loading, isAuthenticated, user, router, fetchPaymentMethods]);
 
   if (loading || !user) {
     return (
@@ -86,7 +182,6 @@ export default function WorkerSettingsPage() {
               <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="profile">Profile</TabsTrigger>
                 <TabsTrigger value="security">Security</TabsTrigger>
-                <TabsTrigger value="notifications">Notifications</TabsTrigger>
                 <TabsTrigger value="payments">Payments</TabsTrigger>
                 <TabsTrigger value="privacy">Privacy</TabsTrigger>
               </TabsList>
@@ -152,12 +247,15 @@ export default function WorkerSettingsPage() {
                             id="current-password"
                             type={showCurrentPassword ? "text" : "password"}
                             placeholder="Enter current password"
+                            value={passwordData.currentPassword}
+                            onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
                           />
                           <Button
                             variant="ghost"
                             size="sm"
                             className="absolute right-2 top-1/2 transform -translate-y-1/2"
                             onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                            type="button"
                           >
                             {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </Button>
@@ -171,16 +269,25 @@ export default function WorkerSettingsPage() {
                             id="new-password"
                             type={showNewPassword ? "text" : "password"}
                             placeholder="Enter new password"
+                            value={passwordData.newPassword}
+                            onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                           />
                           <Button
                             variant="ghost"
                             size="sm"
                             className="absolute right-2 top-1/2 transform -translate-y-1/2"
                             onClick={() => setShowNewPassword(!showNewPassword)}
+                            type="button"
                           >
                             {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </Button>
                         </div>
+                        {passwordData.newPassword && (
+                          <PasswordStrengthIndicator 
+                            password={passwordData.newPassword} 
+                            className="mt-2"
+                          />
+                        )}
                       </div>
                       
                       <div>
@@ -190,19 +297,37 @@ export default function WorkerSettingsPage() {
                             id="confirm-password"
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder="Confirm new password"
+                            value={passwordData.confirmPassword}
+                            onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                           />
                           <Button
                             variant="ghost"
                             size="sm"
                             className="absolute right-2 top-1/2 transform -translate-y-1/2"
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            type="button"
                           >
                             {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </Button>
                         </div>
+                        {passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword && (
+                          <p className="text-sm text-red-500 mt-1">Passwords do not match</p>
+                        )}
                       </div>
                       
-                      <Button>Update Password</Button>
+                      <Button 
+                        onClick={handlePasswordChange}
+                        disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword || passwordData.newPassword !== passwordData.confirmPassword}
+                      >
+                        {isChangingPassword ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Updating...
+                          </>
+                        ) : (
+                          'Update Password'
+                        )}
+                      </Button>
                     </CardContent>
                   </Card>
 
@@ -226,74 +351,7 @@ export default function WorkerSettingsPage() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="notifications" className="mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Notification Preferences</CardTitle>
-                    <CardDescription>Choose how you want to be notified</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>New Booking Requests</Label>
-                          <p className="text-sm text-neutral-600">Get notified when clients request your services</p>
-                        </div>
-                        <Switch defaultChecked />
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Messages</Label>
-                          <p className="text-sm text-neutral-600">Receive notifications for new messages</p>
-                        </div>
-                        <Switch defaultChecked />
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Payment Updates</Label>
-                          <p className="text-sm text-neutral-600">Get notified about payments and earnings</p>
-                        </div>
-                        <Switch defaultChecked />
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Reviews</Label>
-                          <p className="text-sm text-neutral-600">Know when clients leave reviews</p>
-                        </div>
-                        <Switch defaultChecked />
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label>Marketing Updates</Label>
-                          <p className="text-sm text-neutral-600">Receive tips and platform updates</p>
-                        </div>
-                        <Switch />
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <Label>Notification Method</Label>
-                      <Select defaultValue="both">
-                        <SelectTrigger className="mt-2">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="email">Email Only</SelectItem>
-                          <SelectItem value="sms">SMS Only</SelectItem>
-                          <SelectItem value="both">Email & SMS</SelectItem>
-                          <SelectItem value="none">None</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+              
 
               <TabsContent value="payments" className="mt-6">
                 <div className="space-y-6">
@@ -304,23 +362,74 @@ export default function WorkerSettingsPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                              <CreditCard className="h-4 w-4 text-blue-600" />
-                            </div>
-                            <div>
-                              <p className="font-medium">Zenith Bank</p>
-                              <p className="text-sm text-neutral-600">**** **** **** 1234</p>
-                            </div>
+                        {isLoadingPaymentMethods ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
                           </div>
-                          <Badge>Primary</Badge>
-                        </div>
-                        
-                        <Button variant="outline" className="w-full">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Payment Method
-                        </Button>
+                        ) : paymentMethods.length === 0 ? (
+                          <div className="text-center py-8">
+                            <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-600 mb-4">No payment methods added yet</p>
+                            <Button onClick={() => setShowAddPaymentMethod(true)}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Payment Method
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            {paymentMethods.map((method) => (
+                              <div key={method.$id} className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    {method.type === 'bank_account' ? (
+                                      <CreditCard className="h-4 w-4 text-blue-600" />
+                                    ) : method.type === 'mobile_money' ? (
+                                      <Smartphone className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                      <Wallet className="h-4 w-4 text-purple-600" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="font-medium">{method.bankName || method.provider}</p>
+                                    <p className="text-sm text-neutral-600">
+                                      {PaymentMethodsService.formatAccountNumber(method.accountNumber, method.type)}
+                                    </p>
+                                    <p className="text-xs text-neutral-500">{method.accountName}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {method.isPrimary && <Badge>Primary</Badge>}
+                                  {!method.isPrimary && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleSetPrimary(method.$id)}
+                                    >
+                                      Set Primary
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDeletePaymentMethod(method.$id)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            <Button 
+                              variant="outline" 
+                              className="w-full"
+                              onClick={() => setShowAddPaymentMethod(true)}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Payment Method
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -430,6 +539,23 @@ export default function WorkerSettingsPage() {
         </main>
         
       </div>
+
+      {/* Add Payment Method Modal */}
+      <Dialog open={showAddPaymentMethod} onOpenChange={setShowAddPaymentMethod}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Payment Method</DialogTitle>
+          </DialogHeader>
+          <PaymentMethodForm
+            userId={user?.$id || ''}
+            onSuccess={() => {
+              setShowAddPaymentMethod(false);
+              fetchPaymentMethods();
+            }}
+            onCancel={() => setShowAddPaymentMethod(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

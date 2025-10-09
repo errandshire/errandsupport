@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { WorkerHeader } from "@/components/layout/worker-header";
-import { Footer } from "@/components/layout/footer";
 import { WorkerSidebar } from "@/components/layout/worker-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useWorkerStore } from "@/store/worker-store";

@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { EscrowService } from "@/lib/escrow-service";
 import { EscrowUtils } from "@/lib/escrow-utils";
 import { VirtualWalletService } from "@/lib/virtual-wallet-service";
+// Amounts in wallet/balances are stored in kobo; use EscrowUtils.formatAmount to render NGN
 import { BalanceCard } from "@/components/wallet/balance-card";
 import { TransactionList } from "@/components/wallet/transaction-list";
 import { BankAccountSetup } from "@/components/wallet/bank-account-setup";
@@ -37,6 +38,7 @@ export default function WorkerWalletPage() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [walletTransactions, setWalletTransactions] = React.useState<any[]>([]);
   const [escrowTransactions, setEscrowTransactions] = React.useState<EscrowTransaction[]>([]);
+  const [showWithdrawalDialog, setShowWithdrawalDialog] = React.useState(false);
 
   // Fetch wallet data
   const fetchWalletData = React.useCallback(async () => {
@@ -53,6 +55,7 @@ export default function WorkerWalletPage() {
 
       // Fetch user balance
       const userBalance = await EscrowService.getUserBalance(user.$id);
+      console.log('[Wallet] Fetched user balance:', userBalance);
       setBalance(userBalance);
 
       // Fetch virtual wallet
@@ -164,6 +167,13 @@ export default function WorkerWalletPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            console.log('[Wallet] Manual refresh triggered');
+            fetchWalletData();
+          }}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Force Refresh
+          </Button>
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -195,14 +205,14 @@ export default function WorkerWalletPage() {
               {/* Available Balance */}
               <div>
                 <p className="text-emerald-100 text-sm mb-1">Available Balance</p>
-                <p className="text-3xl font-bold">₦{virtualWallet.availableBalance.toLocaleString()}</p>
+                <p className="text-3xl font-bold">{EscrowUtils.formatAmount(virtualWallet.availableBalance)}</p>
                 <p className="text-emerald-100 text-xs mt-1">Ready to withdraw</p>
               </div>
 
               {/* Total Earnings */}
               <div>
                 <p className="text-emerald-100 text-sm mb-1">Total Earned</p>
-                <p className="text-xl font-semibold">₦{virtualWallet.totalDeposits.toLocaleString()}</p>
+                <p className="text-xl font-semibold">{EscrowUtils.formatAmount(virtualWallet.totalDeposits)}</p>
                 <p className="text-emerald-100 text-xs mt-1">All time earnings</p>
               </div>
             </div>
@@ -211,11 +221,26 @@ export default function WorkerWalletPage() {
             <div className="pt-4 border-t border-white/20">
               <p className="text-emerald-100 text-sm mb-3">Quick Actions</p>
               <div className="flex gap-3">
-                <Button variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                <Button 
+                  variant="secondary" 
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                  onClick={() => setShowWithdrawalDialog(true)}
+                >
                   <ArrowUpRight className="h-4 w-4 mr-2" />
                   Withdraw
                 </Button>
-                <Button variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                <Button 
+                  variant="secondary" 
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                  onClick={() => {
+                    // Switch to the "all" tab to show transaction history
+                    const tabsList = document.querySelector('[role="tablist"]');
+                    const allTab = document.querySelector('[value="all"]');
+                    if (allTab) {
+                      (allTab as HTMLElement).click();
+                    }
+                  }}
+                >
                   <Eye className="h-4 w-4 mr-2" />
                   View History
                 </Button>
@@ -225,16 +250,7 @@ export default function WorkerWalletPage() {
         </Card>
       )}
 
-      {/* Balance Card */}
-      <div className="mb-8">
-        <BalanceCard
-          balance={balance}
-          userRole="worker"
-          isLoading={isLoading}
-          onRefresh={fetchWalletData}
-          showDetails={true}
-        />
-      </div>
+      
 
       {/* Quick Stats */}
       {stats && (
@@ -245,7 +261,7 @@ export default function WorkerWalletPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">₦{stats.virtualWalletBalance.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{EscrowUtils.formatAmount(stats.virtualWalletBalance)}</div>
                 <DollarSign className="h-4 w-4 text-emerald-500" />
               </div>
               <p className="text-xs text-neutral-500 mt-1">Ready to withdraw</p>
@@ -284,7 +300,7 @@ export default function WorkerWalletPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">₦{stats.totalEarnings.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{EscrowUtils.formatAmount(stats.totalEarnings)}</div>
                 <ArrowUpRight className="h-4 w-4 text-emerald-500" />
               </div>
               <p className="text-xs text-neutral-500 mt-1">All time</p>
@@ -298,7 +314,7 @@ export default function WorkerWalletPage() {
         <Alert className="mb-6 border-emerald-200 bg-emerald-50">
           <DollarSign className="h-4 w-4 text-emerald-600" />
           <AlertDescription className="text-emerald-800">
-            <strong>🎉 New!</strong> You have <strong>₦{virtualWallet.availableBalance.toLocaleString()}</strong> in your virtual wallet.
+            <strong>🎉 New!</strong> You have <strong>{EscrowUtils.formatAmount(virtualWallet.availableBalance)}</strong> in your virtual wallet.
             Earnings from completed bookings are now automatically added to your virtual wallet for instant access.
           </AlertDescription>
         </Alert>
@@ -420,8 +436,15 @@ export default function WorkerWalletPage() {
             />
             <WithdrawalRequest 
               userId={user?.$id || ''} 
-              availableBalance={stats?.virtualWalletBalance || 0}
-              onWithdrawalRequested={fetchWalletData}
+              availableBalance={balance?.availableBalance || 0}
+              onWithdrawalRequested={async () => {
+                console.log('[Wallet] onWithdrawalRequested callback triggered');
+                // Add a small delay to ensure database updates are complete
+                setTimeout(async () => {
+                  console.log('[Wallet] Refreshing wallet data after withdrawal');
+                  await fetchWalletData();
+                }, 1000);
+              }}
             />
           </div>
         </TabsContent>
@@ -517,6 +540,23 @@ export default function WorkerWalletPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Withdrawal Dialog */}
+      <WithdrawalRequest 
+        userId={user?.$id || ''} 
+        availableBalance={balance?.availableBalance || 0}
+        isDialogOpen={showWithdrawalDialog}
+        onDialogOpenChange={setShowWithdrawalDialog}
+        onWithdrawalRequested={async () => {
+          console.log('[Wallet] onWithdrawalRequested callback triggered (Quick Action)');
+          // Add a small delay to ensure database updates are complete
+          setTimeout(async () => {
+            console.log('[Wallet] Refreshing wallet data after withdrawal (Quick Action)');
+            await fetchWalletData();
+          }, 1000);
+          setShowWithdrawalDialog(false);
+        }}
+      />
     </>
   );
 } 

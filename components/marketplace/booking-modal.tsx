@@ -36,7 +36,7 @@ function StepProgress({ currentStep, steps }: StepProgressProps) {
   const currentIndex = steps.findIndex(step => step.id === currentStep);
 
   return (
-    <div className="flex items-center justify-between mb-8">
+    <div className="flex items-center justify-between mb-6 sm:mb-8">
       {steps.map((step, index) => {
         const isActive = step.id === currentStep;
         const isCompleted = index < currentIndex;
@@ -47,22 +47,22 @@ function StepProgress({ currentStep, steps }: StepProgressProps) {
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                  isActive && "bg-green-600 text-white",
-                  isCompleted && "bg-green-600 text-white",
+                  "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors",
+                  isActive && "bg-emerald-600 text-white",
+                  isCompleted && "bg-emerald-600 text-white",
                   isUpcoming && "bg-gray-200 text-gray-500"
                 )}
               >
                 {isCompleted ? (
-                  <Check className="h-5 w-5" />
+                  <Check className="h-3 w-3 sm:h-4 sm:w-4" />
                 ) : (
-                  step.icon
+                  <span className="text-xs sm:text-sm">{index + 1}</span>
                 )}
               </div>
               <span className={cn(
-                "text-xs mt-2 font-medium",
-                isActive && "text-green-600",
-                isCompleted && "text-green-600",
+                "text-xs mt-1 sm:mt-2 font-medium hidden sm:block",
+                isActive && "text-emerald-600",
+                isCompleted && "text-emerald-600",
                 isUpcoming && "text-gray-500"
               )}>
                 {step.label}
@@ -70,8 +70,8 @@ function StepProgress({ currentStep, steps }: StepProgressProps) {
             </div>
             {index < steps.length - 1 && (
               <div className={cn(
-                "flex-1 h-0.5 mx-4 transition-colors",
-                index < currentIndex ? "bg-green-600" : "bg-gray-200"
+                "flex-1 h-0.5 mx-1 sm:mx-2 transition-colors",
+                index < currentIndex ? "bg-emerald-600" : "bg-gray-200"
               )} />
             )}
           </React.Fragment>
@@ -89,55 +89,58 @@ interface BookingDetailsStepProps {
 
 function BookingDetailsStep({ formData, onFormDataChange, worker }: BookingDetailsStepProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Job Details</h3>
-        
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Job Details</h3>
+
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="title">Job Title *</Label>
+          <div className="space-y-2">
+            <Label htmlFor="title" className="text-sm">Service Title *</Label>
             <Input
               id="title"
               value={formData.title || ""}
               onChange={(e) => onFormDataChange({ ...formData, title: e.target.value })}
-              placeholder="e.g., House cleaning for 3-bedroom apartment"
+              placeholder="What service do you need?"
+              className="h-12"
             />
           </div>
 
-          <div>
-            <Label htmlFor="description">Description *</Label>
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-sm">Description *</Label>
             <Textarea
               id="description"
               value={formData.description || ""}
               onChange={(e) => onFormDataChange({ ...formData, description: e.target.value })}
-              placeholder="Provide details about what you need done..."
+              placeholder="Describe what you need in detail"
               rows={4}
+              className="text-base resize-none"
             />
           </div>
 
-          <div>
-            <Label htmlFor="location">Location *</Label>
+          <div className="space-y-2">
+            <Label htmlFor="location" className="text-sm">Location *</Label>
             <Input
               id="location"
               value={formData.location?.address || ""}
-              onChange={(e) => onFormDataChange({ 
-                ...formData, 
-                location: { ...formData.location, address: e.target.value } 
+              onChange={(e) => onFormDataChange({
+                ...formData,
+                location: { ...formData.location, address: e.target.value }
               })}
-              placeholder="Enter full address"
+              placeholder="Enter your address"
+              className="h-12"
             />
           </div>
 
-          <div>
-            <Label htmlFor="urgency">Urgency Level</Label>
+          <div className="space-y-2">
+            <Label htmlFor="urgency" className="text-sm">Urgency Level</Label>
             <Select
               value={formData.urgency || "medium"}
-              onValueChange={(value) => onFormDataChange({ 
-                ...formData, 
-                urgency: value as "low" | "medium" | "high" 
+              onValueChange={(value) => onFormDataChange({
+                ...formData,
+                urgency: value as "low" | "medium" | "high"
               })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-12">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -161,90 +164,48 @@ interface SchedulingStepProps {
 
 function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepProps) {
   const today = new Date().toISOString().split('T')[0];
-  
+
   const timeSlots = [
-    "08:00", "09:00", "10:00", "11:00", "12:00", 
+    "08:00", "09:00", "10:00", "11:00", "12:00",
     "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Schedule & Timing</h3>
-        
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Schedule & Timing</h3>
+
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="date">Preferred Date *</Label>
+          <div className="space-y-2">
+            <Label htmlFor="date" className="text-sm">Scheduled Date *</Label>
             <Input
               id="date"
-              type="date"
+              type="datetime-local"
               min={today}
               value={formData.scheduledDate?.split('T')[0] || ""}
-              onChange={(e) => onFormDataChange({ 
-                ...formData, 
+              onChange={(e) => onFormDataChange({
+                ...formData,
                 scheduledDate: e.target.value + "T00:00:00Z"
               })}
+              className="h-12"
             />
           </div>
 
-          <div>
-            <Label>Preferred Time</Label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
-              {timeSlots.map((time) => {
-                const isSelected = formData.scheduledDate?.includes(time);
-                return (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => {
-                      const date = formData.scheduledDate?.split('T')[0] || today;
-                      onFormDataChange({ 
-                        ...formData, 
-                        scheduledDate: `${date}T${time}:00Z`
-                      });
-                    }}
-                    className={cn(
-                      "p-2 text-sm rounded-lg border transition-colors",
-                      isSelected 
-                        ? "bg-green-600 text-white border-green-600" 
-                        : "bg-white text-gray-700 border-gray-200 hover:border-green-600"
-                    )}
-                  >
-                    {time}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="duration">Estimated Duration (hours) *</Label>
-            <Select
-              value={formData.estimatedDuration?.toString() || ""}
-              onValueChange={(value) => onFormDataChange({ 
-                ...formData, 
-                estimatedDuration: parseInt(value)
-              })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select duration..." />
-              </SelectTrigger>
-              <SelectContent>
-                {[1, 2, 3, 4, 5, 6, 8].map((hours) => (
-                  <SelectItem key={hours} value={hours.toString()}>
-                    {hours} hour{hours > 1 ? 's' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Worker Availability</h4>
-            <div className="text-sm text-blue-800">
-              <p>Working Days: {worker && worker.availability && worker.availability.workingDays.join(', ')}</p>
-              <p>Working Hours: {worker && worker.availability && worker.availability.workingHours.start} - {worker && worker.availability && worker.availability.workingHours.end}</p>
-              <p>Response Time: Usually responds within {worker && worker.stats && worker.stats.responseTime} minutes</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="duration" className="text-sm">Duration (hours) *</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="1"
+                max="12"
+                value={formData.estimatedDuration || 1}
+                onChange={(e) => onFormDataChange({
+                  ...formData,
+                  estimatedDuration: parseInt(e.target.value) || 1
+                })}
+                className="h-12"
+              />
             </div>
           </div>
         </div>
@@ -580,26 +541,28 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12 sm:h-14 sm:w-14">
               <AvatarImage src={worker.profileImage} alt={worker.displayName} />
-              <AvatarFallback>
+              <AvatarFallback className="text-lg">
                 {worker.displayName.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h2 className="text-lg font-semibold">Book {worker.displayName}</h2>
-              <p className="text-sm text-gray-600">₦{worker.hourlyRate.toLocaleString()}/hour</p>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg sm:text-xl font-serif">
+                Book Service with {worker.displayName}
+              </DialogTitle>
+              <p className="text-sm text-gray-600">Complete your booking details</p>
             </div>
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <StepProgress currentStep={currentStep} steps={steps} />
 
-          <div className="min-h-96">
+          <div className="min-h-[300px] sm:min-h-[350px]">
             {currentStep === 'details' && (
               <BookingDetailsStep
                 formData={formData}
@@ -632,12 +595,13 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
             )}
           </div>
 
-          {currentStep !== 'confirmation' && (
-            <div className="flex justify-between mt-8">
+          {currentStep !== 'confirmation' && currentStep !== 'payment' && (
+            <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 sm:mt-8">
               <Button
                 variant="outline"
                 onClick={handlePrevious}
                 disabled={currentStep === 'details'}
+                className="h-12 w-full sm:w-auto"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Previous
@@ -645,6 +609,7 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
               <Button
                 onClick={handleNext}
                 disabled={!canProceed()}
+                className="h-12 w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600"
               >
                 Next
                 <ArrowRight className="h-4 w-4 ml-2" />

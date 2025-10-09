@@ -73,7 +73,7 @@ export function EnhancedBookingModal({
     scheduledDate: '',
     estimatedDuration: 1,
     budget: { amount: 0, currency: 'NGN', isHourly: false },
-    urgency: 'medium' as const,
+    urgency: 'medium' as 'low' | 'medium' | 'high',
     requirements: [] as string[],
     attachments: [] as string[]
   });
@@ -182,7 +182,7 @@ export function EnhancedBookingModal({
       const bookingData: Partial<BookingRequest> = {
         id: bookingId,
         ...formData,
-        workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
+        workerId: worker.userId || worker.$id, // Use userId first, then fallback to $id
         categoryId: worker.categories?.[0] || 'general'
       };
 
@@ -192,7 +192,7 @@ export function EnhancedBookingModal({
           userId: user.$id,
           bookingId,
           amount: total,
-          workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
+          workerId: worker.userId || worker.$id, // Use userId first, then fallback to $id
           clientId: user.$id,
           description: formData.title || 'Service Booking'
         });
@@ -220,7 +220,7 @@ export function EnhancedBookingModal({
           metadata: {
             bookingId,
             clientId: user.$id,
-            workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
+            workerId: worker.userId || worker.$id, // Use userId first, then fallback to $id
             type: 'booking_payment' as const,
             workerName: worker.name || worker.displayName,
             serviceName: formData.title || 'Service Booking'
@@ -248,68 +248,98 @@ export function EnhancedBookingModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Book Service with {worker.name || worker.displayName}</DialogTitle>
-          <DialogDescription>
-            Step {currentStep} of 3: Complete your booking details and payment
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="text-lg sm:text-xl font-serif">
+            Book Service with {worker.name || worker.displayName}
+          </DialogTitle>
+          <DialogDescription className="text-sm">
+            Complete your booking details
           </DialogDescription>
         </DialogHeader>
 
-        {/* Progress indicator */}
-        <div className="flex items-center gap-2 mb-6">
-          {[1, 2, 3].map((step) => (
-            <div key={step} className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step <= currentStep ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'
-              }`}>
-                {step < currentStep ? <CheckCircle className="h-4 w-4" /> : step}
+        <div className="space-y-4 sm:space-y-6">
+          {/* Wallet Balance Card - Compact version */}
+          {virtualWallet && virtualWallet.availableBalance > 0 && (
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <Wallet className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-blue-100">Wallet Balance</p>
+                    <p className="text-base sm:text-lg font-bold truncate">₦{virtualWallet.availableBalance.toLocaleString()}</p>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white border-white/30 text-xs flex-shrink-0">
+                  <Zap className="h-3 w-3 mr-1" />
+                  Instant
+                </Badge>
               </div>
-              {step < 3 && (
-                <div className={`w-12 h-1 mx-2 ${
-                  step < currentStep ? 'bg-blue-500' : 'bg-gray-200'
+            </div>
+          )}
+
+          {/* Progress indicator */}
+          <div className="flex items-center justify-between">
+          {[1, 2].map((step) => (
+            <React.Fragment key={step}>
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors ${
+                  step <= currentStep ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {step < currentStep ? <CheckCircle className="h-4 w-4" /> : step}
+                </div>
+                <span className="text-xs mt-1 text-gray-600 hidden sm:block">
+                  {step === 1 ? 'Details' : 'Payment'}
+                </span>
+              </div>
+              {step < 2 && (
+                <div className={`flex-1 h-0.5 mx-2 transition-colors ${
+                  step < currentStep ? 'bg-emerald-600' : 'bg-gray-200'
                 }`} />
               )}
-            </div>
+            </React.Fragment>
           ))}
-        </div>
+          </div>
 
-        {/* Step 1: Service Details */}
-        {currentStep === 1 && (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="title">Service Title</Label>
+          {/* Step 1: Service Details */}
+          {currentStep === 1 && (
+            <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title" className="text-sm">Service Title *</Label>
               <Input
                 id="title"
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="What service do you need?"
+                className="h-12"
               />
             </div>
 
-            <div>
-              <Label htmlFor="description">Description</Label>
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm">Description *</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 placeholder="Describe what you need in detail"
-                rows={3}
+                rows={4}
+                className="resize-none"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="date">Scheduled Date</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="date" className="text-sm">Scheduled Date *</Label>
                 <Input
                   id="date"
                   type="datetime-local"
                   value={formData.scheduledDate}
                   onChange={(e) => handleInputChange('scheduledDate', e.target.value)}
+                  className="h-12"
                 />
               </div>
-              <div>
-                <Label htmlFor="duration">Duration (hours)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="duration" className="text-sm">Duration (hours) *</Label>
                 <Input
                   id="duration"
                   type="number"
@@ -317,26 +347,28 @@ export function EnhancedBookingModal({
                   max="24"
                   value={formData.estimatedDuration}
                   onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value))}
+                  className="h-12"
                 />
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="location">Location</Label>
+            <div className="space-y-2">
+              <Label htmlFor="location" className="text-sm">Location *</Label>
               <Input
                 id="location"
                 value={formData.location.address}
-                onChange={(e) => handleInputChange('location', { 
-                  ...formData.location, 
-                  address: e.target.value 
+                onChange={(e) => handleInputChange('location', {
+                  ...formData.location,
+                  address: e.target.value
                 })}
                 placeholder="Enter your address"
+                className="h-12"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="budget">Budget (₦)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="budget" className="text-sm">Budget (₦) *</Label>
                 <Input
                   id="budget"
                   type="number"
@@ -347,31 +379,32 @@ export function EnhancedBookingModal({
                     amount: parseFloat(e.target.value) || 0
                   })}
                   placeholder="Enter your budget"
+                  className="h-12"
                 />
               </div>
-              <div>
-                <Label htmlFor="urgency">Urgency</Label>
+              <div className="space-y-2">
+                <Label htmlFor="urgency" className="text-sm">Urgency</Label>
                 <Select
                   value={formData.urgency}
                   onValueChange={(value) => handleInputChange('urgency', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low - Flexible timing</SelectItem>
-                    <SelectItem value="medium">Medium - Within a week</SelectItem>
-                    <SelectItem value="high">High - ASAP</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Step 2: Review Details */}
-        {currentStep === 2 && (
-          <div className="space-y-4">
+          {/* Step 2: Payment Method */}
+          {currentStep === 2 && (
+            <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Booking Summary</CardTitle>
@@ -392,7 +425,7 @@ export function EnhancedBookingModal({
                 <div className="flex items-center gap-3">
                   <DollarSign className="h-4 w-4 text-gray-500" />
                   <span>₦{formData.budget.amount.toLocaleString()}</span>
-                  <Badge variant={formData.urgency === 'high' ? 'destructive' : formData.urgency === 'medium' ? 'default' : 'secondary'}>
+                  <Badge variant={formData.urgency === 'high' ? 'destructive' : 'default'}>
                     {formData.urgency} priority
                   </Badge>
                 </div>
@@ -435,7 +468,7 @@ export function EnhancedBookingModal({
               <Label className="text-base font-medium">Choose Payment Method</Label>
               <p className="text-sm text-gray-600 mb-4">Select how you'd like to pay for this service</p>
               
-              <RadioGroup value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
+              <RadioGroup value={selectedPaymentMethod} onValueChange={(value) => setSelectedPaymentMethod(value as 'wallet' | 'card')}>
                 {paymentMethods.map((method) => (
                   <div key={method.id} className="relative">
                     <Label 
@@ -506,7 +539,7 @@ export function EnhancedBookingModal({
               </RadioGroup>
             </div>
 
-            {selectedPaymentMethod === 'wallet' && virtualWallet && virtualWallet.availableBalance < total && (
+            {selectedPaymentMethod === 'wallet' && virtualWallet !== null && virtualWallet.availableBalance < total && (
               <Alert className="border-orange-200 bg-orange-50">
                 <AlertCircle className="h-4 w-4 text-orange-600" />
                 <AlertDescription className="text-orange-800">
@@ -540,35 +573,39 @@ export function EnhancedBookingModal({
                 )}
               </CardContent>
             </Card>
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Navigation buttons */}
-        <div className="flex justify-between pt-4 border-t">
-          <Button 
-            variant="outline" 
+          {/* Navigation buttons */}
+          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t">
+          <Button
+            variant="outline"
             onClick={currentStep === 1 ? onClose : handleBack}
             disabled={isProcessing}
+            className="h-12 w-full sm:w-auto order-2 sm:order-1"
           >
             {currentStep === 1 ? 'Cancel' : 'Back'}
           </Button>
-          
-          {currentStep < 3 ? (
-            <Button 
+
+          {currentStep < 2 ? (
+            <Button
               onClick={handleNext}
               disabled={!formData.title || !formData.budget.amount}
+              className="h-12 w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 order-1 sm:order-2"
             >
-              Next
+              Continue to Payment
             </Button>
           ) : (
-            <Button 
+            <Button
               onClick={handleSubmit}
-              disabled={isProcessing || (selectedPaymentMethod === 'wallet' && virtualWallet && virtualWallet.availableBalance < total)}
+              disabled={isProcessing || (selectedPaymentMethod === 'wallet' && virtualWallet !== null && virtualWallet.availableBalance < total)}
+              className="h-12 w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 order-1 sm:order-2"
             >
-              {isProcessing ? 'Processing...' : 
+              {isProcessing ? 'Processing...' :
                selectedPaymentMethod === 'wallet' ? 'Book Instantly' : 'Proceed to Payment'}
             </Button>
           )}
+        </div>
         </div>
       </DialogContent>
     </Dialog>

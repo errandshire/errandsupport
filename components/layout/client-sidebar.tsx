@@ -27,7 +27,7 @@ interface ClientSidebarProps {
 const sidebarItems = [
   {
     title: "Dashboard",
-    href: "/client",
+    href: "/client/dashboard",
     icon: Home,
   },
   {

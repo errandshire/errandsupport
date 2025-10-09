@@ -189,6 +189,35 @@ export class PaystackService {
   // Initiate transfer to worker (escrow release)
   async initiateTransfer(amount: number, recipientCode: string, reference: string, reason: string): Promise<any> {
     try {
+      // Validate input parameters
+      if (!recipientCode || recipientCode.trim() === '') {
+        throw new Error('Recipient code is required for transfer');
+      }
+      
+      if (!amount || amount <= 0) {
+        throw new Error('Valid amount is required for transfer');
+      }
+      
+      if (!reference || reference.trim() === '') {
+        throw new Error('Reference is required for transfer');
+      }
+
+      console.log('[Paystack] Initiating transfer with params:', {
+        originalAmount: amount,
+        amount: amount,
+        recipient: recipientCode,
+        reference,
+        reason
+      });
+
+      console.log('[Paystack] Sending to API:', {
+        source: 'balance',
+        amount: amount,
+        recipient: recipientCode,
+        reference,
+        reason
+      });
+
       const response = await fetch(`${this.baseURL}/transfer`, {
         method: 'POST',
         headers: {
@@ -197,7 +226,7 @@ export class PaystackService {
         },
         body: JSON.stringify({
           source: 'balance',
-          amount: amount * 100, // Convert to kobo
+          amount: amount, // Send amount directly in Naira
           recipient: recipientCode,
           reference,
           reason,
@@ -207,12 +236,80 @@ export class PaystackService {
       const result = await response.json();
       
       if (!response.ok) {
-        throw new Error(result.message || 'Transfer initiation failed');
+        console.error('[Paystack] Transfer failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          result
+        });
+        
+        // Provide specific error messages based on Paystack response
+        if (result.message?.includes('balance is not enough') || result.message?.includes('insufficient')) {
+          throw new Error('Insufficient Paystack account balance. Please contact support to add funds to the platform account.');
+        } else if (result.message?.includes('recipient')) {
+          throw new Error('Invalid bank account details. Please re-add your bank account.');
+        } else {
+          throw new Error(result.message || 'Transfer initiation failed');
+        }
+      }
+
+      console.log('[Paystack] Transfer initiated successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[Paystack] Transfer initiation error:', error);
+      throw error;
+    }
+  }
+
+  async getBalance(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseURL}/balance`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to fetch balance');
+      }
+
+      console.log('[Paystack] Balance response:', result);
+      console.log('[Paystack] Balance data structure:', {
+        status: result.status,
+        message: result.message,
+        dataLength: result.data?.length,
+        firstBalance: result.data?.[0],
+        allBalances: result.data
+      });
+      return result;
+    } catch (error) {
+      console.error('Paystack get balance error:', error);
+      throw error;
+    }
+  }
+
+  async getTransferRecipients(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseURL}/transferrecipient`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to fetch transfer recipients');
       }
 
       return result;
     } catch (error) {
-      console.error('Transfer initiation error:', error);
+      console.error('Paystack get transfer recipients error:', error);
       throw error;
     }
   }

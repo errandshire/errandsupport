@@ -13,10 +13,6 @@ export interface BookingActionRequest {
   userRole: 'worker' | 'client';
   action: 'accept' | 'reject' | 'start_work' | 'mark_completed' | 'confirm_completion' | 'dispute';
   reason?: string;
-  rating?: {
-    score: number;
-    review?: string;
-  };
   disputeDetails?: {
     category: string;
     description: string;
@@ -339,7 +335,7 @@ export class BookingActionService {
    */
   static async confirmCompletion(request: BookingActionRequest): Promise<BookingActionResult> {
     try {
-      const { bookingId, userId, rating } = request;
+      const { bookingId, userId } = request;
       
       // Get booking details
       const booking = await this.getBooking(bookingId);
@@ -356,11 +352,8 @@ export class BookingActionService {
         updatedAt: new Date().toISOString()
       };
 
-      // Add rating if provided
-      if (rating) {
-        updateData.clientRating = rating.score;
-        updateData.clientReview = rating.review || '';
-      }
+      // Note: Rating is now handled separately via ReviewService
+      // No need to store rating in booking document
 
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,

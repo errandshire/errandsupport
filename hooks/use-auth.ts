@@ -152,6 +152,21 @@ export function useAuth() {
     phone?: string;
   }): Promise<User> => {
     try {
+      // Check if user profile already exists
+      try {
+        const existingProfile = await databases.getDocument(
+          DATABASE_ID,
+          COLLECTIONS.USERS,
+          profileData.userId
+        );
+        if (existingProfile) {
+          console.log('User profile already exists:', profileData.userId);
+          return existingProfile as unknown as User;
+        }
+      } catch (error) {
+        // Profile doesn't exist, continue with creation
+      }
+
       const profile = await databases.createDocument(
         DATABASE_ID,
         COLLECTIONS.USERS,

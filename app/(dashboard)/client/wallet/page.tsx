@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { EscrowService } from "@/lib/escrow-service";
 import { EscrowUtils } from "@/lib/escrow-utils";
+import { formatCurrency } from "@/lib/utils";
 import { VirtualWalletService } from "@/lib/virtual-wallet-service";
 import { TransactionList } from "@/components/wallet/transaction-list";
 import type { Transaction, EscrowTransaction } from "@/lib/types";
@@ -170,7 +171,7 @@ export default function ClientWalletPage() {
     if (!user || !withdrawalAmount) return;
 
     const amount = parseFloat(withdrawalAmount);
-    if (isNaN(amount) || amount < 500) {
+    if (isNaN(amount) || amount < 50) {
       toast.error('Minimum withdrawal amount is ₦500');
       return;
     }
@@ -302,19 +303,12 @@ export default function ClientWalletPage() {
               <div className="col-span-1 sm:col-span-2 lg:col-span-1">
                 <p className="text-blue-100 text-xs sm:text-sm mb-1">Available Balance</p>
                 <p className="text-2xl sm:text-3xl font-bold">
-                  {showBalance ? `₦${virtualWallet.availableBalance.toLocaleString()}` : '₦••••••'}
+                  {showBalance ? formatCurrency(virtualWallet.availableBalance) : '₦••••••'}
                 </p>
                 <p className="text-blue-100 text-xs mt-1">Ready to spend</p>
               </div>
 
-              {/* Pending Balance */}
-              <div>
-                <p className="text-blue-100 text-xs sm:text-sm mb-1">Pending Balance</p>
-                <p className="text-lg sm:text-xl font-semibold">
-                  {showBalance ? `₦${virtualWallet.pendingBalance.toLocaleString()}` : '₦••••'}
-                </p>
-                <p className="text-blue-100 text-xs mt-1">Processing...</p>
-              </div>
+              
 
               {/* Quick Actions */}
               <div className="flex flex-col gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
@@ -325,16 +319,16 @@ export default function ClientWalletPage() {
                       Top Up
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="text-black mx-4 max-w-md">
-                    <DialogHeader>
-                      <DialogTitle className="text-lg sm:text-xl">Top Up Wallet</DialogTitle>
-                      <DialogDescription className="text-sm sm:text-base">
+                  <DialogContent className="text-black sm:max-w-md">
+                    <DialogHeader className="space-y-2">
+                      <DialogTitle className="text-xl font-serif">Top Up Wallet</DialogTitle>
+                      <DialogDescription className="text-sm">
                         Add funds to your virtual wallet for instant payments
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="topup-amount" className="text-sm sm:text-base">Amount (₦)</Label>
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="topup-amount">Amount (₦)</Label>
                         <Input
                           id="topup-amount"
                           type="number"
@@ -343,19 +337,23 @@ export default function ClientWalletPage() {
                           value={topUpAmount}
                           onChange={(e) => setTopUpAmount(e.target.value)}
                           placeholder="Enter amount (min: ₦100)"
-                          className="h-11 sm:h-12 text-base"
+                          className="h-12 text-base"
                         />
                       </div>
-                      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
-                        <Button variant="outline" onClick={() => setShowTopUpModal(false)} className="h-11">
-                          Cancel
-                        </Button>
-                        <Button 
+                      <div className="flex flex-col gap-3 pt-2">
+                        <Button
                           onClick={handleTopUp}
                           disabled={isProcessingTopUp}
-                          className="h-11"
+                          className="w-full h-12 bg-emerald-500 hover:bg-emerald-600"
                         >
                           {isProcessingTopUp ? 'Processing...' : 'Proceed to Payment'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowTopUpModal(false)}
+                          className="w-full h-12"
+                        >
+                          Cancel
                         </Button>
                       </div>
                     </div>
@@ -373,16 +371,16 @@ export default function ClientWalletPage() {
                       Withdraw
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="text-black mx-4 max-w-md">
-                    <DialogHeader>
-                      <DialogTitle className="text-lg sm:text-xl">Withdraw Funds</DialogTitle>
-                      <DialogDescription className="text-sm sm:text-base">
+                  <DialogContent className="text-black sm:max-w-md">
+                    <DialogHeader className="space-y-2">
+                      <DialogTitle className="text-xl font-serif">Withdraw Funds</DialogTitle>
+                      <DialogDescription className="text-sm">
                         Withdraw funds from your virtual wallet to your bank account
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="withdrawal-amount" className="text-sm sm:text-base">Amount (₦)</Label>
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="withdrawal-amount">Amount (₦)</Label>
                         <Input
                           id="withdrawal-amount"
                           type="number"
@@ -390,52 +388,56 @@ export default function ClientWalletPage() {
                           max={virtualWallet.availableBalance}
                           value={withdrawalAmount}
                           onChange={(e) => setWithdrawalAmount(e.target.value)}
-                          placeholder={`Min: ₦500, Max: ₦${virtualWallet.availableBalance.toLocaleString()}`}
-                          className="h-11 sm:h-12 text-base"
+                          placeholder={`Min: ₦500, Max: ${formatCurrency(virtualWallet.availableBalance)}`}
+                          className="h-12 text-base"
                         />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div>
-                          <Label htmlFor="account-number" className="text-sm sm:text-base">Account Number</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="account-number">Account Number</Label>
                           <Input
                             id="account-number"
                             value={bankDetails.accountNumber}
                             onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
                             placeholder="0123456789"
-                            className="h-11 text-base"
+                            className="h-12 text-base"
                           />
                         </div>
-                        <div>
-                          <Label htmlFor="bank-code" className="text-sm sm:text-base">Bank Code</Label>
+                        <div className="space-y-2">
+                          <Label htmlFor="bank-code">Bank Code</Label>
                           <Input
                             id="bank-code"
                             value={bankDetails.bankCode}
                             onChange={(e) => setBankDetails({...bankDetails, bankCode: e.target.value})}
                             placeholder="058"
-                            className="h-11 text-base"
+                            className="h-12 text-base"
                           />
                         </div>
                       </div>
-                      <div>
-                        <Label htmlFor="account-name" className="text-sm sm:text-base">Account Name</Label>
+                      <div className="space-y-2">
+                        <Label htmlFor="account-name">Account Name</Label>
                         <Input
                           id="account-name"
                           value={bankDetails.accountName}
                           onChange={(e) => setBankDetails({...bankDetails, accountName: e.target.value})}
                           placeholder="John Doe"
-                          className="h-11 text-base"
+                          className="h-12 text-base"
                         />
                       </div>
-                      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
-                        <Button variant="outline" onClick={() => setShowWithdrawalModal(false)} className="h-11">
-                          Cancel
-                        </Button>
-                        <Button 
+                      <div className="flex flex-col gap-3 pt-2">
+                        <Button
                           onClick={handleWithdrawal}
                           disabled={isProcessingWithdrawal}
-                          className="h-11"
+                          className="w-full h-12 bg-emerald-500 hover:bg-emerald-600"
                         >
                           {isProcessingWithdrawal ? 'Processing...' : 'Request Withdrawal'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowWithdrawalModal(false)}
+                          className="w-full h-12"
+                        >
+                          Cancel
                         </Button>
                       </div>
                     </div>
@@ -460,8 +462,8 @@ export default function ClientWalletPage() {
                     </div>
                   </div>
                   <div className="flex justify-between text-xs text-blue-100 mt-1">
-                    <span>₦{virtualWallet.currentDailySpent.toLocaleString()}</span>
-                    <span>₦{virtualWallet.dailySpendLimit.toLocaleString()}</span>
+                    <span>{formatCurrency(virtualWallet.currentDailySpent)}</span>
+                    <span>{formatCurrency(virtualWallet.dailySpendLimit)}</span>
                   </div>
                 </div>
                 <div>
@@ -477,8 +479,8 @@ export default function ClientWalletPage() {
                     </div>
                   </div>
                   <div className="flex justify-between text-xs text-blue-100 mt-1">
-                    <span>₦{virtualWallet.currentMonthlySpent.toLocaleString()}</span>
-                    <span>₦{virtualWallet.monthlySpendLimit.toLocaleString()}</span>
+                    <span>{formatCurrency(virtualWallet.currentMonthlySpent)}</span>
+                    <span>{formatCurrency(virtualWallet.monthlySpendLimit)}</span>
                   </div>
                 </div>
               </div>
@@ -505,7 +507,7 @@ export default function ClientWalletPage() {
             <div className="min-w-0 flex-1">
               <p className="text-xs sm:text-sm font-medium text-neutral-500 truncate">Wallet Balance</p>
               <div className="text-lg sm:text-2xl font-bold mt-1">
-                {virtualWallet ? EscrowUtils.formatAmount(virtualWallet.availableBalance) : '₦0'}
+                {virtualWallet ? formatCurrency(virtualWallet.availableBalance) : '₦0'}
               </div>
               <p className="text-xs text-neutral-500 mt-1">Available</p>
             </div>
@@ -541,7 +543,7 @@ export default function ClientWalletPage() {
         <Alert className="border-emerald-200 bg-emerald-50">
           <Wallet className="h-4 w-4 text-emerald-600" />
           <AlertDescription className="text-emerald-800 text-sm sm:text-base">
-            <strong>Instant Booking Available!</strong> You have ₦{virtualWallet.availableBalance.toLocaleString()} in your wallet. 
+            <strong>Instant Booking Available!</strong> You have {formatCurrency(virtualWallet.availableBalance)} in your wallet. 
             Book services instantly without payment delays.
           </AlertDescription>
         </Alert>
