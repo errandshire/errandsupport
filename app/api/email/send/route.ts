@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
 // Initialize Resend client on server-side
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 'dummy-key-for-build');
 
 // Email configuration
 const EMAIL_CONFIG = {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if Resend is configured
-    if (!process.env.RESEND_API_KEY) {
+    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'dummy-key-for-build') {
       console.error('❌ Resend API key not configured');
       return NextResponse.json(
         { error: 'Email service not configured - RESEND_API_KEY missing' },
