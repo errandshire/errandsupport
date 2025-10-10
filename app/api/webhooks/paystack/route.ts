@@ -77,27 +77,10 @@ async function handleChargeSuccess(data: any) {
 async function handleWalletTopUp(data: any) {
   try {
     const { reference, amount, metadata } = data;
-    
+
     console.log('Processing wallet top-up webhook:', { reference, amount: amount / 100, metadata });
 
-    // Idempotency guard: if we already created a completed tx for this reference, skip
-    try {
-      const existing = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WALLET_TRANSACTIONS,
-        [
-          Query.equal('reference', reference),
-          Query.equal('type', 'topup_completed'),
-          Query.equal('status', 'completed'),
-        ]
-      );
-      if (existing.total > 0) {
-        console.log('Top-up already processed for reference', reference);
-        return;
-      }
-    } catch {}
-
-    // Process wallet top-up
+    // Process wallet top-up (idempotency is handled inside processTopUpSuccess using document ID)
     await VirtualWalletService.processTopUpSuccess(
       reference,
       amount / 100, // Convert from kobo to NGN

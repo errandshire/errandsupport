@@ -102,19 +102,20 @@ export default function AdminWithdrawalsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Withdrawal Requests</h1>
-          <p className="text-muted-foreground">View withdrawal requests and process them in Paystack</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Withdrawal Requests</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">View withdrawal requests and process them in Paystack</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={loadWithdrawals} variant="outline">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={loadWithdrawals} variant="outline" size="sm" className="w-full sm:w-auto">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
           <Button
             onClick={() => window.open('https://dashboard.paystack.com', '_blank')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+            size="sm"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Open Paystack

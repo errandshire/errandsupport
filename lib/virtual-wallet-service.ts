@@ -259,26 +259,7 @@ export class VirtualWalletService {
       const { userId, walletId } = metadata;
       console.log('[Wallet] processTopUpSuccess:start', { reference, amount, userId, walletId });
 
-      // Idempotency: if we already marked this reference as completed, exit early
-      try {
-        const existing = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.WALLET_TRANSACTIONS,
-          [
-            Query.equal('reference', reference),
-            Query.equal('type', 'topup_completed'),
-            Query.equal('status', 'completed'),
-          ]
-        );
-        console.log('[Wallet] processTopUpSuccess:idempotency-check', { reference, found: existing.total });
-        if (existing.total > 0) {
-          console.log('[Wallet] processTopUpSuccess:skip-existing', { reference });
-          // Already processed; do nothing
-          return;
-        }
-      } catch {}
-
-      // Get wallet
+      // Get wallet first to validate
       const wallet = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
@@ -291,7 +272,39 @@ export class VirtualWalletService {
         totalDeposits: wallet.totalDeposits
       });
 
-      // Update wallet balances (clamp pending to avoid negatives if init step failed)
+      // CRITICAL IDEMPOTENCY FIX: Create the completed transaction record FIRST
+      // Using the reference as the document ID ensures only ONE transaction can be created
+      // If a duplicate webhook arrives, this will fail with a duplicate key error and prevent double-crediting
+      const completedTransactionId = `topup_completed_${reference}`;
+      try {
+        await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WALLET_TRANSACTIONS,
+          completedTransactionId,
+          {
+            userId,
+            walletId,
+            type: 'topup_completed',
+            amount,
+            reference,
+            description: 'Wallet top-up completed',
+            status: 'completed',
+            metadata: JSON.stringify({ originalReference: reference }),
+            createdAt: new Date().toISOString()
+          }
+        );
+        console.log('[Wallet] processTopUpSuccess:created-idempotency-record', { completedTransactionId });
+      } catch (error: any) {
+        // If document already exists, this top-up was already processed
+        if (error?.code === 409 || error?.message?.includes('already exists') || error?.message?.includes('unique')) {
+          console.log('[Wallet] processTopUpSuccess:skip-duplicate', { reference, completedTransactionId });
+          return;
+        }
+        // Other errors should be thrown
+        throw error;
+      }
+
+      // Now that we've secured the idempotency lock, update the wallet
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
@@ -310,22 +323,8 @@ export class VirtualWalletService {
         totalDeposits: wallet.totalDeposits + amount
       });
 
-      // Update transaction status
+      // Update the original pending transaction status
       await this.updateWalletTransactionStatus(reference, 'completed');
-
-      // Create completed transaction record
-      await this.createWalletTransaction({
-        userId,
-        walletId,
-        type: 'topup_completed',
-        amount,
-        reference,
-        description: 'Wallet top-up completed',
-        status: 'completed',
-        metadata: {
-          originalReference: reference
-        }
-      });
 
       console.log(`✅ Wallet top-up completed: ${amount} NGN for user ${userId}`);
 

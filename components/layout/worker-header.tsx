@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
-import type { Notification } from '@/lib/types';
+import type { Notification } from '@/lib/notification-service';
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -46,7 +46,7 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
 
   const handleNotificationClick = async (notification: Notification) => {
     // Mark notification as read
-    await notificationService.markAsRead(notification.$id);
+    await notificationService.markAsRead(notification.id);
     
     // Use actionUrl if available, otherwise handle specific notification types
     if (notification.actionUrl) {
@@ -132,7 +132,7 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
                 ) : (
                   notifications.map((notif) => (
                     <DropdownMenuItem 
-                      key={notif.$id}
+                      key={notif.id}
                       onClick={() => handleNotificationClick(notif)}
                       className="cursor-pointer"
                     >

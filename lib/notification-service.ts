@@ -30,6 +30,7 @@ interface NotificationData {
   senderId?: string;
   recipientId?: string;
   actionUrl?: string;
+  idempotencyKey?: string;
   createdAt: string;
 }
 

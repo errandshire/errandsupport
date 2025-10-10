@@ -65,7 +65,7 @@ export function WalletOnlyBookingModal({
     scheduledDate: '',
     estimatedDuration: 1,
     budget: { amount: 0, currency: 'NGN', isHourly: false },
-    urgency: 'medium' as const,
+    urgency: 'medium' as 'low' | 'medium' | 'high',
     requirements: [] as string[],
     attachments: [] as string[]
   });
@@ -166,7 +166,7 @@ export function WalletOnlyBookingModal({
       const bookingData: Partial<BookingRequest> = {
         id: bookingId,
         ...formData,
-        workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
+        workerId: worker.userId || worker.$id, // Use userId first, then fallback
         categoryId: worker.categories?.[0] || 'general'
       };
 
@@ -175,7 +175,7 @@ export function WalletOnlyBookingModal({
         userId: user.$id,
         bookingId,
         amount: total,
-        workerId: worker.userId || worker.id || worker.$id, // Use userId first, then fallback
+        workerId: worker.userId || worker.$id, // Use userId first, then fallback
         clientId: user.$id,
         description: formData.title || 'Service Booking'
       });
