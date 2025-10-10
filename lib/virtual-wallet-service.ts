@@ -176,6 +176,7 @@ export class VirtualWalletService {
 
       // Generate payment reference
       const reference = paystack.generateReference('wallet_topup');
+      console.log('[Wallet] topUpWallet: Generated new reference', { reference });
 
       // Get user details for payment
       const user = await databases.getDocument(
@@ -269,7 +270,9 @@ export class VirtualWalletService {
         walletId,
         availableBalance: wallet.availableBalance,
         pendingBalance: wallet.pendingBalance,
-        totalDeposits: wallet.totalDeposits
+        totalDeposits: wallet.totalDeposits,
+        amountToAdd: amount,
+        reference
       });
 
       // CRITICAL IDEMPOTENCY FIX: Create the completed transaction record FIRST
@@ -300,16 +303,29 @@ export class VirtualWalletService {
         );
         console.log('[Wallet] processTopUpSuccess:created-idempotency-record', { completedTransactionId, reference });
       } catch (error: any) {
-        // If document already exists, this top-up was already processed
+        // If document already exists, this top-up was already processed (IDEMPOTENCY - THIS IS NORMAL)
         if (error?.code === 409 || error?.message?.includes('already exists') || error?.message?.includes('unique')) {
-          console.log('[Wallet] processTopUpSuccess:skip-duplicate', { reference, completedTransactionId });
-          return;
+          console.log('[Wallet] processTopUpSuccess:skip-duplicate - IDEMPOTENCY PROTECTION (this is normal for duplicate webhooks)', {
+            reference,
+            completedTransactionId,
+            message: 'This payment was already processed successfully. Skipping to prevent double-crediting.'
+          });
+          return; // Exit gracefully - this is expected behavior
         }
         // Other errors should be thrown
+        console.error('[Wallet] processTopUpSuccess:unexpected-error', { error, reference });
         throw error;
       }
 
       // Now that we've secured the idempotency lock, update the wallet
+      console.log('[Wallet] processTopUpSuccess:CREDITING-WALLET-NOW', {
+        reference,
+        completedTransactionId,
+        amountToCredit: amount,
+        currentAvailable: wallet.availableBalance,
+        newAvailable: wallet.availableBalance + amount
+      });
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
@@ -321,8 +337,9 @@ export class VirtualWalletService {
           updatedAt: new Date().toISOString()
         }
       );
-      console.log('[Wallet] processTopUpSuccess:wallet-after', {
+      console.log('[Wallet] processTopUpSuccess:wallet-after ✅ SUCCESSFULLY CREDITED', {
         walletId,
+        reference,
         availableBalance: wallet.availableBalance + amount,
         pendingBalance: Math.max((wallet.pendingBalance || 0) - amount, 0),
         totalDeposits: wallet.totalDeposits + amount
