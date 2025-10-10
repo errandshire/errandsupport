@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle, Clock, AlertCircle, Eye, ExternalLink, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { WithdrawalWorkflowService } from "@/lib/withdrawal-workflow-service";
-import { EscrowUtils } from "@/lib/escrow-utils";
 
 interface WithdrawalRequest {
   $id: string;

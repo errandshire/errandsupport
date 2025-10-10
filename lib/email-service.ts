@@ -323,35 +323,29 @@ class EmailTemplateBuilder {
 
   static withdrawalRequest(data: WithdrawalRequestData): string {
     const content = `
-      <h2>Withdrawal Request Submitted 📤</h2>
+      <h2>Withdrawal Request Submitted 💸</h2>
       <p>Hello ${data.userName},</p>
-      <p>Your withdrawal request has been successfully submitted and the amount has been <strong>immediately deducted</strong> from your account. It's now pending admin approval.</p>
-      
+      <p>Your withdrawal request has been processed successfully!</p>
+
       <div class="highlight">
         <p><strong>Withdrawal Amount:</strong> <span class="amount">₦${data.amount}</span></p>
         <p><strong>Bank:</strong> ${data.bankName}</p>
         <p><strong>Account Number:</strong> ${data.accountNumber}</p>
-        <p><strong>Request ID:</strong> ${data.withdrawalId}</p>
-        <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">PENDING APPROVAL</span></p>
-        <p><strong>Account Status:</strong> <span style="color: #dc2626; font-weight: bold;">AMOUNT DEDUCTED</span></p>
+        <p><strong>Status:</strong> <span style="color: #2563eb; font-weight: bold;">PROCESSING</span></p>
       </div>
-      
-      <p><strong>What happens next?</strong></p>
+
+      <p><strong>What happens next:</strong></p>
       <ul>
-        <li>✅ Your request is being reviewed by our admin team</li>
-        <li>⏳ You'll receive an email notification once approved or rejected</li>
-        <li>💰 Approved withdrawals are typically processed within 24-48 hours</li>
-        <li>🏦 Funds will be transferred to your bank account</li>
-        <li>🔄 If rejected, the amount will be returned to your available balance</li>
+        <li>✅ Amount deducted from your wallet</li>
+        <li>🔄 Transfer initiated to your bank account</li>
+        <li>⏰ Funds arrive within 1-3 business days</li>
       </ul>
-      
-      <p>You can track the status of your withdrawal in your wallet dashboard.</p>
-      
-      <a href="${EMAIL_CONFIG.baseUrl}/worker/wallet" class="button">View Wallet Dashboard</a>
-      
-      <p>If you have any questions about your withdrawal, please contact our support team.</p>
+
+      <p>You can track your withdrawal in your wallet dashboard.</p>
+
+      <a href="${EMAIL_CONFIG.baseUrl}/worker/wallet" class="button">View Wallet</a>
     `;
-    return this.getBaseTemplate(content, 'Withdrawal Request Submitted');
+    return this.getBaseTemplate(content, 'Withdrawal Processing');
   }
 
   static withdrawalApproved(data: WithdrawalApprovalData): string {
@@ -415,32 +409,23 @@ class EmailTemplateBuilder {
 
   static adminWithdrawalNotification(data: AdminWithdrawalNotificationData): string {
     const content = `
-      <h2>⚠️ New Withdrawal Request - Admin Action Required</h2>
+      <h2>New Withdrawal Request 💸</h2>
       <p>Hello Admin,</p>
-      <p>A new withdrawal request has been submitted and requires your review and approval.</p>
-      
+      <p>A worker has requested a withdrawal. Transfer initiated in Paystack.</p>
+
       <div class="highlight">
-        <p><strong>User:</strong> ${data.userName} (${data.userEmail})</p>
-        <p><strong>Withdrawal Amount:</strong> <span class="amount">₦${data.amount}</span></p>
+        <p><strong>Worker:</strong> ${data.userName} (${data.userEmail})</p>
+        <p><strong>Amount:</strong> <span class="amount">₦${data.amount}</span></p>
         <p><strong>Bank:</strong> ${data.bankName}</p>
-        <p><strong>Account Number:</strong> ${data.accountNumber}</p>
-        <p><strong>Request ID:</strong> ${data.withdrawalId}</p>
-        <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">PENDING APPROVAL</span></p>
+        <p><strong>Account:</strong> ${data.accountNumber}</p>
+        <p><strong>Status:</strong> <span style="color: #2563eb; font-weight: bold;">AWAITING OTP</span></p>
       </div>
-      
-      <p><strong>Action Required:</strong></p>
-      <ul>
-        <li>🔍 Review the withdrawal request details</li>
-        <li>✅ Approve if all details are correct and user is verified</li>
-        <li>❌ Reject if there are any issues (provide reason)</li>
-        <li>⏰ Process approved withdrawals within 24-48 hours</li>
-      </ul>
-      
-      <a href="${EMAIL_CONFIG.baseUrl}/admin/withdrawals" class="button">Review Withdrawal Request</a>
-      
-      <p>Please process this request promptly to maintain good user experience.</p>
+
+     
+
+      <a href="${EMAIL_CONFIG.baseUrl}/admin/withdrawals" class="button">View Paystack Details</a>
     `;
-    return this.getBaseTemplate(content, 'New Withdrawal Request - Admin Action Required');
+    return this.getBaseTemplate(content, 'New Withdrawal - OTP Required');
   }
 }
 
