@@ -275,7 +275,12 @@ export class VirtualWalletService {
       // CRITICAL IDEMPOTENCY FIX: Create the completed transaction record FIRST
       // Using the reference as the document ID ensures only ONE transaction can be created
       // If a duplicate webhook arrives, this will fail with a duplicate key error and prevent double-crediting
-      const completedTransactionId = `topup_completed_${reference}`;
+
+      // Create a unique but short document ID (max 36 chars for Appwrite)
+      // Use the last part of the reference (timestamp + random) which is unique
+      const referenceHash = reference.split('_').slice(-2).join('_'); // Get "1760135211090_v5k5cd"
+      const completedTransactionId = `topup_${referenceHash}`; // Max ~21 chars
+
       try {
         await databases.createDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -293,7 +298,7 @@ export class VirtualWalletService {
             createdAt: new Date().toISOString()
           }
         );
-        console.log('[Wallet] processTopUpSuccess:created-idempotency-record', { completedTransactionId });
+        console.log('[Wallet] processTopUpSuccess:created-idempotency-record', { completedTransactionId, reference });
       } catch (error: any) {
         // If document already exists, this top-up was already processed
         if (error?.code === 409 || error?.message?.includes('already exists') || error?.message?.includes('unique')) {
