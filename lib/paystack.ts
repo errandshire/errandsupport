@@ -187,6 +187,7 @@ export class PaystackService {
   }
 
   // Initiate transfer to worker (escrow release)
+  // @param amount - Amount in kobo (Transfer API uses kobo, same as Payment API)
   async initiateTransfer(amount: number, recipientCode: string, reference: string, reason: string): Promise<any> {
     try {
       // Validate input parameters
@@ -226,7 +227,7 @@ export class PaystackService {
         },
         body: JSON.stringify({
           source: 'balance',
-          amount: amount, // Send amount directly in Naira
+          amount: amount, // Amount in kobo (smallest currency unit)
           recipient: recipientCode,
           reference,
           reason,

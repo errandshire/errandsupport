@@ -46,7 +46,7 @@ export function WithdrawalRequest({
   const [amount, setAmount] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(false);
 
-  const MIN_WITHDRAWAL = 10; // ₦1,000
+  const MIN_WITHDRAWAL = 100; // ₦100 (Paystack minimum transfer amount)
 
   // Load data
   useEffect(() => {
@@ -124,23 +124,7 @@ export function WithdrawalRequest({
       }
     } catch (error) {
       console.error('Error requesting withdrawal:', error);
-      
-      // Provide specific error messages based on the error type
-      if (error instanceof Error) {
-        if (error.message.includes('recipient code') || error.message.includes('re-add your bank account')) {
-          toast.error('Bank account setup issue. Please re-add your bank account in Settings > Payment Methods.');
-        } else if (error.message.includes('Insufficient balance')) {
-          toast.error(error.message);
-        } else if (error.message.includes('Paystack account balance')) {
-          toast.error('Withdrawal temporarily unavailable due to platform funding issue. Please contact support.');
-        } else if (error.message.includes('starter business')) {
-          toast.error('Withdrawal temporarily unavailable. Please contact support.');
-        } else {
-          toast.error(`Withdrawal failed: ${error.message}`);
-        }
-      } else {
-        toast.error('Failed to process withdrawal request. Please try again.');
-      }
+      toast.error(error instanceof Error ? error.message : 'Failed to process withdrawal request. Please try again.');
     } finally {
       setIsRequesting(false);
     }

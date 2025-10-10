@@ -21,7 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { EscrowService } from "@/lib/escrow-service";
 import { EscrowUtils } from "@/lib/escrow-utils";
 import { VirtualWalletService } from "@/lib/virtual-wallet-service";
-// Amounts in wallet/balances are stored in kobo; use EscrowUtils.formatAmount to render NGN
+// Legacy balances stored in kobo; Virtual Wallet stored in Naira (NGN)
 import { BalanceCard } from "@/components/wallet/balance-card";
 import { TransactionList } from "@/components/wallet/transaction-list";
 import { BankAccountSetup } from "@/components/wallet/bank-account-setup";
@@ -205,14 +205,14 @@ export default function WorkerWalletPage() {
               {/* Available Balance */}
               <div>
                 <p className="text-emerald-100 text-sm mb-1">Available Balance</p>
-                <p className="text-3xl font-bold">{EscrowUtils.formatAmount(virtualWallet.availableBalance)}</p>
+                <p className="text-3xl font-bold">₦{virtualWallet.availableBalance.toLocaleString()}</p>
                 <p className="text-emerald-100 text-xs mt-1">Ready to withdraw</p>
               </div>
 
               {/* Total Earnings */}
               <div>
                 <p className="text-emerald-100 text-sm mb-1">Total Earned</p>
-                <p className="text-xl font-semibold">{EscrowUtils.formatAmount(virtualWallet.totalDeposits)}</p>
+                <p className="text-xl font-semibold">₦{virtualWallet.totalDeposits.toLocaleString()}</p>
                 <p className="text-emerald-100 text-xs mt-1">All time earnings</p>
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function WorkerWalletPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">{EscrowUtils.formatAmount(stats.virtualWalletBalance)}</div>
+                <div className="text-2xl font-bold">₦{stats.virtualWalletBalance.toLocaleString()}</div>
                 <DollarSign className="h-4 w-4 text-emerald-500" />
               </div>
               <p className="text-xs text-neutral-500 mt-1">Ready to withdraw</p>
@@ -314,7 +314,7 @@ export default function WorkerWalletPage() {
         <Alert className="mb-6 border-emerald-200 bg-emerald-50">
           <DollarSign className="h-4 w-4 text-emerald-600" />
           <AlertDescription className="text-emerald-800">
-            <strong>🎉 New!</strong> You have <strong>{EscrowUtils.formatAmount(virtualWallet.availableBalance)}</strong> in your virtual wallet.
+            <strong>🎉 New!</strong> You have <strong>₦{virtualWallet.availableBalance.toLocaleString()}</strong> in your virtual wallet.
             Earnings from completed bookings are now automatically added to your virtual wallet for instant access.
           </AlertDescription>
         </Alert>
@@ -430,13 +430,13 @@ export default function WorkerWalletPage() {
 
         <TabsContent value="payout">
           <div className="space-y-6">
-            <BankAccountSetup 
-              userId={user?.$id || ''} 
+            <BankAccountSetup
+              userId={user?.$id || ''}
               onBankAccountAdded={fetchWalletData}
             />
-            <WithdrawalRequest 
-              userId={user?.$id || ''} 
-              availableBalance={balance?.availableBalance || 0}
+            <WithdrawalRequest
+              userId={user?.$id || ''}
+              availableBalance={virtualWallet?.availableBalance || 0}
               onWithdrawalRequested={async () => {
                 console.log('[Wallet] onWithdrawalRequested callback triggered');
                 // Add a small delay to ensure database updates are complete
@@ -542,9 +542,9 @@ export default function WorkerWalletPage() {
       </Tabs>
 
       {/* Withdrawal Dialog */}
-      <WithdrawalRequest 
-        userId={user?.$id || ''} 
-        availableBalance={balance?.availableBalance || 0}
+      <WithdrawalRequest
+        userId={user?.$id || ''}
+        availableBalance={virtualWallet?.availableBalance || 0}
         isDialogOpen={showWithdrawalDialog}
         onDialogOpenChange={setShowWithdrawalDialog}
         onWithdrawalRequested={async () => {

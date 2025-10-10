@@ -1,9 +1,9 @@
 import { databases, COLLECTIONS } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
-import { EscrowService } from '@/lib/escrow-service';
+import { VirtualWalletService } from '@/lib/virtual-wallet-service';
 import { EscrowUtils } from '@/lib/escrow-utils';
-import { emailService } from '@/lib/email-service';
 import { notificationService } from '@/lib/notification-service';
+import { PaystackService } from '@/lib/paystack';
 
 export interface WithdrawalRequest {
   userId: string;
@@ -12,20 +12,21 @@ export interface WithdrawalRequest {
   reason?: string;
 }
 
-export interface WithdrawalApproval {
-  withdrawalId: string;
-  adminId: string;
-  action: 'approve' | 'reject';
-  reason?: string;
-}
-
+/**
+ * Simple Withdrawal Service with Paystack Integration
+ * Withdraws from Virtual Wallet - money deducted immediately
+ * Automatically initiates Paystack transfer
+ */
 export class WithdrawalWorkflowService {
+  private static paystackService = PaystackService.getInstance();
+
   /**
    * Initiate a withdrawal request
-   * 1. Check user balance
-   * 2. Create withdrawal request
-   * 3. Update user balance (move to pending)
-   * 4. Send notifications
+   * 1. Check virtual wallet balance
+   * 2. Deduct money immediately from virtual wallet
+   * 3. Initiate Paystack transfer
+   * 4. Create withdrawal record
+   * 5. Send notification
    */
   static async initiateWithdrawal(request: WithdrawalRequest): Promise<{
     success: boolean;
@@ -35,17 +36,24 @@ export class WithdrawalWorkflowService {
     try {
       const { userId, amount, bankAccountId, reason } = request;
 
-      // 1. Validate user balance
-      const userBalance = await EscrowService.getUserBalance(userId);
-      if (!userBalance) {
-        throw new Error('Unable to retrieve your balance. Please try again.');
+      // 1. Validate minimum withdrawal amount (Paystack minimum is ₦100)
+      const MIN_WITHDRAWAL = 100;
+      if (amount < MIN_WITHDRAWAL) {
+        throw new Error(`Minimum withdrawal amount is ₦${MIN_WITHDRAWAL}. Please enter a higher amount.`);
       }
 
-      if (userBalance.availableBalance < amount) {
-        throw new Error(`Insufficient balance. Available: ₦${EscrowUtils.formatAmount(userBalance.availableBalance)}`);
+      // 2. Get virtual wallet
+      const wallet = await VirtualWalletService.getUserWallet(userId);
+      if (!wallet) {
+        throw new Error('Virtual wallet not found. Please contact support.');
       }
 
-      // 2. Get bank account details
+      // 3. Check available balance
+      if (wallet.availableBalance < amount) {
+        throw new Error(`Insufficient balance. Available: ₦${wallet.availableBalance.toLocaleString()}`);
+      }
+
+      // 3. Get bank account details
       const bankAccount = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS || 'bank_accounts',
@@ -56,7 +64,70 @@ export class WithdrawalWorkflowService {
         throw new Error('Invalid bank account');
       }
 
-      // 3. Create withdrawal request
+      // 4. Validate recipient code exists
+      if (!bankAccount.recipientCode || bankAccount.recipientCode.trim() === '') {
+        console.log('[Withdrawal] Recipient code missing, recreating...');
+
+        try {
+          const paystackRecipient = await this.paystackService.createTransferRecipient(
+            bankAccount.accountNumber,
+            bankAccount.bankCode,
+            bankAccount.accountName
+          );
+
+          if (paystackRecipient.data?.recipient_code) {
+            await databases.updateDocument(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              COLLECTIONS.BANK_ACCOUNTS || 'bank_accounts',
+              bankAccount.$id,
+              {
+                recipientCode: paystackRecipient.data.recipient_code,
+                updatedAt: new Date().toISOString()
+              }
+            );
+            bankAccount.recipientCode = paystackRecipient.data.recipient_code;
+          } else {
+            throw new Error('Failed to create Paystack recipient');
+          }
+        } catch (recipientError) {
+          throw new Error('Bank account setup required. Please re-add your bank account in settings.');
+        }
+      }
+
+      // 5. Generate reference
+      const reference = EscrowUtils.generateTransactionReference('withdrawal', userId);
+
+      // 6. Initiate Paystack transfer
+      // Convert Naira to Kobo (Paystack Transfer API expects amount in kobo)
+      const amountInKobo = amount * 100;
+
+      console.log('[Withdrawal] Initiating Paystack transfer:', {
+        amountInNaira: amount,
+        amountInKobo: amountInKobo,
+        recipientCode: bankAccount.recipientCode,
+        reference
+      });
+
+      let transferResult;
+      try {
+        transferResult = await this.paystackService.initiateTransfer(
+          amountInKobo,
+          bankAccount.recipientCode,
+          reference,
+          `Withdrawal to ${bankAccount.bankName} - ${bankAccount.accountNumber}`
+        );
+
+        console.log('[Withdrawal] Paystack transfer initiated:', {
+          transferCode: transferResult.data?.transfer_code,
+          status: transferResult.data?.status,
+          message: transferResult.message
+        });
+      } catch (transferError) {
+        console.error('[Withdrawal] Paystack transfer failed:', transferError);
+        throw new Error('Failed to initiate transfer to your bank account. Please try again or contact support.');
+      }
+
+      // 7. Create withdrawal record
       const withdrawalRequest = await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS || 'withdrawals',
@@ -68,151 +139,105 @@ export class WithdrawalWorkflowService {
           bankName: bankAccount.bankName,
           accountNumber: bankAccount.accountNumber,
           accountName: bankAccount.accountName,
-          status: 'pending_approval',
+          status: 'processing', // Transfer initiated in Paystack
           reason: reason || 'Withdrawal request',
+          reference,
+          transferCode: transferResult.data?.transfer_code || '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
       );
 
-      // 4. Update user balance (immediately deduct from available balance)
+      // 8. Deduct from virtual wallet immediately
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.USER_BALANCES,
-        userBalance.$id,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id!,
         {
-          availableBalance: userBalance.availableBalance - amount,
-          totalWithdrawn: (userBalance.totalWithdrawn || 0) + amount,
+          availableBalance: wallet.availableBalance - amount,
+          totalWithdrawn: (wallet.totalWithdrawn || 0) + amount,
           updatedAt: new Date().toISOString()
         }
       );
 
-      // 5. Create transaction record (money immediately deducted)
+      // 9. Create wallet transaction record
       await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.TRANSACTIONS,
+        COLLECTIONS.WALLET_TRANSACTIONS,
         ID.unique(),
         {
           userId,
-          type: 'withdrawal_request',
+          walletId: wallet.$id!,
+          type: 'withdrawal',
           amount: -amount,
-          description: `Withdrawal request to ${bankAccount.bankName} - ${bankAccount.accountNumber} (Amount deducted immediately)`,
-          reference: `withdrawal_${withdrawalRequest.$id}`,
-          status: 'pending_approval',
-          withdrawalId: withdrawalRequest.$id,
-          bankAccountId,
-          bankName: bankAccount.bankName,
-          accountNumber: bankAccount.accountNumber,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          reference,
+          description: `Withdrawal to ${bankAccount.bankName} - ${bankAccount.accountNumber}`,
+          status: 'processing',
+          metadata: JSON.stringify({
+            withdrawalId: withdrawalRequest.$id,
+            bankAccountId,
+            bankName: bankAccount.bankName,
+            accountNumber: bankAccount.accountNumber,
+            transferCode: transferResult.data?.transfer_code
+          }),
+          createdAt: new Date().toISOString()
         }
       );
 
-      // 6. Send notifications
-      await this.sendWithdrawalNotifications(withdrawalRequest.$id, userId, amount, bankAccount);
+      // 10. Send notification
+      await notificationService.createNotification({
+        userId,
+        title: 'Withdrawal Processing 🚀',
+        message: `Your withdrawal of ₦${amount.toLocaleString()} is being processed and will arrive in your ${bankAccount.bankName} account shortly.`,
+        type: 'success',
+        actionUrl: '/worker/wallet',
+        idempotencyKey: `withdrawal_submitted_${withdrawalRequest.$id}`
+      });
+
+      console.log(`✅ Withdrawal initiated: ₦${amount} via Paystack for user ${userId}`);
 
       return {
         success: true,
         withdrawalId: withdrawalRequest.$id,
-        message: 'Withdrawal request submitted successfully. You will be notified once it\'s approved.'
+        message: 'Withdrawal initiated successfully. Money will arrive in your bank account shortly.'
       };
 
     } catch (error) {
-      console.error('Withdrawal initiation failed:', error);
+      console.error('Withdrawal failed:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to initiate withdrawal'
+        message: error instanceof Error ? error.message : 'Failed to process withdrawal'
       };
     }
   }
 
   /**
-   * Send notifications for withdrawal request
+   * Get user's withdrawal history
    */
-  private static async sendWithdrawalNotifications(
-    withdrawalId: string,
-    userId: string,
-    amount: number,
-    bankAccount: any
-  ): Promise<void> {
-    try {
-      // Get user details for email
-      const user = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.USERS,
-        userId
-      );
-
-      // 1. Send in-app notification to user
-      await notificationService.createNotification({
-        userId,
-        title: 'Withdrawal Request Submitted 📤',
-        message: `Your withdrawal request of ₦${EscrowUtils.formatAmount(amount)} has been submitted and the amount has been deducted from your account. It's pending admin approval.`,
-        type: 'info',
-        actionUrl: '/worker/wallet',
-        idempotencyKey: `withdrawal_submitted_${withdrawalId}`
-      });
-
-      // 2. Send email to user
-      await emailService.sendWithdrawalRequestEmail({
-        to: user.email,
-        userName: user.name || 'User',
-        amount: EscrowUtils.formatAmount(amount),
-        bankName: bankAccount.bankName,
-        accountNumber: bankAccount.accountNumber,
-        withdrawalId
-      });
-
-      // 3. Send email to admin
-      await emailService.sendAdminWithdrawalNotification({
-        to: process.env.ADMIN_EMAIL || 'admin@errandwork.com',
-        userName: user.name || 'User',
-        userEmail: user.email,
-        amount: EscrowUtils.formatAmount(amount),
-        bankName: bankAccount.bankName,
-        accountNumber: bankAccount.accountNumber,
-        withdrawalId
-      });
-
-      // 4. Send in-app notification to admin (if admin user exists)
-      try {
-        const adminUsers = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.USERS,
-          [Query.equal('role', 'admin'), Query.limit(1)]
-        );
-
-        if (adminUsers.documents.length > 0) {
-          const admin = adminUsers.documents[0];
-          await notificationService.createNotification({
-            userId: admin.$id,
-            title: 'New Withdrawal Request ⚠️',
-            message: `${user.name || 'A user'} has requested a withdrawal of ₦${EscrowUtils.formatAmount(amount)}. Please review and approve.`,
-            type: 'warning',
-            actionUrl: '/admin/withdrawals',
-            idempotencyKey: `admin_withdrawal_${withdrawalId}`
-          });
-        }
-      } catch (adminNotificationError) {
-        console.warn('Failed to send admin notification:', adminNotificationError);
-        // Don't fail the whole process if admin notification fails
-      }
-
-    } catch (error) {
-      console.error('Failed to send withdrawal notifications:', error);
-      // Don't fail the withdrawal if notifications fail
-    }
-  }
-
-  /**
-   * Get pending withdrawals for admin
-   */
-  static async getPendingWithdrawals(): Promise<any[]> {
+  static async getWithdrawalHistory(userId: string, limit: number = 50): Promise<any[]> {
     try {
       const withdrawals = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS || 'withdrawals',
-        [Query.equal('status', 'pending_approval'), Query.orderDesc('createdAt')]
+        [Query.equal('userId', userId), Query.orderDesc('createdAt'), Query.limit(limit)]
+      );
+
+      return withdrawals.documents;
+    } catch (error) {
+      console.error('Failed to get withdrawal history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all withdrawals for admin
+   */
+  static async getAllWithdrawals(limit: number = 100): Promise<any[]> {
+    try {
+      const withdrawals = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS || 'withdrawals',
+        [Query.orderDesc('createdAt'), Query.limit(limit)]
       );
 
       // Get user details for each withdrawal
@@ -241,199 +266,8 @@ export class WithdrawalWorkflowService {
 
       return withdrawalsWithUsers;
     } catch (error) {
-      console.error('Failed to get pending withdrawals:', error);
+      console.error('Failed to get withdrawals:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Approve or reject a withdrawal
-   */
-  static async processWithdrawalApproval(approval: WithdrawalApproval): Promise<{
-    success: boolean;
-    message: string;
-  }> {
-    try {
-      const { withdrawalId, adminId, action, reason } = approval;
-
-      // Get withdrawal details
-      const withdrawal = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WITHDRAWALS || 'withdrawals',
-        withdrawalId
-      );
-
-      if (withdrawal.status !== 'pending_approval') {
-        throw new Error('Withdrawal is not pending approval');
-      }
-
-      // Get user balance
-      const userBalance = await EscrowService.getUserBalance(withdrawal.userId);
-      if (!userBalance) {
-        throw new Error('Unable to retrieve user balance');
-      }
-
-      if (action === 'approve') {
-        // Approve withdrawal (money already deducted, just update status)
-        await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.WITHDRAWALS || 'withdrawals',
-          withdrawalId,
-          {
-            status: 'approved',
-            approvedBy: adminId,
-            approvedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        );
-
-        // No need to update user balance - money already deducted during request
-
-        // Update transaction status
-        const transactions = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.TRANSACTIONS,
-          [Query.equal('withdrawalId', withdrawalId), Query.limit(1)]
-        );
-
-        if (transactions.documents.length > 0) {
-          await databases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            COLLECTIONS.TRANSACTIONS,
-            transactions.documents[0].$id,
-            {
-              status: 'approved',
-              updatedAt: new Date().toISOString()
-            }
-          );
-        }
-
-        // Send approval notifications
-        await this.sendApprovalNotifications(withdrawal, 'approved');
-
-        return {
-          success: true,
-          message: 'Withdrawal approved successfully'
-        };
-
-      } else {
-        // Reject withdrawal
-        await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.WITHDRAWALS || 'withdrawals',
-          withdrawalId,
-          {
-            status: 'rejected',
-            rejectedBy: adminId,
-            rejectionReason: reason || 'Withdrawal rejected',
-            rejectedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        );
-
-        // Return money to available balance (reverse the deduction)
-        await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.USER_BALANCES,
-          userBalance.$id,
-          {
-            availableBalance: userBalance.availableBalance + withdrawal.amount,
-            totalWithdrawn: (userBalance.totalWithdrawn || 0) - withdrawal.amount,
-            updatedAt: new Date().toISOString()
-          }
-        );
-
-        // Update transaction status
-        const transactions = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.TRANSACTIONS,
-          [Query.equal('withdrawalId', withdrawalId), Query.limit(1)]
-        );
-
-        if (transactions.documents.length > 0) {
-          await databases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            COLLECTIONS.TRANSACTIONS,
-            transactions.documents[0].$id,
-            {
-              status: 'rejected',
-              rejectionReason: reason || 'Withdrawal rejected',
-              updatedAt: new Date().toISOString()
-            }
-          );
-        }
-
-        // Send rejection notifications
-        await this.sendApprovalNotifications(withdrawal, 'rejected', reason);
-
-        return {
-          success: true,
-          message: 'Withdrawal rejected successfully'
-        };
-      }
-
-    } catch (error) {
-      console.error('Withdrawal approval failed:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to process withdrawal approval'
-      };
-    }
-  }
-
-  /**
-   * Send approval/rejection notifications
-   */
-  private static async sendApprovalNotifications(
-    withdrawal: any,
-    action: 'approved' | 'rejected',
-    reason?: string
-  ): Promise<void> {
-    try {
-      // Get user details
-      const user = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.USERS,
-        withdrawal.userId
-      );
-
-      // Send in-app notification
-      const title = action === 'approved' ? 'Withdrawal Approved ✅' : 'Withdrawal Rejected ❌';
-      const message = action === 'approved' 
-        ? `Your withdrawal request of ₦${EscrowUtils.formatAmount(withdrawal.amount)} has been approved and is being processed.`
-        : `Your withdrawal request of ₦${EscrowUtils.formatAmount(withdrawal.amount)} has been rejected. ${reason || 'Please contact support for more information.'}`;
-
-      await notificationService.createNotification({
-        userId: withdrawal.userId,
-        title,
-        message,
-        type: action === 'approved' ? 'success' : 'error',
-        actionUrl: '/worker/wallet',
-        idempotencyKey: `withdrawal_${action}_${withdrawal.$id}`
-      });
-
-      // Send email notification
-      if (action === 'approved') {
-        await emailService.sendWithdrawalApprovedEmail({
-          to: user.email,
-          userName: user.name || 'User',
-          amount: EscrowUtils.formatAmount(withdrawal.amount),
-          bankName: withdrawal.bankName,
-          accountNumber: withdrawal.accountNumber
-        });
-      } else {
-        await emailService.sendWithdrawalRejectedEmail({
-          to: user.email,
-          userName: user.name || 'User',
-          amount: EscrowUtils.formatAmount(withdrawal.amount),
-          reason: reason || 'Withdrawal rejected',
-          bankName: withdrawal.bankName,
-          accountNumber: withdrawal.accountNumber
-        });
-      }
-
-    } catch (error) {
-      console.error('Failed to send approval notifications:', error);
     }
   }
 }
