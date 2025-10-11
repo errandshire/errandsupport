@@ -76,6 +76,7 @@ export class VirtualWalletService {
       );
 
       if (existingWallets.documents.length > 0) {
+        console.log(`[Wallet] initializeWallet: Wallet already exists for user ${userId}`);
         return existingWallets.documents[0] as unknown as VirtualWallet;
       }
 
@@ -107,8 +108,22 @@ export class VirtualWalletService {
       console.log(`✅ Virtual wallet initialized for user ${userId}`);
       return wallet as unknown as VirtualWallet;
 
-    } catch (error) {
+    } catch (error: any) {
+      // If wallet creation fails due to race condition, fetch the wallet that was created
       console.error('Error initializing virtual wallet:', error);
+
+      // Check if another process created the wallet while we were trying
+      const existingWallets = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        [Query.equal('userId', userId)]
+      );
+
+      if (existingWallets.documents.length > 0) {
+        console.log(`[Wallet] initializeWallet: Wallet created by another process, using existing wallet`);
+        return existingWallets.documents[0] as unknown as VirtualWallet;
+      }
+
       throw new Error('Failed to initialize virtual wallet');
     }
   }
@@ -303,18 +318,59 @@ export class VirtualWalletService {
         );
         console.log('[Wallet] processTopUpSuccess:created-idempotency-record', { completedTransactionId, reference });
       } catch (error: any) {
-        // If document already exists, this top-up was already processed (IDEMPOTENCY - THIS IS NORMAL)
+        // If document already exists, check if wallet was actually credited
         if (error?.code === 409 || error?.message?.includes('already exists') || error?.message?.includes('unique')) {
-          console.log('[Wallet] processTopUpSuccess:skip-duplicate - IDEMPOTENCY PROTECTION (this is normal for duplicate webhooks)', {
+          console.log('[Wallet] processTopUpSuccess:idempotency-check - document exists, verifying wallet was credited', {
             reference,
-            completedTransactionId,
-            message: 'This payment was already processed successfully. Skipping to prevent double-crediting.'
+            completedTransactionId
           });
-          return; // Exit gracefully - this is expected behavior
+
+          // IMPROVED IDEMPOTENCY: Verify wallet was actually credited
+          // Re-fetch wallet to get fresh data
+          const freshWallet = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.VIRTUAL_WALLETS,
+            walletId
+          ) as unknown as VirtualWallet;
+
+          console.log('[Wallet] processTopUpSuccess:wallet-check', {
+            reference,
+            originalPendingBalance: wallet.pendingBalance,
+            freshPendingBalance: freshWallet.pendingBalance,
+            amountToCredit: amount,
+            originalAvailableBalance: wallet.availableBalance,
+            freshAvailableBalance: freshWallet.availableBalance
+          });
+
+          // If pending balance still contains this amount, wallet wasn't credited
+          // (This handles the case where document was created but wallet update failed)
+          if (freshWallet.pendingBalance >= amount && freshWallet.pendingBalance === wallet.pendingBalance) {
+            console.log('[Wallet] processTopUpSuccess:RECOVERY MODE - document exists but wallet not credited, crediting now', {
+              reference,
+              completedTransactionId,
+              pendingBalance: freshWallet.pendingBalance,
+              amountToCredit: amount
+            });
+
+            // Proceed to credit the wallet (don't return early)
+            // Update the wallet reference for the crediting logic below
+            wallet.availableBalance = freshWallet.availableBalance;
+            wallet.pendingBalance = freshWallet.pendingBalance;
+            wallet.totalDeposits = freshWallet.totalDeposits;
+          } else {
+            // Wallet was already credited successfully
+            console.log('[Wallet] processTopUpSuccess:skip-duplicate - wallet already credited ✅', {
+              reference,
+              completedTransactionId,
+              message: 'This payment was already processed and wallet was credited. Skipping.'
+            });
+            return; // Exit gracefully - wallet already has the money
+          }
+        } else {
+          // Other errors should be thrown
+          console.error('[Wallet] processTopUpSuccess:unexpected-error', { error, reference });
+          throw error;
         }
-        // Other errors should be thrown
-        console.error('[Wallet] processTopUpSuccess:unexpected-error', { error, reference });
-        throw error;
       }
 
       // Now that we've secured the idempotency lock, update the wallet
