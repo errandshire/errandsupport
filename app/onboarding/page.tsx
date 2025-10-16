@@ -492,7 +492,7 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
 }
 
 // Verification Step
-function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
+function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
   // Preview URLs for UI; actual uploads will happen on submit
   const [idDocumentUrl, setIdDocumentUrl] = React.useState<string>("");
   const [selfieWithIdUrl, setSelfieWithIdUrl] = React.useState<string>("");
@@ -629,7 +629,8 @@ function VerificationStep({ onNext, onPrevious, updateProfile }: any) {
 
       // Update the WORKERS collection with verification documents
       const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      
+      const { Query } = await import('appwrite');
+
       // Find the worker document to update
       const existingWorkers = await databases.listDocuments(
         DATABASE_ID,
