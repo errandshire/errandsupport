@@ -164,7 +164,7 @@ export function ClientWithdrawalRequest({
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  You need to add a bank account first. Please add a bank account in the Bank Accounts section below.
+                  Kindly add your bank details in the settings before requesting withdrawals.
                 </AlertDescription>
               </Alert>
             ) : (

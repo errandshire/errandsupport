@@ -198,12 +198,19 @@ export function WithdrawalRequest({
                   <SelectValue placeholder="Select bank account" />
                 </SelectTrigger>
                 <SelectContent>
-                  {bankAccounts.map((account, index) => (
-                    <SelectItem key={account.$id || `bank-account-${index}`} value={account.$id}>
-                      {account.bankName} - {account.accountNumber}
-                      {account.isDefault && ' (Default)'}
-                    </SelectItem>
-                  ))}
+                  {bankAccounts.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      <AlertCircle className="h-4 w-4 mx-auto mb-2" />
+                      <p>Kindly add your bank details in the settings</p>
+                    </div>
+                  ) : (
+                    bankAccounts.map((account, index) => (
+                      <SelectItem key={account.$id || `bank-account-${index}`} value={account.$id}>
+                        {account.bankName} - {account.accountNumber}
+                        {account.isDefault && ' (Default)'}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -272,12 +279,19 @@ export function WithdrawalRequest({
                       <SelectValue placeholder="Select bank account" />
                     </SelectTrigger>
                     <SelectContent>
-                      {bankAccounts.map((account, index) => (
-                        <SelectItem key={account.$id || `bank-account-${index}`} value={account.$id}>
-                          {account.bankName} - {account.accountNumber}
-                          {account.isDefault && ' (Default)'}
-                        </SelectItem>
-                      ))}
+                      {bankAccounts.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-gray-500">
+                          <AlertCircle className="h-4 w-4 mx-auto mb-2" />
+                          <p>Kindly add your bank details in the settings</p>
+                        </div>
+                      ) : (
+                        bankAccounts.map((account, index) => (
+                          <SelectItem key={account.$id || `bank-account-${index}`} value={account.$id}>
+                            {account.bankName} - {account.accountNumber}
+                            {account.isDefault && ' (Default)'}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -315,7 +329,7 @@ export function WithdrawalRequest({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              You need to add a bank account before you can request withdrawals.
+              Kindly add your bank details in the settings before requesting withdrawals.
             </AlertDescription>
           </Alert>
         ) : availableBalance < MIN_WITHDRAWAL ? (
