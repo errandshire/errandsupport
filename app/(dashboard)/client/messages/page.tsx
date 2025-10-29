@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { 
   Search,
   MessageCircle,
@@ -27,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { ChatInterface } from "@/components/chat/chat-interface";
 
-export default function ClientMessagesPage() {
+function ClientMessagesContent() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -334,5 +335,20 @@ export default function ClientMessagesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function ClientMessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading messages...</p>
+        </div>
+      </div>
+    }>
+      <ClientMessagesContent />
+    </Suspense>
   );
 } 

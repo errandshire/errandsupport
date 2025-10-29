@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { 
   Search,
   MessageCircle,
@@ -51,7 +52,7 @@ interface Conversation {
   };
 }
 
-export default function WorkerMessagesPage() {
+function WorkerMessagesContent() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -358,5 +359,20 @@ export default function WorkerMessagesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function WorkerMessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading messages...</p>
+        </div>
+      </div>
+    }>
+      <WorkerMessagesContent />
+    </Suspense>
   );
 } 
