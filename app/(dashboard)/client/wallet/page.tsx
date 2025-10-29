@@ -33,6 +33,8 @@ import { EscrowUtils } from "@/lib/escrow-utils";
 import { formatCurrency } from "@/lib/utils";
 import { VirtualWalletService } from "@/lib/virtual-wallet-service";
 import { TransactionList } from "@/components/wallet/transaction-list";
+import { BankAccountSetup } from "@/components/wallet/bank-account-setup";
+import { ClientWithdrawalRequest } from "@/components/wallet/client-withdrawal-request";
 import type { Transaction, EscrowTransaction } from "@/lib/types";
 import type { VirtualWallet } from "@/lib/virtual-wallet-service";
 import { toast } from "sonner";
@@ -52,16 +54,9 @@ export default function ClientWalletPage() {
   const [showTopUpModal, setShowTopUpModal] = React.useState(false);
   const [topUpAmount, setTopUpAmount] = React.useState('');
   const [isProcessingTopUp, setIsProcessingTopUp] = React.useState(false);
-  
-  // Withdrawal modal state
+
+  // Withdrawal modal state (controlled externally by ClientWithdrawalRequest component)
   const [showWithdrawalModal, setShowWithdrawalModal] = React.useState(false);
-  const [withdrawalAmount, setWithdrawalAmount] = React.useState('');
-  const [bankDetails, setBankDetails] = React.useState({
-    accountNumber: '',
-    bankCode: '',
-    accountName: ''
-  });
-  const [isProcessingWithdrawal, setIsProcessingWithdrawal] = React.useState(false);
 
   // Fetch wallet data
   const fetchWalletData = React.useCallback(async () => {
@@ -166,47 +161,6 @@ export default function ClientWalletPage() {
     }
   };
 
-  // Handle withdrawal request
-  const handleWithdrawal = async () => {
-    if (!user || !withdrawalAmount) return;
-
-    const amount = parseFloat(withdrawalAmount);
-    if (isNaN(amount) || amount < 50) {
-      toast.error('Minimum withdrawal amount is ₦500');
-      return;
-    }
-
-    if (!bankDetails.accountNumber || !bankDetails.bankCode || !bankDetails.accountName) {
-      toast.error('Please fill in all bank details');
-      return;
-    }
-
-    try {
-      setIsProcessingWithdrawal(true);
-      
-      const result = await VirtualWalletService.requestWithdrawal({
-        userId: user.$id,
-        amount,
-        bankDetails,
-        reason: 'Wallet withdrawal'
-      });
-
-      if (result.success) {
-        toast.success(result.message);
-        setShowWithdrawalModal(false);
-        setWithdrawalAmount('');
-        setBankDetails({ accountNumber: '', bankCode: '', accountName: '' });
-        await fetchWalletData(); // Refresh data
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      console.error('Withdrawal error:', error);
-      toast.error('Failed to process withdrawal request');
-    } finally {
-      setIsProcessingWithdrawal(false);
-    }
-  };
 
   // Calculate spending stats
   const stats = React.useMemo(() => {
@@ -360,89 +314,15 @@ export default function ClientWalletPage() {
                   </DialogContent>
                 </Dialog>
 
-                <Dialog open={showWithdrawalModal} onOpenChange={setShowWithdrawalModal}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="secondary" 
-                      className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-10 sm:h-11"
-                      disabled={virtualWallet.availableBalance < 500}
-                    >
-                      <ArrowUpRight className="h-4 w-4 mr-2" />
-                      Withdraw
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="text-black sm:max-w-md">
-                    <DialogHeader className="space-y-2">
-                      <DialogTitle className="text-xl font-serif">Withdraw Funds</DialogTitle>
-                      <DialogDescription className="text-sm">
-                        Withdraw funds from your virtual wallet to your bank account
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="withdrawal-amount">Amount (₦)</Label>
-                        <Input
-                          id="withdrawal-amount"
-                          type="number"
-                          min="500"
-                          max={virtualWallet.availableBalance}
-                          value={withdrawalAmount}
-                          onChange={(e) => setWithdrawalAmount(e.target.value)}
-                          placeholder={`Min: ₦500, Max: ${formatCurrency(virtualWallet.availableBalance)}`}
-                          className="h-12 text-base"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="account-number">Account Number</Label>
-                          <Input
-                            id="account-number"
-                            value={bankDetails.accountNumber}
-                            onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
-                            placeholder="0123456789"
-                            className="h-12 text-base"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="bank-code">Bank Code</Label>
-                          <Input
-                            id="bank-code"
-                            value={bankDetails.bankCode}
-                            onChange={(e) => setBankDetails({...bankDetails, bankCode: e.target.value})}
-                            placeholder="058"
-                            className="h-12 text-base"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="account-name">Account Name</Label>
-                        <Input
-                          id="account-name"
-                          value={bankDetails.accountName}
-                          onChange={(e) => setBankDetails({...bankDetails, accountName: e.target.value})}
-                          placeholder="John Doe"
-                          className="h-12 text-base"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-3 pt-2">
-                        <Button
-                          onClick={handleWithdrawal}
-                          disabled={isProcessingWithdrawal}
-                          className="w-full h-12 bg-emerald-500 hover:bg-emerald-600"
-                        >
-                          {isProcessingWithdrawal ? 'Processing...' : 'Request Withdrawal'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowWithdrawalModal(false)}
-                          className="w-full h-12"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button
+                  variant="secondary"
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30 h-10 sm:h-11"
+                  disabled={virtualWallet.availableBalance < 500}
+                  onClick={() => setShowWithdrawalModal(true)}
+                >
+                  <ArrowUpRight className="h-4 w-4 mr-2" />
+                  Withdraw
+                </Button>
               </div>
             </div>
 
@@ -767,6 +647,24 @@ export default function ClientWalletPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Bank Account Management & Withdrawals */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <BankAccountSetup
+          userId={user?.$id || ''}
+          onBankAccountAdded={fetchWalletData}
+        />
+        <ClientWithdrawalRequest
+          userId={user?.$id || ''}
+          availableBalance={virtualWallet?.availableBalance || 0}
+          isDialogOpen={showWithdrawalModal}
+          onDialogOpenChange={setShowWithdrawalModal}
+          onWithdrawalRequested={async () => {
+            console.log('[ClientWallet] Withdrawal requested, refreshing data');
+            await fetchWalletData();
+          }}
+        />
+      </div>
     </div>
   );
 } 

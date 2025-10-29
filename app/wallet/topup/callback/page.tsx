@@ -81,6 +81,8 @@ function WalletTopUpCallbackContent() {
       });
 
       // Process the successful top-up
+      // Note: This may be redundant if webhook already processed the payment
+      // The VirtualWalletService.processTopUpSuccess has idempotency protection
       await VirtualWalletService.processTopUpSuccess(
         paymentData.reference,
         paymentData.amount / 100, // Convert from kobo to NGN

@@ -38,11 +38,7 @@ export interface WalletTopUpRequest {
 export interface WalletWithdrawalRequest {
   userId: string;
   amount: number;
-  bankDetails: {
-    accountNumber: string;
-    bankCode: string;
-    accountName: string;
-  };
+  bankAccountId: string; // Reference to saved bank account
   reason?: string;
 }
 
@@ -342,13 +338,30 @@ export class VirtualWalletService {
             freshAvailableBalance: freshWallet.availableBalance
           });
 
-          // If pending balance still contains this amount, wallet wasn't credited
-          // (This handles the case where document was created but wallet update failed)
-          if (freshWallet.pendingBalance >= amount && freshWallet.pendingBalance === wallet.pendingBalance) {
+          // Check if wallet was already credited by comparing available balance
+          // If available balance increased by the amount, wallet was already credited
+          const expectedAvailableBalance = wallet.availableBalance + amount;
+          const wasAlreadyCredited = freshWallet.availableBalance >= expectedAvailableBalance;
+          
+          if (wasAlreadyCredited) {
+            // Wallet was already credited successfully
+            console.log('[Wallet] processTopUpSuccess:skip-duplicate - wallet already credited ✅', {
+              reference,
+              completedTransactionId,
+              originalAvailable: wallet.availableBalance,
+              currentAvailable: freshWallet.availableBalance,
+              expectedAvailable: expectedAvailableBalance,
+              message: 'This payment was already processed and wallet was credited. Skipping.'
+            });
+            return; // Exit gracefully - wallet already has the money
+          } else {
+            // Document exists but wallet wasn't credited (recovery mode)
             console.log('[Wallet] processTopUpSuccess:RECOVERY MODE - document exists but wallet not credited, crediting now', {
               reference,
               completedTransactionId,
-              pendingBalance: freshWallet.pendingBalance,
+              originalAvailable: wallet.availableBalance,
+              currentAvailable: freshWallet.availableBalance,
+              expectedAvailable: expectedAvailableBalance,
               amountToCredit: amount
             });
 
@@ -357,14 +370,6 @@ export class VirtualWalletService {
             wallet.availableBalance = freshWallet.availableBalance;
             wallet.pendingBalance = freshWallet.pendingBalance;
             wallet.totalDeposits = freshWallet.totalDeposits;
-          } else {
-            // Wallet was already credited successfully
-            console.log('[Wallet] processTopUpSuccess:skip-duplicate - wallet already credited ✅', {
-              reference,
-              completedTransactionId,
-              message: 'This payment was already processed and wallet was credited. Skipping.'
-            });
-            return; // Exit gracefully - wallet already has the money
           }
         } else {
           // Other errors should be thrown
@@ -525,7 +530,7 @@ export class VirtualWalletService {
     message: string;
   }> {
     try {
-      const { userId, amount, bankDetails, reason } = request;
+      const { userId, amount, bankAccountId, reason } = request;
 
       // Get wallet
       const wallet = await this.getUserWallet(userId);
@@ -534,7 +539,7 @@ export class VirtualWalletService {
       }
 
       // Validate withdrawal amount
-      if (amount < 50) {
+      if (amount < 500) {
         throw new Error('Minimum withdrawal amount is ₦500');
       }
 
@@ -542,49 +547,34 @@ export class VirtualWalletService {
         throw new Error('Insufficient balance for withdrawal');
       }
 
-      // Create withdrawal request
-      const withdrawalId = ID.unique();
-      const reference = EscrowUtils.generateTransactionReference('withdrawal', userId);
-
-      const withdrawal = {
-        id: withdrawalId,
-        userId,
-        walletId: wallet.$id!,
-        amount,
-        status: 'pending',
-        bankAccountNumber: bankDetails.accountNumber,
-        bankCode: bankDetails.bankCode,
-        accountName: bankDetails.accountName,
-        reason: reason || 'Wallet withdrawal',
-        reference,
-        requestedAt: new Date().toISOString(),
-        processedAt: null,
-        transferReference: null
-      };
-
-      // Check for existing withdrawal request with same reference
-      const existingWithdrawals = await databases.listDocuments(
+      // Get bank account details
+      const bankAccount = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WALLET_WITHDRAWALS,
-        [Query.equal('reference', reference), Query.limit(1)]
+        COLLECTIONS.BANK_ACCOUNTS || 'bank_accounts',
+        bankAccountId
       );
 
-      if (existingWithdrawals.documents.length > 0) {
-        console.log('Withdrawal request already exists for reference:', reference);
-        return {
-          success: true,
-          withdrawalId: existingWithdrawals.documents[0].$id,
-          reference,
-          message: 'Withdrawal request already exists'
-        };
+      if (!bankAccount || bankAccount.userId !== userId) {
+        throw new Error('Invalid bank account');
       }
 
-      // Store withdrawal request
-      await databases.createDocument(
+      // Generate reference
+      const reference = EscrowUtils.generateTransactionReference('withdrawal', userId);
+
+      // Create withdrawal request (following worker pattern)
+      const withdrawalRequest = await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WALLET_WITHDRAWALS,
-        withdrawalId,
-        withdrawal
+        ID.unique(),
+        {
+          userId,
+          bankAccountId,
+          amount,
+          reference,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
       );
 
       // Reserve funds (move from available to pending)
@@ -606,19 +596,22 @@ export class VirtualWalletService {
         type: 'withdrawal_pending',
         amount: -amount,
         reference,
-        description: 'Withdrawal request pending',
+        description: `Withdrawal to ${bankAccount.bankName} - ${bankAccount.accountNumber}`,
         status: 'pending',
         metadata: {
-          withdrawalId,
-          bankDetails
+          withdrawalId: withdrawalRequest.$id,
+          bankAccountId,
+          bankName: bankAccount.bankName,
+          accountNumber: bankAccount.accountNumber
         }
       });
 
-      console.log(`✅ Withdrawal requested: ${amount} NGN for user ${userId}`);
+      console.log(`✅ Withdrawal requested: ${amount} NGN for user ${userId} to ${bankAccount.bankName}`);
 
       return {
         success: true,
-        withdrawalId,
+        withdrawalId: withdrawalRequest.$id,
+        reference,
         message: 'Withdrawal request submitted. Processing within 1-3 business days.'
       };
 
