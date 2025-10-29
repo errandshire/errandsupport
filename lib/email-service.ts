@@ -80,6 +80,12 @@ export interface AdminWithdrawalNotificationData {
   withdrawalId: string;
 }
 
+export interface PasswordResetData {
+  to: string;
+  userName: string;
+  resetUrl: string;
+}
+
 // Email template builder
 class EmailTemplateBuilder {
   private static getBaseTemplate(content: string, title: string): string {
@@ -427,6 +433,31 @@ class EmailTemplateBuilder {
     `;
     return this.getBaseTemplate(content, 'New Withdrawal - OTP Required');
   }
+
+  static passwordReset(data: PasswordResetData): string {
+    const content = `
+      <h2>Reset Your Password 🔐</h2>
+      <p>Hello ${data.userName},</p>
+      <p>We received a request to reset your password for your ${EMAIL_CONFIG.company} account.</p>
+      
+      <div class="highlight">
+        <p><strong>Reset Link:</strong> This link will expire in 1 hour for security reasons</p>
+        <p><strong>Requested At:</strong> ${new Date().toLocaleString()}</p>
+      </div>
+      
+      <a href="${data.resetUrl}" class="button">Reset My Password</a>
+      
+      <p><strong>If you didn't request this password reset:</strong></p>
+      <ul>
+        <li>You can safely ignore this email</li>
+        <li>Your password will remain unchanged</li>
+        <li>No further action is required</li>
+      </ul>
+      
+      <p>For security reasons, this link will expire in 1 hour. If you need to reset your password after that, please request a new reset link.</p>
+    `;
+    return this.getBaseTemplate(content, 'Password Reset Request');
+  }
 }
 
 // Email service class
@@ -547,6 +578,12 @@ class EmailService {
     const subject = `⚠️ New Withdrawal Request - ₦${data.amount} from ${data.userName}`;
     const html = EmailTemplateBuilder.adminWithdrawalNotification(data);
     return this.sendEmail(data.to, subject, html, 'admin_withdrawal_notification');
+  }
+
+  async sendPasswordResetEmail(data: PasswordResetData): Promise<boolean> {
+    const subject = `Reset Your Password - ${EMAIL_CONFIG.company}`;
+    const html = EmailTemplateBuilder.passwordReset(data);
+    return this.sendEmail(data.to, subject, html, 'password_reset');
   }
 
   // Bulk email sending for notifications

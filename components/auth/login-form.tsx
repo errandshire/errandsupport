@@ -90,12 +90,12 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
               <Label htmlFor="password" className="text-sm font-medium">
                 Password
               </Label>
-              <Link 
+              {/* <Link 
                 href="/forgot-password" 
                 className="text-xs text-primary-600 hover:text-primary-500 transition-colors"
               >
                 Forgot password?
-              </Link>
+              </Link> */}
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -151,6 +151,16 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-white px-2 text-gray-500">Or</span>
           </div>
+        </div>
+        
+        {/* Forgot password link */}
+        <div className="text-center">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors"
+          >
+            Forgot your password?
+          </Link>
         </div>
         
         {/* Sign up link */}

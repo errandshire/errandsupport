@@ -279,26 +279,6 @@ export function useAuth() {
     }
   };
 
-  const resetPassword = async (
-    userId: string,
-    secret: string,
-    password: string
-  ): Promise<{ success: boolean; error?: AuthError }> => {
-    try {
-      setLoadingState(true);
-      await account.updateRecovery(userId, secret, password);
-      
-      toast.success('Password reset successfully!');
-      return { success: true };
-    } catch (error: any) {
-      console.error('Password reset error:', error);
-      const errorMessage = getAuthErrorMessage(error);
-      toast.error(errorMessage);
-      return { success: false, error: { message: errorMessage } };
-    } finally {
-      setLoadingState(false);
-    }
-  };
 
   const updateProfile = async (updates: Partial<User>): Promise<{ success: boolean; error?: AuthError }> => {
     try {
@@ -329,6 +309,42 @@ export function useAuth() {
     }
   };
 
+  const forgotPassword = async (email: string): Promise<{ success: boolean; error?: AuthError }> => {
+    try {
+      setLoadingState(true);
+      
+      // Use Appwrite's built-in password recovery
+      // Appwrite will automatically send the reset email
+      const recoveryUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://yourdomain.com'}/reset-password`;
+      await account.createRecovery(email, recoveryUrl);
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      const errorMessage = getAuthErrorMessage(error);
+      return { success: false, error: { message: errorMessage, code: error.code } };
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
+  const resetPassword = async (userId: string, secret: string, newPassword: string): Promise<{ success: boolean; error?: AuthError }> => {
+    try {
+      setLoadingState(true);
+      
+      // Use Appwrite's built-in password reset
+      await account.updateRecovery(userId, secret, newPassword);
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      const errorMessage = getAuthErrorMessage(error);
+      return { success: false, error: { message: errorMessage, code: error.code } };
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
   const getAuthErrorMessage = (error: any): string => {
     switch (error.code) {
       case 401:
@@ -339,6 +355,10 @@ export function useAuth() {
         return 'Too many requests. Please try again later';
       case 400:
         return 'Invalid request. Please check your input';
+      case 404:
+        return 'User not found';
+      case 422:
+        return 'Invalid or expired reset link';
       default:
         return error.message || 'An unexpected error occurred';
     }
@@ -353,7 +373,7 @@ export function useAuth() {
     logout,
     sendVerificationEmail,
     verifyEmail,
-    sendPasswordReset,
+    forgotPassword,
     resetPassword,
     updateProfile,
     checkAuthStatus,
