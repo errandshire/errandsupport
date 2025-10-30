@@ -11,36 +11,7 @@ interface FooterProps {
   className?: string;
 }
 
-const footerLinks = {
-  platform: [
-    { label: "Find Workers", href: "/workers" },
-    { label: "Categories", href: "/categories" },
-    { label: "How It Works", href: "/how-it-works" },
-    { label: "Become a Worker", href: "/become-worker" },
-    { label: "Pricing", href: "/pricing" },
-  ],
-  company: [
-    { label: "About Us", href: "/about" },
-    { label: "Careers", href: "/careers" },
-    { label: "Press", href: "/press" },
-    { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
-  ],
-  support: [
-    { label: "Help Center", href: "/help" },
-    { label: "Safety", href: "/safety" },
-    { label: "Community Guidelines", href: "/guidelines" },
-    { label: "Report Issue", href: "/report" },
-    { label: "Status", href: "/status" },
-  ],
-  legal: [
-    { label: "Privacy Policy", href: "/privacy" },
-    { label: "Terms of Service", href: "/terms" },
-    { label: "Cookie Policy", href: "/cookies" },
-    { label: "Data Protection", href: "/data-protection" },
-    { label: "Accessibility", href: "/accessibility" },
-  ],
-};
+
 
 const socialLinks = [
   { name: "Facebook", href: "https://facebook.com", icon: Facebook },
@@ -89,10 +60,10 @@ export function Footer({ className }: FooterProps) {
 
         {/* Main Footer Content */}
         <div className="py-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8">
-            {/* Company Info */}
-            <div className="lg:col-span-2">
-              <Link href="/" className="flex items-center space-x-2 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 items-start">
+            {/* Brand */}
+            <div>
+              <Link href="/" className="flex items-center space-x-3 mb-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white font-bold text-lg">
                   E
                 </div>
@@ -100,94 +71,30 @@ export function Footer({ className }: FooterProps) {
                   Errand Support
                 </span>
               </Link>
-              <p className="text-neutral-400 mb-6 max-w-sm">
-                Premium web-based marketplace connecting clients with local errand-support workers. 
-                Making everyday tasks easier and more convenient.
-              </p>
               
-              {/* Contact Info */}
-              <div className="space-y-2 text-sm text-neutral-400">
-                <div className="flex items-center space-x-2">
-                  <Mail className="h-4 w-4" />
-                  <span>support@errandsupport.com</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Phone className="h-4 w-4" />
-                  <span>+1 (555) 123-4567</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-4 w-4" />
-                  <span>123 Service St, City, ST 12345</span>
-                </div>
+            </div>
+
+            {/* About blurb (center) */}
+            <div className="text-neutral-400">
+              <p className="max-w-md">
+                Premium web-based marketplace connecting clients with local errand-support workers. Making everyday tasks easier and more convenient.
+              </p>
+            </div>
+
+            {/* Contact Info (right) */}
+            <div className="space-y-3 text-sm text-neutral-300">
+              <div className="flex items-center space-x-2">
+                <Mail className="h-4 w-4" />
+                <span>support@errandsupport.com</span>
               </div>
-            </div>
-
-            {/* Platform Links */}
-            <div>
-              <h4 className="font-semibold mb-4">Platform</h4>
-              <ul className="space-y-2">
-                {footerLinks.platform.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-neutral-400 hover:text-white transition-colors duration-200"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Company Links */}
-            <div>
-              <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2">
-                {footerLinks.company.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-neutral-400 hover:text-white transition-colors duration-200"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Support Links */}
-            <div>
-              <h4 className="font-semibold mb-4">Support</h4>
-              <ul className="space-y-2">
-                {footerLinks.support.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-neutral-400 hover:text-white transition-colors duration-200"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Legal Links */}
-            <div>
-              <h4 className="font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2">
-                {footerLinks.legal.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-neutral-400 hover:text-white transition-colors duration-200"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              {/* <div className="flex items-center space-x-2">
+                <Phone className="h-4 w-4" />
+                <span>+1 (555) 123-4567</span>
+              </div> */}
+              <div className="flex items-center space-x-2">
+                <MapPin className="h-4 w-4" />
+                <span>Lagos, Nigeria</span>
+              </div>
             </div>
           </div>
         </div>

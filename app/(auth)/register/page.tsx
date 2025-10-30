@@ -166,7 +166,7 @@ export default function RegisterPage() {
                 <FormInput
                   {...register("phone")}
                   label="Phone Number"
-                  placeholder="+1 (555) 123-4567"
+                  // placeholder="+1 (555) 123-4567"
                   error={errors.phone?.message}
                   startIcon={<Phone className="h-4 w-4" />}
                   disabled={isSubmitting || loading}

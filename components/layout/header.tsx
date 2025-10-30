@@ -205,14 +205,14 @@ export const Header = React.memo(function Header({ className, children, sidebarO
             {children}
             
             {/* Logo */}
-            <Link href="/" className="flex items-center">
+            <Link href="/" className="flex items-center mr-4 md:mr-6">
               <span className="text-lg md:text-xl font-bold text-black">
                 ErandWork
               </span>
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
+            <nav className="hidden md:flex items-center space-x-8 ml-4 md:ml-8">
               {navigationItems.map((item) => (
                 <Link
                   key={item.href}

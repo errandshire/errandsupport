@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
 // Wallet-based payment - no need for direct Paystack integration
@@ -163,7 +162,11 @@ interface SchedulingStepProps {
 }
 
 function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepProps) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  // Create a local ISO string suitable for input[type=datetime-local] (YYYY-MM-DDTHH:MM)
+  const localNow = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
 
   const timeSlots = [
     "08:00", "09:00", "10:00", "11:00", "12:00",
@@ -181,11 +184,12 @@ function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepPr
             <Input
               id="date"
               type="datetime-local"
-              min={today}
-              value={formData.scheduledDate?.split('T')[0] || ""}
+              min={localNow}
+              value={formData.scheduledDate || ""}
               onChange={(e) => onFormDataChange({
                 ...formData,
-                scheduledDate: e.target.value + "T00:00:00Z"
+                // Store as the raw datetime-local value (local time, no trailing Z)
+                scheduledDate: e.target.value
               })}
               className="h-12"
             />
@@ -199,10 +203,11 @@ function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepPr
                 type="number"
                 min="1"
                 max="12"
-                value={formData.estimatedDuration || 1}
+                placeholder="1"
+                value={formData.estimatedDuration ?? ""}
                 onChange={(e) => onFormDataChange({
                   ...formData,
-                  estimatedDuration: parseInt(e.target.value) || 1
+                  estimatedDuration: e.target.value === "" ? undefined : (parseInt(e.target.value) || 1)
                 })}
                 className="h-12"
               />
@@ -227,23 +232,22 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
   
   const duration = formData.estimatedDuration || 1;
   const subtotal = worker.hourlyRate * duration;
-  const platformFee = 0; // No platform fee for wallet payments
-  const total = subtotal;
+  const platformFee = Math.round(subtotal * 0.05); // 5% platform fee, rounded
+  const total = subtotal + platformFee;
 
-  const handlePaymentTypeChange = (value: string) => {
-    const isHourly = value === "hourly";
-    const amount = isHourly ? worker.hourlyRate : total;
-    
-    onFormDataChange({ 
-      ...formData, 
-      budget: { 
-        ...formData.budget,
-        isHourly,
-        amount,
-        currency: 'NGN'
-      }
-    });
-  };
+  // Auto-set fixed price budget
+  React.useEffect(() => {
+    if (!formData.budget?.amount || formData.budget.amount !== total) {
+      onFormDataChange({
+        ...formData,
+        budget: {
+          amount: total,
+          currency: 'NGN',
+          isHourly: false
+        }
+      });
+    }
+  }, [total]);
 
   const initializePayment = async () => {
     if (!user) {
@@ -291,47 +295,6 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment & Budget</h3>
         
         <div className="space-y-4">
-          <div>
-            <Label>Budget Type</Label>
-            <RadioGroup
-              value={formData.budget?.isHourly ? "hourly" : "fixed"}
-              onValueChange={handlePaymentTypeChange}
-              className="mt-2"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="hourly" id="hourly" />
-                <Label htmlFor="hourly">Hourly Rate (₦{worker.hourlyRate.toLocaleString()}/hr)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="fixed" id="fixed" />
-                <Label htmlFor="fixed">Fixed Price</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {formData.budget?.isHourly === false && (
-            <div>
-              <Label htmlFor="fixedAmount">Fixed Amount (₦)</Label>
-              <Input
-                id="fixedAmount"
-                type="number"
-                min="0"
-                step="100"
-                value={formData.budget?.amount || 0}
-                onChange={(e) => onFormDataChange({ 
-                  ...formData, 
-                  budget: { 
-                    ...formData.budget,
-                    amount: parseFloat(e.target.value) || 0,
-                    currency: 'NGN',
-                    isHourly: false
-                  }
-                })}
-                className="mt-1"
-              />
-            </div>
-          )}
-
           {/* Payment Breakdown */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <h4 className="font-medium text-gray-900 mb-3">Payment Breakdown</h4>
@@ -359,7 +322,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
               <li>• Your payment is held securely until job completion</li>
               <li>• Worker gets paid only after you confirm satisfaction</li>
               <li>• Full refund if service is not delivered</li>
-              <li>• Powered by Paystack for secure transactions</li>
+              <li>• Paid from your wallet balance</li>
             </ul>
           </div>
 
