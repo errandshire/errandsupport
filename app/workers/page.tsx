@@ -191,7 +191,7 @@ function WorkersPageContent() {
         budgetCurrency: 'NGN',
         budgetIsHourly: bookingData.budget?.isHourly || false,
         urgency: bookingData.urgency || 'medium',
-        status: 'pending', // Waiting for worker to accept
+        status: 'confirmed', // Payment confirmed, waiting for worker to accept
         paymentStatus: 'held', // Money held in escrow
         requirements: bookingData.requirements || [],
         attachments: bookingData.attachments || [],
