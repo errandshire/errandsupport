@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
-import { paystack } from "@/lib/paystack";
+// Wallet-based payment - no need for direct Paystack integration
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -227,8 +227,8 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
   
   const duration = formData.estimatedDuration || 1;
   const subtotal = worker.hourlyRate * duration;
-  const platformFee = paystack.calculatePlatformFee(subtotal);
-  const total = subtotal + platformFee;
+  const platformFee = 0; // No platform fee for wallet payments
+  const total = subtotal;
 
   const handlePaymentTypeChange = (value: string) => {
     const isHourly = value === "hourly";
@@ -253,69 +253,33 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
 
     try {
       setIsProcessingPayment(true);
-      
+
       // Generate booking ID if not already present
       const { ID } = await import('appwrite');
       const bookingId = formData.id || ID.unique();
-      
+
       // Update form data with booking ID
       const updatedFormData = {
         ...formData,
         id: bookingId
       };
       onFormDataChange(updatedFormData);
-      
-      // Create booking in database before payment
+
+      // Create booking with wallet payment
       const bookingData: Partial<BookingRequest> = {
         ...updatedFormData,
         workerId: worker.userId || worker.id, // Use userId first, then fallback
         categoryId: worker.categories[0], // Use first category
       };
-      
-      try {
-        // Create the booking first
-        await onBookingSubmit(bookingData);
-      } catch (error) {
-        console.error('Failed to create booking:', error);
-        setIsProcessingPayment(false);
-        return; // Stop payment flow if booking creation fails
-      }
-      
-      const paymentReference = paystack.generateReference('booking');
-      const paymentData = {
-        email: user.email,
-        amount: total * 100, // Convert to kobo
-        currency: 'NGN',
-        reference: paymentReference,
-        callback_url: `${window.location.origin}/payment/callback`,
-        metadata: {
-          bookingId: bookingId,
-          clientId: user.$id,
-          workerId: worker.userId || worker.id, // Use userId first, then fallback
-          type: 'booking_payment' as const,
-          workerName: worker.displayName,
-          serviceName: formData.title || 'Service Booking'
-        }
-      };
 
-      const response = await paystack.initializePayment(paymentData);
-      
-      if (response.status) {
-        // Store payment reference in form data
-        onFormDataChange({
-          ...updatedFormData,
-          paymentReference,
-          paymentStatus: 'pending'
-        });
-        
-        // Redirect to Paystack payment page
-        window.location.href = response.data.authorization_url;
-      } else {
-        throw new Error(response.message || 'Payment initialization failed');
-      }
+      // Submit booking (wallet payment handled in parent component)
+      await onBookingSubmit(bookingData);
+
+      toast.success("Booking created successfully!");
+
     } catch (error) {
-      console.error('Payment initialization error:', error);
-      toast.error("Failed to initialize payment. Please try again.");
+      console.error('Booking error:', error);
+      toast.error("Failed to create booking. Please try again.");
     } finally {
       setIsProcessingPayment(false);
     }
