@@ -104,7 +104,7 @@ export default function AdminSettingsPage() {
         </Card>
 
         {/* Auto-Release Settings */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
@@ -150,10 +150,10 @@ export default function AdminSettingsPage() {
               </>
             )}
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Paystack Integration */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Paystack Integration</CardTitle>
             <CardDescription>
@@ -182,7 +182,7 @@ export default function AdminSettingsPage() {
               </p>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Save Button */}
         <div className="flex justify-end">

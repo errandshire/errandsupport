@@ -205,4 +205,60 @@ export class BookingActionService {
       };
     }
   }
+
+  /**
+   * Raise a dispute (client raises dispute about completed work)
+   */
+  static async raiseDispute(params: BookingActionParams & {
+    disputeDetails?: {
+      category: string;
+      description: string;
+      evidence?: string[];
+    }
+  }) {
+    try {
+      const { bookingId, userId, disputeDetails } = params;
+
+      if (!disputeDetails) {
+        return {
+          success: false,
+          message: 'Dispute details are required'
+        };
+      }
+
+      const booking = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId
+      );
+
+      // Only worker_completed bookings can be disputed
+      if (booking.status !== 'worker_completed') {
+        return {
+          success: false,
+          message: 'Only completed work waiting for confirmation can be disputed'
+        };
+      }
+
+      const { DisputeService } = await import('./dispute.service');
+
+      const result = await DisputeService.createDispute({
+        bookingId,
+        clientId: userId,
+        workerId: booking.workerId,
+        category: disputeDetails.category,
+        clientStatement: disputeDetails.description,
+        evidence: disputeDetails.evidence
+      });
+
+      return result;
+
+    } catch (error) {
+      console.error('Error raising dispute:', error);
+      return {
+        success: false,
+        message: 'Failed to raise dispute'
+      };
+    }
+  }
 }

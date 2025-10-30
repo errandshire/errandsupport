@@ -32,7 +32,7 @@ interface HeaderProps {
 const navigationItems = [
   { href: "/", label: "Home" },
   { href: "/workers", label: "Find Workers" },
-  { href: "/categories", label: "Categories" },
+  // { href: "/categories", label: "Categories" },
   { href: "/how-it-works", label: "How It Works" },
   // { href: "/about", label: "About" },
 ];
