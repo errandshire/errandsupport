@@ -28,6 +28,14 @@ export default function ClientWalletPage() {
   const [topUpAmount, setTopUpAmount] = React.useState('');
   const [isProcessingTopUp, setIsProcessingTopUp] = React.useState(false);
 
+  // Withdrawal modal
+  const [showWithdrawModal, setShowWithdrawModal] = React.useState(false);
+  const [withdrawAmount, setWithdrawAmount] = React.useState('');
+  const [isProcessingWithdraw, setIsProcessingWithdraw] = React.useState(false);
+  const [bankAccounts, setBankAccounts] = React.useState<any[]>([]);
+  const [selectedBankAccount, setSelectedBankAccount] = React.useState('');
+  const [showAddBankModal, setShowAddBankModal] = React.useState(false);
+
   // Redirect if not authenticated or not client
   React.useEffect(() => {
     if (loading) return;
@@ -50,13 +58,22 @@ export default function ClientWalletPage() {
 
     try {
       setIsLoadingWallet(true);
-      const [walletData, transactionsData] = await Promise.all([
+      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+      const { Query } = await import('appwrite');
+
+      const [walletData, transactionsData, bankAccountsData] = await Promise.all([
         WalletService.getOrCreateWallet(user.$id),
-        WalletService.getTransactions(user.$id, 50)
+        WalletService.getTransactions(user.$id, 50),
+        databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.BANK_ACCOUNTS,
+          [Query.equal('userId', user.$id)]
+        )
       ]);
 
       setWallet(walletData);
       setTransactions(transactionsData);
+      setBankAccounts(bankAccountsData.documents);
     } catch (error) {
       console.error('Error loading wallet:', error);
       toast.error('Failed to load wallet data');
@@ -102,6 +119,116 @@ export default function ClientWalletPage() {
       console.error('Top-up error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to initialize payment');
       setIsProcessingTopUp(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!user || !withdrawAmount || !selectedBankAccount) {
+      toast.error('Please fill all fields');
+      return;
+    }
+
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount < 100) {
+      toast.error('Minimum withdrawal amount is ₦100');
+      return;
+    }
+
+    if (!wallet || amount > wallet.balance) {
+      toast.error('Insufficient balance');
+      return;
+    }
+
+    try {
+      setIsProcessingWithdraw(true);
+
+      const bankAccount = bankAccounts.find(b => b.$id === selectedBankAccount);
+      if (!bankAccount) {
+        throw new Error('Invalid bank account');
+      }
+
+      // Calculate 20% deduction
+      const deduction = amount * 0.20;
+      const amountToReceive = amount - deduction;
+
+      // Import required services
+      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+      const { ID } = await import('appwrite');
+
+      // Generate reference
+      const reference = PaystackService.generateReference('withdraw');
+
+      // Deduct from wallet
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id,
+        {
+          balance: wallet.balance - amount,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      // Create withdrawal record
+      const withdrawal = await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS,
+        ID.unique(),
+        {
+          userId: user.$id,
+          amount: amountToReceive, // Amount after 20% deduction
+          bankAccountId: selectedBankAccount,
+          status: 'pending',
+          reference,
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      // Initiate Paystack transfer (with deducted amount)
+      await PaystackService.initiateTransfer({
+        amountInNaira: amountToReceive,
+        recipientCode: bankAccount.paystackRecipientCode!,
+        reference,
+        reason: 'Wallet withdrawal (20% service fee applied)'
+      });
+
+      // Update withdrawal status
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS,
+        withdrawal.$id,
+        {
+          status: 'processing'
+        }
+      );
+
+      // Create transaction record for the deduction
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_TRANSACTIONS,
+        `deduction_${reference}`,
+        {
+          userId: user.$id,
+          type: 'withdraw',
+          amount: deduction,
+          reference: `deduction_${reference}`,
+          status: 'completed',
+          description: `Service fee (20% of ₦${amount.toLocaleString()})`,
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      toast.success(`Withdrawal initiated! You'll receive ₦${amountToReceive.toLocaleString()} (₦${deduction.toLocaleString()} service fee deducted).`);
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      setSelectedBankAccount('');
+      loadWalletData();
+
+    } catch (error) {
+      console.error('Withdrawal error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to process withdrawal');
+    } finally {
+      setIsProcessingWithdraw(false);
     }
   };
 
@@ -162,13 +289,21 @@ export default function ClientWalletPage() {
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-blue-400/30">
+                <div className="pt-4 border-t border-blue-400/30 space-y-2">
                   <Button
                     onClick={() => setShowTopUpModal(true)}
                     className="w-full bg-white text-blue-700 hover:bg-blue-50"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Money
+                  </Button>
+                  <Button
+                    onClick={() => setShowWithdrawModal(true)}
+                    variant="outline"
+                    className="w-full bg-white border-white text-blue-100 hover:bg-blue-600"
+                  >
+                    <ArrowUpRight className="h-4 w-4 mr-2" />
+                    Withdraw Money
                   </Button>
                 </div>
               </div>
@@ -313,6 +448,120 @@ export default function ClientWalletPage() {
                 </>
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Modal */}
+      <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Withdraw Money</DialogTitle>
+            <DialogDescription>
+              Withdraw funds to your bank account (20% service fee applies)
+            </DialogDescription>
+          </DialogHeader>
+
+          {bankAccounts.length === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-gray-600 mb-4">No bank account added yet</p>
+              <Button onClick={() => {
+                setShowWithdrawModal(false);
+                setShowAddBankModal(true);
+              }}>
+                Add Bank Account
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label htmlFor="withdraw-amount">Amount (₦)</Label>
+                  <Input
+                    id="withdraw-amount"
+                    type="number"
+                    placeholder="Enter amount (min ₦100)"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    min="100"
+                    className="mt-2"
+                  />
+                  {withdrawAmount && parseFloat(withdrawAmount) >= 100 && (
+                    <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm">
+                      <p className="text-orange-800">
+                        Service fee (20%): <strong>₦{(parseFloat(withdrawAmount) * 0.20).toLocaleString()}</strong>
+                      </p>
+                      <p className="text-orange-900 font-semibold mt-1">
+                        You'll receive: <strong>₦{(parseFloat(withdrawAmount) * 0.80).toLocaleString()}</strong>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="bank-account">Bank Account</Label>
+                  <select
+                    id="bank-account"
+                    value={selectedBankAccount}
+                    onChange={(e) => setSelectedBankAccount(e.target.value)}
+                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="">Select bank account</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.$id} value={account.$id}>
+                        {account.bankName} - {account.accountNumber} ({account.accountName})
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => {
+                      setShowWithdrawModal(false);
+                      setShowAddBankModal(true);
+                    }}
+                    className="mt-2 p-0 h-auto text-sm"
+                  >
+                    + Add new bank account
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowWithdrawModal(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleWithdraw} disabled={isProcessingWithdraw}>
+                  {isProcessingWithdraw ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Withdraw'
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Bank Account Modal - Reuse from worker wallet */}
+      <Dialog open={showAddBankModal} onOpenChange={setShowAddBankModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Bank Account</DialogTitle>
+            <DialogDescription>
+              Add your bank account for withdrawals
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 text-center text-gray-600">
+            <p>Bank account setup coming soon!</p>
+            <p className="text-sm mt-2">Please contact support to add your bank account.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowAddBankModal(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

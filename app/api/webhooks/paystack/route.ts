@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PaystackService } from '@/lib/paystack.service';
 import { WalletService } from '@/lib/wallet.service';
 import { databases, COLLECTIONS } from '@/lib/appwrite';
+import { Query } from 'appwrite';
 
 /**
  * PAYSTACK WEBHOOK HANDLER
@@ -109,7 +110,7 @@ async function handleTransferSuccess(data: any) {
     const withdrawals = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.WITHDRAWALS,
-      [{ method: 'equal', attribute: 'reference', values: [reference] }]
+      [Query.equal('reference', reference)]
     );
 
     if (withdrawals.documents.length > 0) {
@@ -164,7 +165,7 @@ async function handleTransferFailed(data: any) {
     const withdrawals = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       COLLECTIONS.WITHDRAWALS,
-      [{ method: 'equal', attribute: 'reference', values: [reference] }]
+      [Query.equal('reference', reference)]
     );
 
     if (withdrawals.documents.length > 0) {

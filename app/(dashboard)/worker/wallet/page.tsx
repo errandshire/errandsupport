@@ -257,7 +257,7 @@ export default function WorkerWalletPage() {
         }
       );
 
-      toast.success('Withdrawal initiated! Funds will arrive within 24 hours.');
+      toast.success('Withdrawal initiated! Funds will arrive in your account shortly (usually within minutes).');
       setShowWithdrawModal(false);
       setWithdrawAmount('');
       setSelectedBankAccount('');
