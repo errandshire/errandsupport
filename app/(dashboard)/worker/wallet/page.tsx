@@ -193,7 +193,7 @@ export default function WorkerWalletPage() {
 
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount < 100) {
-      toast.error('Minimum withdrawal amount is ₦500');
+      toast.error('Minimum withdrawal amount is ₦100');
       return;
     }
 
@@ -322,7 +322,7 @@ export default function WorkerWalletPage() {
                 <div className="pt-4 border-t border-green-400/30">
                   <Button
                     onClick={() => setShowWithdrawModal(true)}
-                    disabled={!wallet || wallet.balance < 500 || bankAccounts.length === 0}
+                    disabled={!wallet || wallet.balance < 100 || bankAccounts.length === 0}
                     className="w-full bg-white text-green-700 hover:bg-green-50"
                   >
                     <ArrowUpRight className="h-4 w-4 mr-2" />
@@ -486,10 +486,10 @@ export default function WorkerWalletPage() {
               <Input
                 id="withdraw-amount"
                 type="number"
-                placeholder="Minimum ₦500"
+                placeholder="Minimum ₦100"
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
-                min="500"
+                min="100"
                 max={wallet?.balance}
                 className="mt-2"
               />
