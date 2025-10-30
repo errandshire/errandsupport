@@ -192,7 +192,7 @@ export default function WorkerWalletPage() {
     }
 
     const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount < 500) {
+    if (isNaN(amount) || amount < 100) {
       toast.error('Minimum withdrawal amount is ₦500');
       return;
     }
