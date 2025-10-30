@@ -114,9 +114,43 @@ export class BookingActionService {
   }
 
   /**
-   * Mark booking as completed (releases payment to worker)
+   * Mark booking as completed by worker (awaiting client confirmation)
+   * NOTE: Payment is NOT released yet - only after client confirms
    */
   static async markCompleted(params: BookingActionParams) {
+    try {
+      const { bookingId } = params;
+
+      // Just update status to worker_completed - DO NOT release payment yet
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId,
+        {
+          status: 'worker_completed',
+          completedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      return {
+        success: true,
+        message: 'Work marked as complete! Waiting for client confirmation.'
+      };
+    } catch (error) {
+      console.error('Error marking booking complete:', error);
+      return {
+        success: false,
+        message: 'Failed to mark booking complete'
+      };
+    }
+  }
+
+  /**
+   * Client confirms completion (releases payment to worker)
+   * This is the ONLY place where payment is released from escrow to worker
+   */
+  static async confirmCompletion(params: BookingActionParams) {
     try {
       const { bookingId, userId } = params;
 
@@ -126,20 +160,48 @@ export class BookingActionService {
         bookingId
       );
 
-      // Release payment from escrow to worker
-      const result = await BookingCompletionService.completeBooking({
+      // Verify this is a worker_completed booking
+      if (booking.status !== 'worker_completed') {
+        return {
+          success: false,
+          message: 'Booking is not ready for confirmation'
+        };
+      }
+
+      // NOW release payment from escrow to worker
+      const paymentResult = await BookingCompletionService.completeBooking({
         bookingId,
         clientId: booking.clientId,
-        workerId: userId,
+        workerId: booking.workerId,
         amount: booking.budgetAmount
       });
 
-      return result;
+      if (!paymentResult.success) {
+        return paymentResult;
+      }
+
+      // Update booking to completed status
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId,
+        {
+          status: 'completed',
+          clientConfirmedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      return {
+        success: true,
+        message: 'Work confirmed! Payment released to worker.'
+      };
+
     } catch (error) {
-      console.error('Error completing booking:', error);
+      console.error('Error confirming completion:', error);
       return {
         success: false,
-        message: 'Failed to complete booking'
+        message: 'Failed to confirm completion'
       };
     }
   }
