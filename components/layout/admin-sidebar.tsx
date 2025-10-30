@@ -50,37 +50,44 @@ const sidebarItems = [
     icon: DollarSign,
     badge: null,
   },
-  {
-    title: "Auto-Release",
-    href: "/admin/auto-release",
-    icon: Clock,
-    badge: null,
-  },
-  {
-    title: "Verifications",
-    href: "/admin/verifications",
-    icon: Shield,
-    badge: "5",
-  },
+  // {
+  //   title: "Auto-Release",
+  //   href: "/admin/auto-release",
+  //   icon: Clock,
+  //   badge: null,
+  // },
+  // {
+  //   title: "Verifications",
+  //   href: "/admin/verifications",
+  //   icon: Shield,
+  //   badge: "5",
+  // },
  
   
   
-  {
-    title: "Commission Settings",
-    href: "/admin/commission",
-    icon: TrendingUp,
-    badge: null,
-  },
-  {
-    title: "Paystack",
-    href: "/admin/paystack",
-    icon: CreditCard,
-    badge: null,
-  },
+  // {
+  //   title: "Commission Settings",
+  //   href: "/admin/commission",
+  //   icon: TrendingUp,
+  //   badge: null,
+  // },
+  // {
+  //   title: "Paystack",
+  //   href: "/admin/paystack",
+  //   icon: CreditCard,
+  //   badge: null,
+  // },
+
   {
     title: "Withdrawals",
     href: "/admin/withdrawals",
     icon: Banknote,
+    badge: null,
+  },
+  {
+    title: "Disputes",
+    href: "/admin/disputes",
+    icon: AlertTriangle,
     badge: null,
   },
   {

@@ -354,16 +354,22 @@ function WorkersPageContent() {
   // Filter workers based on search and location
   const filteredWorkers = useMemo(() => {
     return workers.filter(worker => {
-      const matchesSearch = searchQuery === "" || 
-        worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        worker.categories.some(category =>
-          category.toLowerCase().includes(searchQuery.toLowerCase())
-        ) ||
-        worker.bio.toLowerCase().includes(searchQuery.toLowerCase());
+      const name = (worker.name || worker.displayName || '').toLowerCase();
+      const bio = (worker.bio || '').toLowerCase();
+      const categories = Array.isArray(worker.categories) ? worker.categories : [];
+      const city = (worker.city || '').toLowerCase();
+      const state = (worker.state || '').toLowerCase();
+      const q = (searchQuery || '').toLowerCase();
+      const lq = (locationQuery || '').toLowerCase();
 
-      const matchesLocation = locationQuery === "" ||
-        worker.city.toLowerCase().includes(locationQuery.toLowerCase()) ||
-        worker.state.toLowerCase().includes(locationQuery.toLowerCase());
+      const matchesSearch = q === '' || 
+        name.includes(q) ||
+        categories.some(category => (category || '').toLowerCase().includes(q)) ||
+        bio.includes(q);
+
+      const matchesLocation = lq === '' ||
+        city.includes(lq) ||
+        state.includes(lq);
 
       return matchesSearch && matchesLocation;
     });

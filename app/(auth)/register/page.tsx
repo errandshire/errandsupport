@@ -231,11 +231,11 @@ export default function RegisterPage() {
               {/* Terms and Privacy */}
               <div className="text-sm text-neutral-600">
                 By creating an account, you agree to our{" "}
-                <Link href="/terms" className="text-primary-600 hover:text-primary-700">
+                <Link href="/terms" className="text-primary-600 hover:text-primary-700 font-medium">
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy" className="text-primary-600 hover:text-primary-700">
+                <Link href="/privacy" className="text-primary-600 hover:text-primary-700 font-medium">
                   Privacy Policy
                 </Link>
                 .
