@@ -65,19 +65,9 @@ export function BookingConfirmationModal({
     try {
       setIsProcessing(true);
 
-      // First, create the review using ReviewService
-      await ReviewService.createReview({
-        bookingId: booking.$id || booking.id,
-        clientId: user.$id,
-        workerId: booking.workerId,
-        rating,
-        comment: review.trim() || undefined,
-        isPublic: true,
-      });
-
-      // Then confirm completion using BookingActionService
+      // First, confirm completion and release payment
       const { BookingActionService } = await import('@/lib/booking-action-service');
-      
+
       const result = await BookingActionService.confirmCompletion({
         bookingId: booking.$id || booking.id,
         userId: user.$id,
@@ -85,13 +75,32 @@ export function BookingConfirmationModal({
         action: 'confirm_completion'
       });
 
-      if (result.success) {
-        toast.success("Work completed and review submitted successfully!");
-        onRefresh?.();
-        onClose();
-      } else {
+      if (!result.success) {
         toast.error(result.message);
+        return;
       }
+
+      // Then create the review (after payment is released)
+      try {
+        await ReviewService.createReview({
+          bookingId: booking.$id || booking.id,
+          clientId: user.$id,
+          workerId: booking.workerId,
+          rating,
+          comment: review.trim() || undefined,
+          isPublic: true,
+        });
+      } catch (reviewError: any) {
+        // Don't fail the whole flow if review already exists
+        if (!reviewError.message?.includes('already exists')) {
+          console.error('Error creating review:', reviewError);
+          toast.warning('Work confirmed but review failed. Please try adding review later.');
+        }
+      }
+
+      toast.success("Work completed and payment released!");
+      onRefresh?.();
+      onClose();
 
     } catch (error) {
       console.error('Error confirming completion:', error);
