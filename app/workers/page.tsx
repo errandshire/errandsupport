@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
+import { BookingModal } from "@/components/marketplace/booking-modal";
 import { motion, Variants } from "framer-motion";
 import { Search, MapPin, Clock, Star, Heart, Filter, MessageCircle, Loader2 } from "lucide-react";
 import { databases } from "@/lib/appwrite";
@@ -611,6 +612,14 @@ function WorkersPageContent() {
         </motion.div>
       </main>
       <Footer />
+
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={bookingModal.isOpen}
+        onClose={handleCloseBookingModal}
+        worker={bookingModal.selectedWorker}
+        onBookingSubmit={handleBookingSubmit}
+      />
 
       {/* Message Modal */}
       <MessageModal
