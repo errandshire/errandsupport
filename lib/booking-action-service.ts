@@ -4,29 +4,41 @@ import { BookingCompletionService } from './booking-completion.service';
 /**
  * BOOKING ACTION SERVICE
  *
- * Handles worker booking actions (accept, reject, complete)
+ * Handles worker booking actions (accept, reject, start, complete)
+ * Used by worker booking detail modal
  */
+
+interface BookingActionParams {
+  bookingId: string;
+  userId: string;
+  userRole: string;
+  action: string;
+  reason?: string;
+}
 
 export class BookingActionService {
 
   /**
    * Accept a booking
    */
-  static async acceptBooking(bookingId: string, workerId: string) {
+  static async acceptBooking(params: BookingActionParams) {
     try {
+      const { bookingId } = params;
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
-          status: 'confirmed',
+          status: 'accepted',
+          acceptedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
       );
 
       return {
         success: true,
-        message: 'Booking accepted'
+        message: 'Booking accepted successfully!'
       };
     } catch (error) {
       console.error('Error accepting booking:', error);
@@ -40,15 +52,17 @@ export class BookingActionService {
   /**
    * Reject a booking (refunds client)
    */
-  static async rejectBooking(bookingId: string, workerId: string, reason?: string) {
+  static async rejectBooking(params: BookingActionParams) {
     try {
+      const { bookingId, reason } = params;
+
       const booking = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
 
-      // Refund client
+      // Refund client wallet
       await BookingCompletionService.cancelBooking({
         bookingId,
         clientId: booking.clientId,
@@ -69,49 +83,54 @@ export class BookingActionService {
   }
 
   /**
-   * Mark booking as in progress
+   * Start work on a booking
    */
-  static async startBooking(bookingId: string, workerId: string) {
+  static async startWork(params: BookingActionParams) {
     try {
+      const { bookingId } = params;
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
           status: 'in_progress',
+          startedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
       );
 
       return {
         success: true,
-        message: 'Booking started'
+        message: 'Work started!'
       };
     } catch (error) {
-      console.error('Error starting booking:', error);
+      console.error('Error starting work:', error);
       return {
         success: false,
-        message: 'Failed to start booking'
+        message: 'Failed to start work'
       };
     }
   }
 
   /**
-   * Complete booking (releases payment)
+   * Mark booking as completed (releases payment to worker)
    */
-  static async completeBooking(bookingId: string, workerId: string) {
+  static async markCompleted(params: BookingActionParams) {
     try {
+      const { bookingId, userId } = params;
+
       const booking = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
 
-      // Release payment to worker
+      // Release payment from escrow to worker
       const result = await BookingCompletionService.completeBooking({
         bookingId,
         clientId: booking.clientId,
-        workerId,
+        workerId: userId,
         amount: booking.budgetAmount
       });
 

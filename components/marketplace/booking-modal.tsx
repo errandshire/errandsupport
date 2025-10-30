@@ -240,7 +240,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
         ...formData.budget,
         isHourly,
         amount,
-        currency: worker.currency
+        currency: 'NGN'
       }
     });
   };
@@ -268,7 +268,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
       // Create booking with wallet payment
       const bookingData: Partial<BookingRequest> = {
         ...updatedFormData,
-        workerId: worker.userId || worker.id, // Use userId first, then fallback
+        workerId: worker.userId || undefined, // Normalize null to undefined
         categoryId: worker.categories[0], // Use first category
       };
 
@@ -323,7 +323,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
                   budget: { 
                     ...formData.budget,
                     amount: parseFloat(e.target.value) || 0,
-                    currency: worker.currency,
+                    currency: 'NGN',
                     isHourly: false
                   }
                 })}
@@ -509,14 +509,14 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
         <DialogHeader className="space-y-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-12 w-12 sm:h-14 sm:w-14">
-              <AvatarImage src={worker.profileImage} alt={worker.displayName} />
+              <AvatarImage src={worker.profileImage || undefined} alt={worker.displayName || 'Worker'} />
               <AvatarFallback className="text-lg">
-                {worker.displayName.split(' ').map(n => n[0]).join('')}
+                {(worker.displayName || '').split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-lg sm:text-xl font-serif">
-                Book Service with {worker.displayName}
+                Book Service with {worker.displayName || 'Worker'}
               </DialogTitle>
               <p className="text-sm text-gray-600">Complete your booking details</p>
             </div>

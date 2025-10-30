@@ -229,6 +229,10 @@ function WorkersPageContent() {
       // Refresh wallet balance
       const wallet = await WalletService.getOrCreateWallet(user.$id);
       setWalletBalance(wallet.balance);
+
+      // Close the booking modal
+      setBookingModal({ isOpen: false, selectedWorker: null });
+
     } catch (error) {
       console.error('Error submitting booking:', error);
       toast.error("Failed to submit booking. Please try again.");
