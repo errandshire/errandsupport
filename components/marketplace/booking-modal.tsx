@@ -16,6 +16,7 @@ import { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { SettingsService } from "@/lib/settings.service";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -229,11 +230,20 @@ interface PaymentStepProps {
 function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: PaymentStepProps) {
   const { user } = useAuth();
   const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
-  
+  const [platformFee, setPlatformFee] = React.useState(0);
+
   const duration = formData.estimatedDuration || 1;
   const subtotal = worker.hourlyRate * duration;
-  const platformFee = Math.round(subtotal * 0.05); // 5% platform fee, rounded
   const total = subtotal + platformFee;
+
+  // Fetch platform fee from settings when component mounts or subtotal changes
+  React.useEffect(() => {
+    const fetchPlatformFee = async () => {
+      const fee = await SettingsService.calculatePlatformFee(subtotal);
+      setPlatformFee(fee);
+    };
+    fetchPlatformFee();
+  }, [subtotal]);
 
   // Auto-set fixed price budget
   React.useEffect(() => {

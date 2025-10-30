@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
-import type { Notification } from '@/lib/types';
+import type { Notification as ServiceNotification } from '@/lib/notification-service';
 
 interface AdminHeaderProps {
   sidebarOpen: boolean;
@@ -25,7 +25,7 @@ interface AdminHeaderProps {
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebarToggle }) => {
   const { user, isAuthenticated, logout } = useAuth();
-  const [notifications, setNotifications] = React.useState<Notification[]>([]);
+  const [notifications, setNotifications] = React.useState<ServiceNotification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
 
   React.useEffect(() => {
@@ -99,7 +99,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebar
                   </DropdownMenuItem>
                 ) : (
                   notifications.map((notif) => (
-                    <DropdownMenuItem key={notif.$id}>
+                    <DropdownMenuItem key={(notif as any).$id ?? `${notif.title}-${notif.createdAt}`}>
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium">{notif.title}</p>
                         <p className="text-xs text-neutral-500">{notif.message}</p>
@@ -139,9 +139,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebar
                 <DropdownMenuItem asChild>
                   <Link href={userLinks.dashboard}>Dashboard</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={userLinks.bookings}>My Bookings</Link>
-                </DropdownMenuItem>
+                
                 <DropdownMenuItem asChild>
                   <Link href={userLinks.settings}>Settings</Link>
                 </DropdownMenuItem>

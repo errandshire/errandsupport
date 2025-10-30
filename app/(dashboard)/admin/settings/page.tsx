@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Save, DollarSign, Percent, Clock } from "lucide-react";
+import { Save, DollarSign, Percent, Clock, Loader2 } from "lucide-react";
+import { SettingsService } from "@/lib/settings.service";
 
 export default function AdminSettingsPage() {
   const [platformFee, setPlatformFee] = React.useState("5");
@@ -16,10 +17,61 @@ export default function AdminSettingsPage() {
   const [minWithdrawal, setMinWithdrawal] = React.useState("100");
   const [autoReleaseEnabled, setAutoReleaseEnabled] = React.useState(false);
   const [autoReleaseHours, setAutoReleaseHours] = React.useState("72");
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
 
-  const handleSave = () => {
-    toast.success("Settings saved successfully!");
+  React.useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const settings = await SettingsService.getSettings();
+      setPlatformFee(settings.platformFeePercent.toString());
+      setClientWithdrawalFee(settings.clientWithdrawalFeePercent.toString());
+      setMinWithdrawal(settings.minWithdrawalAmount.toString());
+      setAutoReleaseEnabled(settings.autoReleaseEnabled);
+      setAutoReleaseHours(settings.autoReleaseHours.toString());
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      toast.error('Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const result = await SettingsService.updateSettings({
+        platformFeePercent: parseFloat(platformFee),
+        clientWithdrawalFeePercent: parseFloat(clientWithdrawalFee),
+        minWithdrawalAmount: parseFloat(minWithdrawal),
+        autoReleaseEnabled,
+        autoReleaseHours: parseInt(autoReleaseHours)
+      });
+
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -186,9 +238,18 @@ export default function AdminSettingsPage() {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button onClick={handleSave} size="lg">
-            <Save className="h-4 w-4 mr-2" />
-            Save Settings
+          <Button onClick={handleSave} size="lg" disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Settings
+              </>
+            )}
           </Button>
         </div>
       </div>

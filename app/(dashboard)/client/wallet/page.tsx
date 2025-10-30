@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { WalletService } from "@/lib/wallet.service";
 import { PaystackService } from "@/lib/paystack.service";
+import { SettingsService } from "@/lib/settings.service";
 import type { Wallet, WalletTransaction } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,8 +130,16 @@ export default function ClientWalletPage() {
     }
 
     const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount < 100) {
-      toast.error('Minimum withdrawal amount is ₦100');
+
+    // Validate amount with settings
+    const validation = await SettingsService.validateWithdrawalAmount(amount);
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
+    if (isNaN(amount)) {
+      toast.error('Invalid amount');
       return;
     }
 
@@ -147,9 +156,9 @@ export default function ClientWalletPage() {
         throw new Error('Invalid bank account');
       }
 
-      // Calculate 20% deduction
-      const deduction = amount * 0.20;
-      const amountToReceive = amount - deduction;
+      // Calculate withdrawal fee using settings service
+      const { fee: deduction, netAmount: amountToReceive } = await SettingsService.calculateWithdrawalFee(amount);
+      const settings = await SettingsService.getSettings();
 
       // Import required services
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
@@ -176,7 +185,7 @@ export default function ClientWalletPage() {
         ID.unique(),
         {
           userId: user.$id,
-          amount: amountToReceive, // Amount after 20% deduction
+          amount: amountToReceive, // Amount after fee deduction
           bankAccountId: selectedBankAccount,
           status: 'pending',
           reference,
@@ -189,7 +198,7 @@ export default function ClientWalletPage() {
         amountInNaira: amountToReceive,
         recipientCode: bankAccount.paystackRecipientCode!,
         reference,
-        reason: 'Wallet withdrawal (20% service fee applied)'
+        reason: `Wallet withdrawal (${settings.clientWithdrawalFeePercent}% service fee applied)`
       });
 
       // Update withdrawal status
