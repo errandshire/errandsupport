@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { WalletOnlyBookingModal } from "@/components/marketplace/wallet-only-booking-modal";
-import { WalletBalanceHeader } from "@/components/layout/wallet-balance-header";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
 import { motion, Variants } from "framer-motion";
@@ -68,6 +66,7 @@ function WorkersPageContent() {
   
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   // Fetch workers from Appwrite
   useEffect(() => {
@@ -104,6 +103,29 @@ function WorkersPageContent() {
     fetchWorkers();
   }, []);
 
+  // Fetch wallet balance for clients
+  useEffect(() => {
+    async function fetchWalletBalance() {
+      if (!user || user.role !== 'client') {
+        console.log('[Wallet Balance] Skipped - user:', user?.role);
+        return;
+      }
+
+      console.log('[Wallet Balance] Fetching for user:', user.$id);
+
+      try {
+        const { WalletService } = await import('@/lib/wallet.service');
+        const wallet = await WalletService.getOrCreateWallet(user.$id);
+        console.log('[Wallet Balance] Loaded:', wallet.balance);
+        setWalletBalance(wallet.balance);
+      } catch (error) {
+        console.error('[Wallet Balance] Error:', error);
+      }
+    }
+
+    fetchWalletBalance();
+  }, [user]);
+
   // Handle booking submission
   const handleBookingSubmit = async (bookingData: Partial<BookingRequest>) => {
     if (!user || !bookingModal.selectedWorker) {
@@ -113,31 +135,63 @@ function WorkersPageContent() {
 
     try {
       const { ID } = await import('appwrite');
-      
+      const { WalletService } = await import('@/lib/wallet.service');
+
       // Use existing booking ID from payment flow or generate new one
       const bookingId = bookingData.id || ID.unique();
-      
-      // Flatten the booking data for Appwrite storage
+
+      const amount = bookingData.budget?.amount || 0;
+
+      if (amount <= 0) {
+        toast.error("Invalid booking amount");
+        return;
+      }
+
+      // Pre-check wallet balance to give better UX
+      if (walletBalance !== null && walletBalance < amount) {
+        toast.error(
+          `Insufficient balance. You have ₦${walletBalance.toLocaleString()}, need ₦${amount.toLocaleString()}. Please top up your wallet.`,
+          {
+            action: {
+              label: 'Top Up',
+              onClick: () => router.push('/client/wallet')
+            }
+          }
+        );
+        return;
+      }
+
+      // STEP 1: Hold funds in escrow (wallet payment)
+      const paymentResult = await WalletService.holdFundsForBooking({
+        clientId: user.$id,
+        bookingId,
+        amountInNaira: amount
+      });
+
+      if (!paymentResult.success) {
+        toast.error(paymentResult.message);
+        return;
+      }
+
+      // STEP 2: Create booking
       const flattenedBookingRequest = {
         id: bookingId,
         clientId: user.$id,
-        workerId: bookingModal.selectedWorker.userId || bookingModal.selectedWorker.$id, // Use userId first, fallback to $id
+        workerId: bookingModal.selectedWorker.userId || bookingModal.selectedWorker.$id,
         categoryId: bookingModal.selectedWorker.categories[0],
         title: bookingData.title || '',
         description: bookingData.description || '',
-        // Flatten location
         locationAddress: bookingData.location?.address || '',
         locationLat: bookingData.location?.coordinates?.lat,
         locationLng: bookingData.location?.coordinates?.lng,
         scheduledDate: bookingData.scheduledDate || '',
         estimatedDuration: bookingData.estimatedDuration || 1,
-        // Flatten budget
-        budgetAmount: bookingData.budget?.amount || 0,
-        budgetCurrency: bookingData.budget?.currency || 'NGN',
+        budgetAmount: amount,
+        budgetCurrency: 'NGN',
         budgetIsHourly: bookingData.budget?.isHourly || false,
         urgency: bookingData.urgency || 'medium',
-        status: 'confirmed', // Wallet payment confirmed, waiting for worker acceptance
-        paymentStatus: 'paid', // Set as paid since wallet payment is instant
+        status: 'pending', // Waiting for worker to accept
+        paymentStatus: 'held', // Money held in escrow
         requirements: bookingData.requirements || [],
         attachments: bookingData.attachments || [],
         createdAt: new Date().toISOString(),
@@ -151,29 +205,33 @@ function WorkersPageContent() {
         flattenedBookingRequest
       );
 
-      // Send notification to worker about new booking
+      // STEP 3: Notify worker
       try {
         const { notificationService } = await import('@/lib/notification-service');
         await notificationService.createNotification({
           userId: flattenedBookingRequest.workerId,
           title: 'New Booking Request! 🎉',
-          message: `You have a new booking request for "${flattenedBookingRequest.title}" from a client. Please review and accept if you're available.`,
+          message: `You have a new booking request for "${flattenedBookingRequest.title}". Payment secured in escrow.`,
           type: 'success',
           bookingId: flattenedBookingRequest.id,
           actionUrl: `/worker/bookings?id=${flattenedBookingRequest.id}`,
           idempotencyKey: `new_booking_${flattenedBookingRequest.id}_${flattenedBookingRequest.workerId}`
         });
-        console.log('✅ Notification sent to worker about new booking');
+        console.log('✅ Notification sent to worker');
       } catch (notificationError) {
-        console.error('Failed to send notification to worker:', notificationError);
-        // Don't fail the booking creation if notification fails
+        console.error('Failed to send notification:', notificationError);
       }
 
-      console.log('✅ Booking created successfully with wallet payment');
+      toast.success("Booking created! Payment held securely.");
+      console.log('✅ Booking created with wallet payment');
+
+      // Refresh wallet balance
+      const wallet = await WalletService.getOrCreateWallet(user.$id);
+      setWalletBalance(wallet.balance);
     } catch (error) {
       console.error('Error submitting booking:', error);
-      toast.error("Failed to submit booking request. Please try again.");
-      throw error; // Rethrow so wallet service knows it failed
+      toast.error("Failed to submit booking. Please try again.");
+      throw error;
     }
   };
 
@@ -190,6 +248,56 @@ function WorkersPageContent() {
       return;
     }
 
+    // Check wallet balance before opening booking modal
+    const estimatedCost = worker.hourlyRate || 5000; // Use hourly rate or default
+
+    console.log('[Book Worker] Check:', {
+      walletBalance,
+      estimatedCost,
+      workerRate: worker.hourlyRate
+    });
+
+    // If wallet balance hasn't loaded yet, show loading message
+    if (walletBalance === null || walletBalance === undefined) {
+      toast.error(
+        "Please wait while we load your wallet balance, then try again.",
+        {
+          duration: 3000
+        }
+      );
+      return; // Don't allow booking until balance loads
+    }
+
+    // BLOCK if insufficient balance
+    if (walletBalance < estimatedCost) {
+      toast.error(
+        `Low balance! You have ₦${walletBalance.toLocaleString()}. This worker charges ₦${estimatedCost.toLocaleString()}/hr. Top up your wallet first.`,
+        {
+          duration: 6000,
+          action: {
+            label: 'Top Up Now',
+            onClick: () => router.push('/client/wallet')
+          }
+        }
+      );
+      return; // Don't open modal
+    }
+
+    // WARN if balance is low (less than 2x hourly rate)
+    if (walletBalance < estimatedCost * 2) {
+      toast.warning(
+        `Your balance is ₦${walletBalance.toLocaleString()}. Consider topping up for longer bookings.`,
+        {
+          duration: 4000,
+          action: {
+            label: 'Top Up',
+            onClick: () => router.push('/client/wallet')
+          }
+        }
+      );
+    }
+
+    // Open booking modal
     setBookingModal({
       isOpen: true,
       selectedWorker: worker
@@ -296,16 +404,22 @@ function WorkersPageContent() {
     <div className="min-h-screen bg-gray-50">
       <Header />
       <main className="container mx-auto px-4 py-6 md:py-10">
-        {/* Wallet Balance Header - Only for Clients */}
-        {user?.role === 'client' && (
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-            className="mb-8"
-          >
-            <WalletBalanceHeader variant="compact" />
-          </motion.div>
+        {/* Wallet Balance for Clients */}
+        {user && user.role === 'client' && walletBalance !== null && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md flex items-center justify-between">
+            <div>
+              <p className="text-sm opacity-90">Wallet Balance</p>
+              <p className="text-2xl font-bold">₦{(walletBalance ?? 0).toLocaleString()}</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => router.push('/client/wallet')}
+              className="bg-white text-blue-600 hover:bg-blue-50"
+            >
+              Top Up
+            </Button>
+          </div>
         )}
 
         {/* Search Section */}
@@ -497,14 +611,6 @@ function WorkersPageContent() {
         </motion.div>
       </main>
       <Footer />
-      
-      {/* Wallet-Only Booking Modal */}
-      <WalletOnlyBookingModal
-        isOpen={bookingModal.isOpen}
-        onClose={handleCloseBookingModal}
-        worker={bookingModal.selectedWorker}
-        onBookingSubmit={handleBookingSubmit}
-      />
 
       {/* Message Modal */}
       <MessageModal

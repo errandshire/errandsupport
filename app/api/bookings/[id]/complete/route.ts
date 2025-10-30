@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BookingCompletionService } from '@/lib/booking-completion-service';
-import type { BookingCompletionRequest } from '@/lib/booking-completion-service';
+import { BookingCompletionService } from '@/lib/booking-completion.service';
+import { databases, COLLECTIONS } from '@/lib/appwrite';
 
+/**
+ * Complete a booking and release payment to worker
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -9,43 +12,93 @@ export async function POST(
   try {
     const bookingId = params.id;
     const body = await request.json();
+    const { clientId, workerId } = body;
 
-    const completionRequest: BookingCompletionRequest = {
-      bookingId,
-      completedBy: body.completedBy,
-      userId: body.userId,
-      completionNote: body.completionNote,
-      clientConfirmation: body.clientConfirmation,
-      workerConfirmation: body.workerConfirmation,
-      rating: body.rating
-    };
-
-    // Validate required fields
-    if (!completionRequest.completedBy || !completionRequest.userId) {
-      return NextResponse.json({
-        error: 'completedBy and userId are required'
-      }, { status: 400 });
+    if (!clientId || !workerId) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
-    // Process booking completion
-    const result = await BookingCompletionService.completeBooking(completionRequest);
+    // Get booking details
+    const booking = await databases.getDocument(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      COLLECTIONS.BOOKINGS,
+      bookingId
+    );
+
+    // Complete booking and release funds
+    const result = await BookingCompletionService.completeBooking({
+      bookingId,
+      clientId,
+      workerId,
+      amount: booking.budgetAmount
+    });
 
     if (!result.success) {
-      return NextResponse.json({
-        error: result.message
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: result.message },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      data: result
+      message: result.message
     });
 
   } catch (error) {
     console.error('Error completing booking:', error);
-    
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to complete booking'
-    }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to complete booking' },
+      { status: 500 }
+    );
   }
-} 
+}
+
+/**
+ * Cancel booking and refund to client
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const bookingId = params.id;
+    const body = await request.json();
+    const { clientId, reason } = body;
+
+    if (!clientId) {
+      return NextResponse.json(
+        { error: 'Missing clientId' },
+        { status: 400 }
+      );
+    }
+
+    const result = await BookingCompletionService.cancelBooking({
+      bookingId,
+      clientId,
+      reason
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    return NextResponse.json(
+      { error: 'Failed to cancel booking' },
+      { status: 500 }
+    );
+  }
+}

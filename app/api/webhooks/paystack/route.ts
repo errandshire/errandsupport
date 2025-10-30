@@ -1,329 +1,204 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { paystack } from '@/lib/paystack';
+import { PaystackService } from '@/lib/paystack.service';
+import { WalletService } from '@/lib/wallet.service';
 import { databases, COLLECTIONS } from '@/lib/appwrite';
-import { VirtualWalletService } from '@/lib/virtual-wallet-service';
-import { Query } from 'appwrite';
+
+/**
+ * PAYSTACK WEBHOOK HANDLER
+ *
+ * Security: ALWAYS verify signature before processing
+ * Idempotency: Wallet service handles duplicate webhooks
+ */
 
 export async function POST(request: NextRequest) {
   try {
+    // Get raw body for signature verification
     const body = await request.text();
     const signature = request.headers.get('x-paystack-signature');
-    
+
     if (!signature) {
+      console.error('❌ Webhook rejected: Missing signature');
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
 
-    // Verify webhook signature
-    const isValid = paystack.verifyWebhookSignature(body, signature);
-    
+    // SECURITY: Verify webhook is from Paystack
+    const isValid = PaystackService.verifyWebhookSignature(body, signature);
     if (!isValid) {
+      console.error('❌ Webhook rejected: Invalid signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const event = JSON.parse(body);
-    
+    console.log(`📥 Paystack webhook: ${event.event}`);
+
     // Handle different event types
     switch (event.event) {
       case 'charge.success':
         await handleChargeSuccess(event.data);
         break;
-        
+
       case 'transfer.success':
         await handleTransferSuccess(event.data);
         break;
-        
+
       case 'transfer.failed':
         await handleTransferFailed(event.data);
         break;
-        
+
       default:
-        console.log(`Unhandled event type: ${event.event}`);
+        console.log(`ℹ️ Unhandled event type: ${event.event}`);
     }
 
     return NextResponse.json({ status: 'success' });
+
   } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
+    console.error('❌ Webhook error:', error);
+    return NextResponse.json(
+      { error: 'Webhook processing failed' },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * Handle successful payment (wallet top-up)
+ */
 async function handleChargeSuccess(data: any) {
   try {
     const { reference, amount, metadata, customer } = data;
-    
-    if (!metadata) {
-      console.error('Missing metadata in payment');
-      return;
+
+    // Amount from Paystack is in kobo, convert to Naira
+    const amountInNaira = amount / 100;
+
+    console.log(`💰 Processing wallet top-up: ₦${amountInNaira} (ref: ${reference})`);
+
+    // Check if this is a wallet top-up
+    if (metadata?.type === 'wallet_topup' && metadata?.userId) {
+      const result = await WalletService.creditWallet({
+        userId: metadata.userId,
+        amountInNaira,
+        paystackReference: reference,
+        description: `Wallet top-up via ${data.channel}`
+      });
+
+      if (result.success) {
+        console.log(`✅ Wallet credited: ${result.message}`);
+      } else {
+        console.error(`❌ Failed to credit wallet: ${result.message}`);
+      }
+    } else {
+      console.log(`ℹ️ Not a wallet top-up, skipping`);
     }
 
-    // Handle wallet top-up payments
-    if (metadata.type === 'wallet_topup') {
-      await handleWalletTopUp(data);
-      return;
-    }
-
-    // Handle booking payments (existing functionality)
-    if (metadata.type === 'booking_payment') {
-      await handleBookingPayment(data);
-      return;
-    }
-
-    console.warn('Unknown payment type:', metadata.type);
   } catch (error) {
-    console.error('Error handling charge success:', error);
-  }
-}
-
-async function handleWalletTopUp(data: any) {
-  try {
-    const { reference, amount, metadata } = data;
-
-    console.log('Processing wallet top-up webhook:', { reference, amount: amount / 100, metadata });
-
-    // Process wallet top-up (idempotency is handled inside processTopUpSuccess using document ID)
-    await VirtualWalletService.processTopUpSuccess(
-      reference,
-      amount / 100, // Convert from kobo to NGN
-      metadata
-    );
-
-    console.log(`✅ Wallet top-up webhook processed: ${amount / 100} NGN for user ${metadata.userId}`);
-  } catch (error) {
-    console.error('❌ Failed to process wallet top-up webhook:', error);
+    console.error('❌ Error handling charge success:', error);
     throw error;
   }
 }
 
-async function handleBookingPayment(data: any) {
-  try {
-    const { reference, amount, metadata, customer } = data;
-    
-    if (!metadata.bookingId) {
-      console.error('Missing booking ID in payment metadata');
-      return;
-    }
-
-    // Get booking details for notification
-    let booking;
-    try {
-      booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        metadata.bookingId
-      );
-    } catch (error) {
-      console.error('Failed to fetch booking for notification:', error);
-    }
-
-    // Update booking payment status (existing functionality)
-    await databases.updateDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      COLLECTIONS.BOOKINGS,
-      metadata.bookingId,
-      {
-        paymentStatus: 'escrowed',
-        paymentReference: reference,
-        paymentAmount: amount / 100,
-        status: 'accepted',
-        updatedAt: new Date().toISOString()
-      }
-    );
-
-    // Create or update payment record (existing functionality)
-    await databases.createDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      COLLECTIONS.PAYMENTS,
-      reference,
-      {
-        bookingId: metadata.bookingId,
-        clientId: metadata.clientId,
-        workerId: metadata.workerId,
-        amount: amount / 100,
-        currency: data.currency,
-        status: 'escrowed',
-        paymentReference: reference,
-        paystackTransactionId: String(data.id), // Convert to string
-        paymentMethod: data.channel,
-        customerEmail: customer.email,
-        paidAt: data.paid_at,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    );
-
-    // 🆕 NEW: Create escrow transaction (Phase 1 Integration)
-    try {
-      const { EscrowService } = await import('@/lib/escrow-service');
-      
-      await EscrowService.createEscrowTransaction(
-        metadata.bookingId,
-        metadata.clientId,
-        metadata.workerId,
-        amount, // Keep in kobo
-        reference,
-        {
-          serviceName: metadata.serviceName || 'Service Booking',
-          workerName: metadata.workerName || 'Worker',
-          clientName: metadata.clientName || 'Client',
-          paymentMethod: data.channel
-        }
-      );
-      
-      console.log(`✅ Escrow transaction created via webhook for booking ${metadata.bookingId}`);
-    } catch (escrowError) {
-      console.error('❌ Failed to create escrow transaction via webhook:', escrowError);
-      // Don't throw - webhook should still succeed
-    }
-
-    // Send notification to worker about new booking (webhook)
-    try {
-      const { notificationService } = await import('@/lib/notification-service');
-      await notificationService.createNotification({
-        userId: metadata.workerId,
-        title: 'New Booking Request! 🎉',
-        message: `You have a new booking request for "${booking?.title || metadata.serviceName || 'Service'}" from a client. Payment has been confirmed and escrowed.`,
-        type: 'success',
-        bookingId: metadata.bookingId,
-        actionUrl: `/worker/bookings?id=${metadata.bookingId}`,
-        idempotencyKey: `new_booking_webhook_${metadata.bookingId}_${metadata.workerId}`
-      });
-      console.log('✅ Notification sent to worker about new booking (webhook)');
-    } catch (notificationError) {
-      console.error('Failed to send notification to worker via webhook:', notificationError);
-      // Don't fail the webhook if notification fails
-    }
-
-    console.log(`Payment escrowed for booking ${metadata.bookingId}`);
-  } catch (error) {
-    console.error('Error handling booking payment:', error);
-  }
-}
-
+/**
+ * Handle successful transfer (withdrawal completed)
+ */
 async function handleTransferSuccess(data: any) {
   try {
     const { reference, amount, recipient } = data;
-    
-    // Handle payment transfers (existing functionality)
-    const payments = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      COLLECTIONS.PAYMENTS,
-      [
-        Query.equal('transferReference', reference)
-      ]
-    );
 
-    if (payments.documents.length > 0) {
-      const payment = payments.documents[0];
-      
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.PAYMENTS,
-        payment.$id,
-        {
-          status: 'released',
-          transferStatus: 'success',
-          releasedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      );
+    console.log(`✅ Transfer successful: ${reference}`);
 
-      // Update booking status
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        payment.bookingId,
-        {
-          paymentStatus: 'released',
-          status: 'completed',
-          completedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      );
-
-      console.log(`Payment released for booking ${payment.bookingId}`);
-      return;
-    }
-
-    // Handle withdrawal transfers (new functionality)
+    // Find withdrawal by reference
     const withdrawals = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      COLLECTIONS.WITHDRAWALS || 'withdrawals',
-      [
-        Query.equal('reference', reference)
-      ]
+      COLLECTIONS.WITHDRAWALS,
+      [{ method: 'equal', attribute: 'reference', values: [reference] }]
     );
 
     if (withdrawals.documents.length > 0) {
       const withdrawal = withdrawals.documents[0];
-      
-      // Use WorkerPayoutService to handle withdrawal completion
-      const { WorkerPayoutService } = await import('@/lib/worker-payout-service');
-      await WorkerPayoutService.handleWithdrawalCompletion(
+
+      // Update withdrawal status
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS,
         withdrawal.$id,
-        'completed'
+        {
+          status: 'completed',
+          completedAt: new Date().toISOString()
+        }
       );
 
-      console.log(`Withdrawal completed for user ${withdrawal.userId}`);
+      // Create transaction record
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_TRANSACTIONS,
+        reference, // Use reference for idempotency
+        {
+          userId: withdrawal.userId,
+          type: 'withdraw',
+          amount: withdrawal.amount,
+          reference,
+          status: 'completed',
+          description: 'Withdrawal to bank account',
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      console.log(`✅ Withdrawal ${withdrawal.$id} marked as completed`);
     }
+
   } catch (error) {
-    console.error('Error handling transfer success:', error);
+    console.error('❌ Error handling transfer success:', error);
+    throw error;
   }
 }
 
+/**
+ * Handle failed transfer (withdrawal failed)
+ */
 async function handleTransferFailed(data: any) {
   try {
-    const { reference, amount, reason } = data;
-    
-    // Handle payment transfers (existing functionality)
-    const payments = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      COLLECTIONS.PAYMENTS,
-      [
-        Query.equal('transferReference', reference)
-      ]
-    );
+    const { reference, reason } = data;
 
-    if (payments.documents.length > 0) {
-      const payment = payments.documents[0];
-      
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.PAYMENTS,
-        payment.$id,
-        {
-          status: 'failed',
-          transferStatus: 'failed',
-          updatedAt: new Date().toISOString()
-        }
-      );
+    console.log(`❌ Transfer failed: ${reference} - ${reason}`);
 
-      console.log(`Payment transfer failed for booking ${payment.bookingId}`);
-      return;
-    }
-
-    // Handle withdrawal transfers (new functionality)
+    // Find withdrawal by reference
     const withdrawals = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      COLLECTIONS.WITHDRAWALS || 'withdrawals',
-      [
-        Query.equal('reference', reference)
-      ]
+      COLLECTIONS.WITHDRAWALS,
+      [{ method: 'equal', attribute: 'reference', values: [reference] }]
     );
 
     if (withdrawals.documents.length > 0) {
       const withdrawal = withdrawals.documents[0];
-      
-      // Use WorkerPayoutService to handle withdrawal failure
-      const { WorkerPayoutService } = await import('@/lib/worker-payout-service');
-      await WorkerPayoutService.handleWithdrawalCompletion(
+
+      // Update withdrawal status
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS,
         withdrawal.$id,
-        'failed',
-        reason || 'Transfer failed'
+        {
+          status: 'failed',
+          failureReason: reason,
+          completedAt: new Date().toISOString()
+        }
       );
 
-      console.log(`Withdrawal failed for user ${withdrawal.userId}: ${reason || 'Transfer failed'}`);
+      // Refund to wallet
+      const wallet = await WalletService.getOrCreateWallet(withdrawal.userId);
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id,
+        {
+          balance: wallet.balance + withdrawal.amount,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      console.log(`✅ Withdrawal ${withdrawal.$id} failed, funds refunded to wallet`);
     }
+
   } catch (error) {
-    console.error('Error handling transfer failure:', error);
+    console.error('❌ Error handling transfer failure:', error);
+    throw error;
   }
-} 
+}

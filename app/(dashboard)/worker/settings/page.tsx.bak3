@@ -378,6 +378,22 @@ export default function WorkerSettingsPage() {
         
       </div>
 
+      {/* Add Payment Method Modal */}
+      <Dialog open={showAddPaymentMethod} onOpenChange={setShowAddPaymentMethod}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Payment Method</DialogTitle>
+          </DialogHeader>
+          <PaymentMethodForm
+            userId={user?.$id || ''}
+            onSuccess={() => {
+              setShowAddPaymentMethod(false);
+              fetchPaymentMethods();
+            }}
+            onCancel={() => setShowAddPaymentMethod(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

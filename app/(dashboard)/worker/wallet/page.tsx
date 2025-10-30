@@ -1,424 +1,449 @@
 "use client";
 
 import * as React from "react";
-import { 
-  DollarSign, 
-  TrendingUp, 
-  Clock, 
-  Download,
-  ArrowUpRight,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  AlertCircle
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { EscrowService } from "@/lib/escrow-service";
-import { EscrowUtils } from "@/lib/escrow-utils";
-import { VirtualWalletService } from "@/lib/virtual-wallet-service";
-// Legacy balances stored in kobo; Virtual Wallet stored in Naira (NGN)
-import { BalanceCard } from "@/components/wallet/balance-card";
-import { TransactionList } from "@/components/wallet/transaction-list";
-import { BankAccountSetup } from "@/components/wallet/bank-account-setup";
-import { WithdrawalRequest } from "@/components/wallet/withdrawal-request";
-import type { UserBalance, Transaction, EscrowTransaction } from "@/lib/types";
-import type { VirtualWallet } from "@/lib/virtual-wallet-service";
+import { WalletService } from "@/lib/wallet.service";
+import { PaystackService } from "@/lib/paystack.service";
+import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { ID, Query } from "appwrite";
+import type { Wallet, WalletTransaction, BankAccount, Withdrawal } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight, Loader2, Eye, EyeOff, Building2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WorkerWalletPage() {
-  const { user } = useAuth();
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [balance, setBalance] = React.useState<UserBalance | null>(null);
-  const [virtualWallet, setVirtualWallet] = React.useState<VirtualWallet | null>(null);
-  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
-  const [walletTransactions, setWalletTransactions] = React.useState<any[]>([]);
-  const [escrowTransactions, setEscrowTransactions] = React.useState<EscrowTransaction[]>([]);
-  const [showWithdrawalDialog, setShowWithdrawalDialog] = React.useState(false);
+  const { user, isAuthenticated, loading } = useAuth();
+  const router = useRouter();
 
-  // Fetch wallet data
-  const fetchWalletData = React.useCallback(async () => {
+  const [wallet, setWallet] = React.useState<Wallet | null>(null);
+  const [transactions, setTransactions] = React.useState<WalletTransaction[]>([]);
+  const [bankAccounts, setBankAccounts] = React.useState<BankAccount[]>([]);
+  const [banks, setBanks] = React.useState<Array<{ name: string; code: string }>>([]);
+  const [isLoadingWallet, setIsLoadingWallet] = React.useState(true);
+  const [showBalance, setShowBalance] = React.useState(true);
+
+  // Withdraw modal
+  const [showWithdrawModal, setShowWithdrawModal] = React.useState(false);
+  const [withdrawAmount, setWithdrawAmount] = React.useState('');
+  const [selectedBankAccount, setSelectedBankAccount] = React.useState('');
+  const [isProcessingWithdraw, setIsProcessingWithdraw] = React.useState(false);
+
+  // Add bank modal
+  const [showAddBankModal, setShowAddBankModal] = React.useState(false);
+  const [newBank, setNewBank] = React.useState({
+    accountNumber: '',
+    bankCode: '',
+    accountName: ''
+  });
+  const [isVerifyingAccount, setIsVerifyingAccount] = React.useState(false);
+  const [isAddingBank, setIsAddingBank] = React.useState(false);
+
+  React.useEffect(() => {
+    if (loading) return;
+
+    if (!isAuthenticated || !user) {
+      router.replace("/login?callbackUrl=/worker/wallet");
+      return;
+    }
+
+    if (user.role !== "worker") {
+      router.replace(`/${user.role}`);
+      return;
+    }
+
+    loadWalletData();
+    loadBanks();
+  }, [loading, isAuthenticated, user, router]);
+
+  const loadWalletData = async () => {
     if (!user) return;
 
     try {
-      setIsLoading(true);
+      setIsLoadingWallet(true);
+      const [walletData, transactionsData, bankAccountsData] = await Promise.all([
+        WalletService.getOrCreateWallet(user.$id),
+        WalletService.getTransactions(user.$id, 50),
+        loadBankAccounts()
+      ]);
 
-      // Check if online
-      if (!navigator.onLine) {
-        toast.error("You're offline. Please check your internet connection.");
-        return;
-      }
+      setWallet(walletData);
+      setTransactions(transactionsData);
+    } catch (error) {
+      console.error('Error loading wallet:', error);
+      toast.error('Failed to load wallet data');
+    } finally {
+      setIsLoadingWallet(false);
+    }
+  };
 
-      // Fetch user balance
-      const userBalance = await EscrowService.getUserBalance(user.$id);
-      console.log('[Wallet] Fetched user balance:', userBalance);
-      setBalance(userBalance);
+  const loadBankAccounts = async (): Promise<BankAccount[]> => {
+    if (!user) return [];
 
-      // Fetch virtual wallet
-      let wallet = await VirtualWalletService.getUserWallet(user.$id);
-      if (!wallet) {
-        // Initialize virtual wallet for worker if it doesn't exist
-        wallet = await VirtualWalletService.initializeWallet(user.$id);
-      }
-      setVirtualWallet(wallet);
+    try {
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BANK_ACCOUNTS,
+        [Query.equal('userId', user.$id)]
+      );
 
-      // Fetch virtual wallet transactions
-      const walletTxs = await VirtualWalletService.getWalletTransactions(user.$id, 50);
-      setWalletTransactions(walletTxs);
+      const accounts = response.documents as unknown as BankAccount[];
+      setBankAccounts(accounts);
+      return accounts;
+    } catch (error) {
+      console.error('Error loading bank accounts:', error);
+      return [];
+    }
+  };
 
-      // Fetch transaction history
-      const userTransactions = await EscrowService.getUserTransactions(user.$id, 50);
-      setTransactions(userTransactions);
+  const loadBanks = async () => {
+    try {
+      const bankList = await PaystackService.getBanks();
+      setBanks(bankList);
+    } catch (error) {
+      console.error('Error loading banks:', error);
+    }
+  };
 
-      // Fetch escrow transactions for this worker
-      const workerEscrowTxs = await EscrowService.getUserEscrowTransactions(user.$id, 'worker', 50);
-      setEscrowTransactions(workerEscrowTxs);
+  const handleVerifyAccount = async () => {
+    if (!newBank.accountNumber || !newBank.bankCode) {
+      toast.error('Please enter account number and select bank');
+      return;
+    }
+
+    try {
+      setIsVerifyingAccount(true);
+      const result = await PaystackService.verifyBankAccount({
+        accountNumber: newBank.accountNumber,
+        bankCode: newBank.bankCode
+      });
+
+      setNewBank(prev => ({
+        ...prev,
+        accountName: result.accountName
+      }));
+
+      toast.success(`Account verified: ${result.accountName}`);
+    } catch (error) {
+      console.error('Verification error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to verify account');
+    } finally {
+      setIsVerifyingAccount(false);
+    }
+  };
+
+  const handleAddBank = async () => {
+    if (!user || !newBank.accountNumber || !newBank.bankCode || !newBank.accountName) {
+      toast.error('Please verify account first');
+      return;
+    }
+
+    try {
+      setIsAddingBank(true);
+
+      // Create recipient on Paystack
+      const recipient = await PaystackService.createRecipient({
+        accountNumber: newBank.accountNumber,
+        bankCode: newBank.bankCode,
+        accountName: newBank.accountName
+      });
+
+      // Save to database
+      const bankName = banks.find(b => b.code === newBank.bankCode)?.name || 'Unknown Bank';
+
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BANK_ACCOUNTS,
+        ID.unique(),
+        {
+          userId: user.$id,
+          accountNumber: newBank.accountNumber,
+          accountName: newBank.accountName,
+          bankName,
+          bankCode: newBank.bankCode,
+          paystackRecipientCode: recipient.recipientCode,
+          isDefault: bankAccounts.length === 0,
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      toast.success('Bank account added successfully');
+      setShowAddBankModal(false);
+      setNewBank({ accountNumber: '', bankCode: '', accountName: '' });
+      loadBankAccounts();
 
     } catch (error) {
-      console.error('Error fetching wallet data:', error);
-      toast.error('Failed to load wallet data. Please try again.');
+      console.error('Add bank error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to add bank account');
     } finally {
-      setIsLoading(false);
+      setIsAddingBank(false);
     }
-  }, [user]);
+  };
 
-  // Listen for online/offline events
-  React.useEffect(() => {
-    const handleOnline = () => {
-      toast.success("You're back online!");
-      fetchWalletData();
-    };
+  const handleWithdraw = async () => {
+    if (!user || !withdrawAmount || !selectedBankAccount) {
+      toast.error('Please fill all fields');
+      return;
+    }
 
-    const handleOffline = () => {
-      toast.error("You're offline. Some features may be unavailable.");
-    };
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount < 500) {
+      toast.error('Minimum withdrawal amount is ₦500');
+      return;
+    }
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    if (!wallet || amount > wallet.balance) {
+      toast.error('Insufficient balance');
+      return;
+    }
 
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [fetchWalletData]);
+    try {
+      setIsProcessingWithdraw(true);
 
-  React.useEffect(() => {
-    fetchWalletData();
-  }, [fetchWalletData]);
+      const bankAccount = bankAccounts.find(b => b.$id === selectedBankAccount);
+      if (!bankAccount) {
+        throw new Error('Invalid bank account');
+      }
 
-  // Calculate stats
-  const stats = React.useMemo(() => {
-    if (!balance && !virtualWallet) return null;
+      // Generate reference
+      const reference = PaystackService.generateReference('withdraw');
 
-    const pendingEscrows = escrowTransactions.filter(tx => tx.status === 'held').length;
-    const completedJobs = escrowTransactions.filter(tx => tx.status === 'released').length;
-    
-    // Calculate earnings from both regular transactions and wallet transactions
-    const thisMonthEarnings = [
-      ...transactions.filter(tx => {
-        const txDate = new Date(tx.createdAt);
-        const now = new Date();
-        return txDate.getMonth() === now.getMonth() && 
-               txDate.getFullYear() === now.getFullYear() &&
-               tx.type.includes('release');
-      }),
-      ...walletTransactions.filter(tx => {
-        const txDate = new Date(tx.createdAt);
-        const now = new Date();
-        return txDate.getMonth() === now.getMonth() && 
-               txDate.getFullYear() === now.getFullYear() &&
-               tx.type === 'earnings_credit';
-      })
-    ].reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+      // Deduct from wallet first
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id,
+        {
+          balance: wallet.balance - amount,
+          updatedAt: new Date().toISOString()
+        }
+      );
 
-    // Total available balance combines both systems
-    const totalAvailableBalance = (balance?.availableBalance || 0) + (virtualWallet?.availableBalance || 0);
-    const totalEarnings = (balance?.totalEarnings || 0) + (virtualWallet?.totalDeposits || 0);
+      // Create withdrawal record
+      const withdrawal = await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS,
+        ID.unique(),
+        {
+          userId: user.$id,
+          amount,
+          bankAccountId: selectedBankAccount,
+          status: 'pending',
+          reference,
+          createdAt: new Date().toISOString()
+        }
+      );
 
-    return {
-      pendingEscrows,
-      completedJobs,
-      thisMonthEarnings,
-      totalJobs: escrowTransactions.length,
-      totalAvailableBalance,
-      totalEarnings,
-      virtualWalletBalance: virtualWallet?.availableBalance || 0
-    };
-  }, [balance, virtualWallet, transactions, walletTransactions, escrowTransactions]);
+      // Initiate Paystack transfer
+      await PaystackService.initiateTransfer({
+        amountInNaira: amount,
+        recipientCode: bankAccount.paystackRecipientCode!,
+        reference,
+        reason: 'Wallet withdrawal'
+      });
+
+      // Update withdrawal status
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WITHDRAWALS,
+        withdrawal.$id,
+        {
+          status: 'processing'
+        }
+      );
+
+      toast.success('Withdrawal initiated! Funds will arrive within 24 hours.');
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+      setSelectedBankAccount('');
+      loadWalletData();
+
+    } catch (error) {
+      console.error('Withdrawal error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to process withdrawal');
+    } finally {
+      setIsProcessingWithdraw(false);
+    }
+  };
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-            Your Wallet
-          </h1>
-          <p className="text-neutral-600">
-            Track your earnings, pending payments, and transaction history.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchWalletData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => {
-            console.log('[Wallet] Manual refresh triggered');
-            fetchWalletData();
-          }}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Force Refresh
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">My Wallet</h1>
+        <p className="text-gray-600 mt-2">View your earnings and withdraw funds</p>
       </div>
 
-      {/* Virtual Wallet Card */}
-      {virtualWallet && (
-        <Card className="bg-gradient-to-r from-emerald-500 to-blue-600 text-white mb-6">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                  <DollarSign className="h-6 w-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-white">Virtual Wallet</CardTitle>
-                  <p className="text-emerald-100 text-sm">Instant access to your earnings</p>
-                </div>
-              </div>
-              <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                {virtualWallet.isActive ? 'Active' : 'Inactive'}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Available Balance */}
-              <div>
-                <p className="text-emerald-100 text-sm mb-1">Available Balance</p>
-                <p className="text-3xl font-bold">₦{virtualWallet.availableBalance.toLocaleString()}</p>
-                <p className="text-emerald-100 text-xs mt-1">Ready to withdraw</p>
-              </div>
-
-              {/* Total Earnings */}
-              <div>
-                <p className="text-emerald-100 text-sm mb-1">Total Earned</p>
-                <p className="text-xl font-semibold">₦{virtualWallet.totalDeposits.toLocaleString()}</p>
-                <p className="text-emerald-100 text-xs mt-1">All time earnings</p>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="pt-4 border-t border-white/20">
-              <p className="text-emerald-100 text-sm mb-3">Quick Actions</p>
-              <div className="flex gap-3">
-                <Button 
-                  variant="secondary" 
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  onClick={() => setShowWithdrawalDialog(true)}
-                >
-                  <ArrowUpRight className="h-4 w-4 mr-2" />
-                  Withdraw
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  onClick={() => {
-                    // Switch to the "all" tab to show transaction history
-                    const tabsList = document.querySelector('[role="tablist"]');
-                    const allTab = document.querySelector('[value="all"]');
-                    if (allTab) {
-                      (allTab as HTMLElement).click();
-                    }
-                  }}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  View History
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      
-
-      {/* Quick Stats */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-neutral-500">Virtual Wallet</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">₦{stats.virtualWalletBalance.toLocaleString()}</div>
-                <DollarSign className="h-4 w-4 text-emerald-500" />
-              </div>
-              <p className="text-xs text-neutral-500 mt-1">Ready to withdraw</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-neutral-500">This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">{EscrowUtils.formatAmount(stats.thisMonthEarnings)}</div>
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-              </div>
-              <p className="text-xs text-neutral-500 mt-1">Monthly earnings</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-neutral-500">Pending Payments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">{stats.pendingEscrows}</div>
-                <Clock className="h-4 w-4 text-yellow-500" />
-              </div>
-              <p className="text-xs text-neutral-500 mt-1">In escrow</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-neutral-500">Total Earnings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold">{EscrowUtils.formatAmount(stats.totalEarnings)}</div>
-                <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-              </div>
-              <p className="text-xs text-neutral-500 mt-1">All time</p>
-            </CardContent>
-          </Card>
+      {isLoadingWallet ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      )}
-
-      {/* Virtual Wallet Info */}
-      {virtualWallet && virtualWallet.availableBalance > 0 && (
-        <Alert className="mb-6 border-emerald-200 bg-emerald-50">
-          <DollarSign className="h-4 w-4 text-emerald-600" />
-          <AlertDescription className="text-emerald-800">
-            <strong>🎉 New!</strong> You have <strong>₦{virtualWallet.availableBalance.toLocaleString()}</strong> in your virtual wallet.
-            Earnings from completed bookings are now automatically added to your virtual wallet for instant access.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Withdrawal Info */}
-      {balance && balance.availableBalance > 0 && (
-        <Alert className="mb-8 border-blue-200 bg-blue-50">
-          <DollarSign className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
-            You have <strong>{EscrowUtils.formatAmount(balance.availableBalance)}</strong> in legacy balance available for withdrawal.
-            Withdrawals are processed within 1-3 business days.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* No Earnings State */}
-      {!isLoading && (!balance || balance.totalEarnings === 0) && (
-        <Alert className="mb-8">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You haven't received any payments yet. Complete your first job to start earning!
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Transactions */}
-      <Tabs defaultValue="wallet" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="wallet">Wallet Earnings</TabsTrigger>
-          <TabsTrigger value="payout">Payouts</TabsTrigger>
-          <TabsTrigger value="all">All Transactions</TabsTrigger>
-          <TabsTrigger value="earnings">Legacy Earnings</TabsTrigger>
-          <TabsTrigger value="escrow">Escrow History</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="wallet">
-          <Card>
+      ) : (
+        <div className="grid gap-6">
+          {/* Balance Card */}
+          <Card className="bg-gradient-to-br from-green-500 to-green-700 text-white">
             <CardHeader>
-              <CardTitle className="text-base">Virtual Wallet Earnings</CardTitle>
-              <p className="text-sm text-neutral-600">Recent earnings credited to your virtual wallet</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <WalletIcon className="h-5 w-5" />
+                  <CardTitle className="text-white">Wallet Balance</CardTitle>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="text-white hover:bg-white/20"
+                >
+                  {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-                      <div className="h-12 w-12 bg-gray-200 rounded animate-pulse" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                        <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
+              <div className="space-y-4">
+                <div>
+                  <p className="text-green-100 text-sm">Available Balance</p>
+                  <p className="text-4xl font-bold mt-1">
+                    {showBalance ? `₦${(wallet?.balance ?? 0).toLocaleString()}` : '••••••'}
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-green-400/30">
+                  <Button
+                    onClick={() => setShowWithdrawModal(true)}
+                    disabled={!wallet || wallet.balance < 500 || bankAccounts.length === 0}
+                    className="w-full bg-white text-green-700 hover:bg-green-50"
+                  >
+                    <ArrowUpRight className="h-4 w-4 mr-2" />
+                    Withdraw Money
+                  </Button>
+                  {bankAccounts.length === 0 && (
+                    <p className="text-green-100 text-xs mt-2 text-center">
+                      Add a bank account to withdraw
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Total Earned</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">₦{(wallet?.totalEarned ?? 0).toLocaleString() || '0'}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Bank Accounts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <p className="text-2xl font-bold">{bankAccounts.length}</p>
+                  <Button size="sm" variant="outline" onClick={() => setShowAddBankModal(true)}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Bank Accounts */}
+          {bankAccounts.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Saved Bank Accounts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {bankAccounts.map((account) => (
+                    <div key={account.$id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded-full">
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{account.bankName}</p>
+                          <p className="text-sm text-gray-600">{account.accountNumber} - {account.accountName}</p>
+                        </div>
                       </div>
-                      <div className="h-6 bg-gray-200 rounded w-20 animate-pulse" />
+                      {account.isDefault && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Default</span>
+                      )}
                     </div>
                   ))}
                 </div>
-              ) : walletTransactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-sm text-gray-500 mb-2">No wallet earnings yet</p>
-                  <p className="text-xs text-gray-400">Complete bookings to start earning in your virtual wallet</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Transactions */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {transactions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <WalletIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No transactions yet</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {walletTransactions.map((transaction) => (
-                    <div key={transaction.$id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                          transaction.type === 'earnings_credit' ? 'bg-emerald-100' : 
-                          transaction.type === 'withdrawal_pending' ? 'bg-yellow-100' :
-                          'bg-blue-100'
+                <div className="space-y-3">
+                  {transactions.map((tx) => (
+                    <div
+                      key={tx.$id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${
+                          tx.type === 'booking_release' ? 'bg-green-100 text-green-600' :
+                          tx.type === 'withdraw' ? 'bg-blue-100 text-blue-600' :
+                          'bg-gray-100 text-gray-600'
                         }`}>
-                          {transaction.type === 'earnings_credit' ? (
-                            <DollarSign className="h-6 w-6 text-emerald-600" />
-                          ) : transaction.type === 'withdrawal_pending' ? (
-                            <ArrowUpRight className="h-6 w-6 text-yellow-600" />
+                          {tx.type === 'booking_release' ? (
+                            <ArrowDownRight className="h-4 w-4" />
                           ) : (
-                            <RefreshCw className="h-6 w-6 text-blue-600" />
+                            <ArrowUpRight className="h-4 w-4" />
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">
-                            {transaction.description}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {new Date(transaction.createdAt).toLocaleDateString()}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Ref: {transaction.reference.slice(-8)}
+                          <p className="font-medium">{tx.description}</p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(tx.createdAt).toLocaleDateString('en-NG', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right space-y-2">
-                        <p className={`font-semibold text-lg ${
-                          transaction.amount > 0 ? 'text-emerald-600' : 'text-gray-900'
+                      <div className="text-right">
+                        <p className={`font-semibold ${
+                          tx.type === 'booking_release' ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          {transaction.amount > 0 ? '+' : ''}₦{Math.abs(transaction.amount).toLocaleString()}
+                          {tx.type === 'booking_release' ? '+' : '-'}₦{(tx.amount ?? 0).toLocaleString()}
                         </p>
-                        <Badge 
-                          variant={transaction.status === 'completed' ? 'default' : 'secondary'}
-                          className={`text-xs ${transaction.status === 'completed' ? 'bg-green-100 text-green-800' : ''}`}
-                        >
-                          {transaction.status}
-                        </Badge>
+                        <p className="text-sm text-gray-500 capitalize">{tx.status}</p>
                       </div>
                     </div>
                   ))}
@@ -426,137 +451,155 @@ export default function WorkerWalletPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="payout">
-          <div className="space-y-6">
-            <BankAccountSetup
-              userId={user?.$id || ''}
-              onBankAccountAdded={fetchWalletData}
-            />
-            <WithdrawalRequest
-              userId={user?.$id || ''}
-              availableBalance={virtualWallet?.availableBalance || 0}
-              onWithdrawalRequested={async () => {
-                console.log('[Wallet] onWithdrawalRequested callback triggered');
-                // Add a small delay to ensure database updates are complete
-                setTimeout(async () => {
-                  console.log('[Wallet] Refreshing wallet data after withdrawal');
-                  await fetchWalletData();
-                }, 1000);
-              }}
-            />
+      {/* Withdraw Modal */}
+      <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Withdraw Funds</DialogTitle>
+            <DialogDescription>
+              Transfer money to your bank account
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Bank Account</Label>
+              <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Select bank account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((account) => (
+                    <SelectItem key={account.$id} value={account.$id}>
+                      {account.bankName} - {account.accountNumber}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="withdraw-amount">Amount (₦)</Label>
+              <Input
+                id="withdraw-amount"
+                type="number"
+                placeholder="Minimum ₦500"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                min="500"
+                max={wallet?.balance}
+                className="mt-2"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Available: ₦{(wallet?.balance ?? 0).toLocaleString()}
+              </p>
+            </div>
           </div>
-        </TabsContent>
 
-        <TabsContent value="all">
-          <TransactionList
-            transactions={transactions}
-            escrowTransactions={escrowTransactions}
-            userRole="worker"
-            isLoading={isLoading}
-            showFilters={true}
-          />
-        </TabsContent>
-
-        <TabsContent value="earnings">
-          <TransactionList
-            transactions={transactions.filter(tx => tx.type.includes('release'))}
-            escrowTransactions={[]}
-            userRole="worker"
-            isLoading={isLoading}
-            showFilters={false}
-          />
-        </TabsContent>
-
-        <TabsContent value="escrow">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Escrow Payment History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-                      <div className="h-12 w-12 bg-gray-200 rounded animate-pulse" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                        <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
-                      </div>
-                      <div className="h-6 bg-gray-200 rounded w-20 animate-pulse" />
-                    </div>
-                  ))}
-                </div>
-              ) : escrowTransactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-sm text-gray-500">No escrow transactions found</p>
-                </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWithdrawModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleWithdraw} disabled={isProcessingWithdraw}>
+              {isProcessingWithdraw ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
               ) : (
-                <div className="space-y-4">
-                  {escrowTransactions.map((transaction) => (
-                    <div key={transaction.$id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-                          <DollarSign className="h-6 w-6 text-emerald-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            Booking #{transaction.bookingId.slice(-8)}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {new Date(transaction.createdAt).toLocaleDateString()}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Worker Amount: {EscrowUtils.formatAmount(transaction.workerAmount)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right space-y-2">
-                        <p className="font-semibold text-lg">
-                          {EscrowUtils.formatAmount(transaction.amount)}
-                        </p>
-                        <Badge 
-                          variant={
-                            transaction.status === 'released' ? 'default' : 
-                            transaction.status === 'held' ? 'secondary' : 
-                            'outline'
-                          }
-                          className={
-                            transaction.status === 'released' ? 'bg-green-100 text-green-800' :
-                            transaction.status === 'held' ? 'bg-yellow-100 text-yellow-800' :
-                            ''
-                          }
-                        >
-                          {transaction.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                'Withdraw'
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Withdrawal Dialog */}
-      <WithdrawalRequest
-        userId={user?.$id || ''}
-        availableBalance={virtualWallet?.availableBalance || 0}
-        isDialogOpen={showWithdrawalDialog}
-        onDialogOpenChange={setShowWithdrawalDialog}
-        onWithdrawalRequested={async () => {
-          console.log('[Wallet] onWithdrawalRequested callback triggered (Quick Action)');
-          // Add a small delay to ensure database updates are complete
-          setTimeout(async () => {
-            console.log('[Wallet] Refreshing wallet data after withdrawal (Quick Action)');
-            await fetchWalletData();
-          }, 1000);
-          setShowWithdrawalDialog(false);
-        }}
-      />
-    </>
+      {/* Add Bank Modal */}
+      <Dialog open={showAddBankModal} onOpenChange={setShowAddBankModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Bank Account</DialogTitle>
+            <DialogDescription>
+              Add your bank account for withdrawals
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Bank</Label>
+              <Select
+                value={newBank.bankCode}
+                onValueChange={(value) => setNewBank(prev => ({ ...prev, bankCode: value }))}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Select your bank" />
+                </SelectTrigger>
+                <SelectContent>
+                  {banks.map((bank) => (
+                    <SelectItem key={bank.code} value={bank.code}>
+                      {bank.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="account-number">Account Number</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="account-number"
+                  placeholder="0123456789"
+                  value={newBank.accountNumber}
+                  onChange={(e) => setNewBank(prev => ({ ...prev, accountNumber: e.target.value }))}
+                  maxLength={10}
+                />
+                <Button
+                  onClick={handleVerifyAccount}
+                  disabled={isVerifyingAccount || !newBank.accountNumber || !newBank.bankCode}
+                >
+                  {isVerifyingAccount ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Verify'
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {newBank.accountName && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded">
+                <p className="text-sm font-medium text-green-900">{newBank.accountName}</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddBankModal(false);
+              setNewBank({ accountNumber: '', bankCode: '', accountName: '' });
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddBank}
+              disabled={isAddingBank || !newBank.accountName}
+            >
+              {isAddingBank ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                'Add Bank'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
-} 
+}

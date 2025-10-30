@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
-import { workerDashboardService } from "@/lib/worker-dashboard-service";
+// import { workerDashboardService } from "@/lib/worker-dashboard-service";
 import type { WorkerStats, ProcessedBooking } from "@/lib/worker-dashboard-service";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -39,14 +39,9 @@ const BookingDetailModal = React.lazy(() =>
     default: module.BookingDetailModal 
   }))
 );
-const MessageModal = React.lazy(() => 
-  import("@/components/marketplace/message-modal").then(module => ({ 
-    default: module.MessageModal 
-  }))
-);
-const BalanceCard = React.lazy(() => 
-  import("@/components/wallet/balance-card").then(module => ({ 
-    default: module.BalanceCard 
+const MessageModal = React.lazy(() =>
+  import("@/components/marketplace/message-modal").then(module => ({
+    default: module.MessageModal
   }))
 );
 
@@ -212,13 +207,14 @@ export default function WorkerDashboard() {
       
       if (force) {
         setIsRefreshing(true);
-        workerDashboardService.clearUserCache(user.$id);
+        // workerDashboardService.clearUserCache(user.$id);
         console.log('🗑️ Cleared cache for force refresh');
       } else {
         setIsLoading(true);
       }
 
-      const { stats, bookings, balance } = await workerDashboardService.getDashboardData(user.$id);
+      const { stats, bookings, balance } = await null as any;
+      // await workerDashboardService.getDashboardData(user.$id);
       
       console.log('📋 Dashboard data loaded:', {
         availableCount: bookings.availableBookings.length,
@@ -250,7 +246,7 @@ export default function WorkerDashboard() {
   // Prefetch data on mount
   React.useEffect(() => {
     if (user) {
-      workerDashboardService.prefetchData(user.$id);
+      // workerDashboardService.prefetchData(user.$id);
     }
   }, [user]);
 

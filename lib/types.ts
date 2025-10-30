@@ -122,10 +122,7 @@ export interface Booking extends Models.Document {
   location: BookingLocation;
   notes?: string;
   totalAmount: number;
-  commission: number;
-  workerEarnings: number;
-  paymentStatus: PaymentStatus;
-  paymentIntentId?: string;
+  paymentStatus: 'unpaid' | 'held' | 'released' | 'refunded'; // Simple payment states
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -141,20 +138,13 @@ export interface Booking extends Models.Document {
   workerReview?: string;
 }
 
-export type BookingStatus = 
+export type BookingStatus =
   | 'pending'
   | 'confirmed'
   | 'in_progress'
   | 'completed'
   | 'cancelled'
   | 'disputed';
-
-export type PaymentStatus = 
-  | 'pending'
-  | 'paid'
-  | 'refunded'
-  | 'failed'
-  | 'cancelled';
 
 export interface BookingLocation {
   address: string;
@@ -179,25 +169,6 @@ export interface Review extends Models.Document {
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-// Payment Types
-export interface Payment extends Models.Document {
-  bookingId: string;
-  clientId: string;
-  workerId: string;
-  amount: number;
-  commission: number;
-  workerEarnings: number;
-  currency: string;
-  status: PaymentStatus;
-  paymentMethod: string;
-  paymentIntentId: string;
-  transactionId?: string;
-  refundId?: string;
-  createdAt: string;
-  updatedAt: string;
-  processedAt?: string;
 }
 
 // Form Types
@@ -323,46 +294,48 @@ export interface WorkerState {
   currentWorker: WorkerProfile | null;
   isLoading: boolean;
   searchResults: SearchResults | null;
-} 
-
-// Phase 1: Escrow System Types
-export interface EscrowTransaction extends Models.Document {
-  bookingId: string;
-  clientId: string;
-  workerId: string;
-  amount: number;
-  platformFee: number;
-  workerAmount: number; // amount - platformFee
-  status: 'pending' | 'held' | 'released' | 'refunded';
-  paystackReference: string;
-  createdAt: string;
-  releasedAt?: string;
-  metadata: {
-    serviceName?: string;
-    workerName?: string;
-    clientName?: string;
-    paymentMethod?: string;
-    [key: string]: any;
-  };
 }
 
-export interface UserBalance extends Models.Document {
+// SIMPLE WALLET SYSTEM
+export interface Wallet extends Models.Document {
   userId: string;
-  availableBalance: number;
-  pendingBalance: number; // money in escrow
-  totalEarnings: number;
-  totalWithdrawn: number;
-  currency: 'NGN';
+  balance: number;        // Available to spend or withdraw (in Naira)
+  escrow: number;         // Money held for active bookings (in Naira)
+  totalEarned: number;    // Lifetime earnings (for workers)
+  totalSpend: number;     // Lifetime spending (for clients) - matches DB field name
   updatedAt: string;
 }
 
-export interface Transaction extends Models.Document {
+export interface WalletTransaction extends Models.Document {
   userId: string;
-  type: 'escrow_hold' | 'escrow_release' | 'withdrawal' | 'refund';
-  amount: number;
-  description: string;
-  reference: string;
-  bookingId?: string;
+  type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw';
+  amount: number;         // Always in Naira
+  bookingId?: string;     // If related to a booking
+  reference: string;      // Paystack reference or unique ID
   status: 'completed' | 'pending' | 'failed';
+  description: string;
   createdAt: string;
+}
+
+export interface BankAccount extends Models.Document {
+  userId: string;
+  accountNumber: string;
+  accountName: string;
+  bankName: string;
+  bankCode: string;
+  paystackRecipientCode?: string; // For withdrawals
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface Withdrawal extends Models.Document {
+  userId: string;
+  amount: number;         // In Naira
+  bankAccountId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  reference: string;      // Paystack transfer reference
+  paystackTransferCode?: string;
+  failureReason?: string;
+  createdAt: string;
+  completedAt?: string;
 } 
