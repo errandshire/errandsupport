@@ -85,7 +85,7 @@ export function Footer({ className }: FooterProps) {
             <div className="space-y-3 text-sm text-neutral-300">
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4" />
-                <span>support@errandsupport.com</span>
+                <span>support@erandwork.com</span>
               </div>
               {/* <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4" />

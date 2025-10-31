@@ -13,7 +13,7 @@ export default function PrivacyPage() {
         <p className="text-neutral-700 leading-relaxed max-w-3xl">
           We respect your privacy. This page outlines how we collect, use, and protect your information.
           We only use your data to provide and improve our services, communicate with you, and comply with legal obligations.
-          For any questions about this policy, please contact support@errandsupport.com.
+          For any questions about this policy, please contact support@erandwork.com.
         </p>
       </main>
       <Footer />
