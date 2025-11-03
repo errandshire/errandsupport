@@ -107,6 +107,8 @@ const BookingCard = React.memo(({
     }
   };
 
+  const locationAddress = (booking.location && (booking.location as any).address) || 'Location TBD';
+
   return (
     <div 
       className="flex items-center justify-between p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer"
@@ -117,20 +119,20 @@ const BookingCard = React.memo(({
           <Calendar className="h-6 w-6 text-primary-600" />
         </div>
         <div>
-          <h4 className="font-medium text-gray-900">{booking.title}</h4>
-          <p className="text-sm text-gray-600">by {booking.client.name}</p>
+          <h4 className="font-medium text-gray-900">{booking.serviceTitle}</h4>
+          <p className="text-sm text-gray-600">by {booking.clientName}</p>
           <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
             <div className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
-              <span className="truncate max-w-32">{booking.locationAddress || 'Location TBD'}</span>
+              <span className="truncate max-w-32">{locationAddress}</span>
             </div>
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span>{booking.timeAgo}</span>
+              <span>{booking.scheduledDate} {booking.scheduledTime}</span>
             </div>
             <div className="flex items-center gap-1">
               <DollarSign className="h-3 w-3" />
-              <span>₦{booking.budgetAmount.toLocaleString()}</span>
+              <span>₦{booking.totalAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -198,6 +200,8 @@ export default function WorkerDashboard() {
     email: string;
   } | null>(null);
 
+  const formatNaira = (n: number) => `₦${(n || 0).toLocaleString()}`;
+
   // Load dashboard data
   const loadDashboardData = React.useCallback(async (force = false) => {
     if (!user) return;
@@ -207,20 +211,19 @@ export default function WorkerDashboard() {
       
       if (force) {
         setIsRefreshing(true);
-        // workerDashboardService.clearUserCache(user.$id);
         console.log('🗑️ Cleared cache for force refresh');
       } else {
         setIsLoading(true);
       }
 
-      const { stats, bookings, balance } = await null as any;
-      // await workerDashboardService.getDashboardData(user.$id);
+      const { workerDashboardService } = await import('@/lib/worker-dashboard-service');
+      const { stats, bookings, balance } = await workerDashboardService.getDashboardData(user.$id);
       
       console.log('📋 Dashboard data loaded:', {
         availableCount: bookings.availableBookings.length,
         acceptedCount: bookings.acceptedBookings.length,
-        availableBookings: bookings.availableBookings.map(b => ({ id: b.id, status: b.status })),
-        acceptedBookings: bookings.acceptedBookings.map(b => ({ id: b.id, status: b.status }))
+        availableBookings: bookings.availableBookings.map(b => ({ id: b.$id, status: b.status })),
+        acceptedBookings: bookings.acceptedBookings.map(b => ({ id: b.$id, status: b.status }))
       });
       
       setStats(stats);
@@ -260,8 +263,6 @@ export default function WorkerDashboard() {
     try {
       setIsUpdating(true);
       setIsAvailable(newValue);
-      // Update availability in backend
-      // await updateAvailability(newValue);
       toast.success(newValue ? "You are now available for work" : "You are now marked as unavailable");
     } catch (error) {
       console.error('Error updating availability:', error);
@@ -276,44 +277,43 @@ export default function WorkerDashboard() {
   const handleViewBooking = React.useCallback((booking: ProcessedBooking) => {
     console.log('🔍 handleViewBooking called with:', booking);
     
-    // Transform ProcessedBooking to FlattenedBooking format for the modal
-    // Only use fields that are guaranteed to exist in ProcessedBooking
+    const locationAddress = (booking.location && (booking.location as any).address) || '';
+
     const flattenedBooking = {
-      $id: booking.id,
-      id: booking.id,
-      clientId: booking.client?.id || '',
-      client: booking.client?.id || '', // For legacy compatibility
-      workerId: user?.$id || '', // Use current user's ID since this is worker dashboard
-      title: booking.title,
-      service: booking.title, // For legacy compatibility
-      description: '', // ProcessedBooking doesn't have description
-      locationAddress: booking.locationAddress,
-      location: booking.locationAddress, // For legacy compatibility
+      $id: booking.$id,
+      id: booking.$id,
+      clientId: '',
+      client: '',
+      workerId: user?.$id || '',
+      title: booking.serviceTitle,
+      service: booking.serviceTitle,
+      description: '',
+      locationAddress,
+      location: locationAddress,
       scheduledDate: booking.scheduledDate,
-      date: booking.scheduledDate, // For legacy compatibility
-      estimatedDuration: booking.estimatedDuration,
-      duration: booking.estimatedDuration, // For legacy compatibility
-      budgetAmount: booking.budgetAmount,
-      price: booking.budgetAmount, // For legacy compatibility
-      budgetCurrency: booking.budgetCurrency || 'NGN',
-      budgetIsHourly: false, // ProcessedBooking doesn't have this field
-      urgency: booking.urgency,
+      date: booking.scheduledDate,
+      estimatedDuration: booking.duration,
+      duration: booking.duration,
+      budgetAmount: booking.totalAmount,
+      price: booking.totalAmount,
+      budgetCurrency: 'NGN',
+      budgetIsHourly: false,
+      urgency: '',
       status: booking.status,
-      paymentStatus: 'paid', // Assume paid if status is confirmed
-      requirements: booking.requirements || [],
-      attachments: [], // ProcessedBooking doesn't have attachments
+      paymentStatus: 'paid',
+      requirements: [],
+      attachments: [],
       createdAt: booking.createdAt,
-      updatedAt: booking.createdAt, // Use createdAt as fallback
-      acceptedAt: booking.acceptedAt,
-      startedAt: undefined, // ProcessedBooking doesn't have this
-      completedAt: booking.completedAt,
-      clientConfirmedAt: undefined, // ProcessedBooking doesn't have this
-      clientRating: undefined, // ProcessedBooking doesn't have this
-      clientReview: undefined, // ProcessedBooking doesn't have this
-      clientTip: undefined, // ProcessedBooking doesn't have this
-      // Add client info for the modal
-      clientName: booking.client?.name || 'Unknown Client',
-      clientEmail: booking.client?.email
+      updatedAt: booking.updatedAt,
+      acceptedAt: undefined,
+      startedAt: undefined,
+      completedAt: undefined,
+      clientConfirmedAt: undefined,
+      clientRating: undefined,
+      clientReview: undefined,
+      clientTip: undefined,
+      clientName: booking.clientName,
+      clientEmail: booking.clientEmail
     };
     
     console.log('📋 Transformed booking for modal:', flattenedBooking);
@@ -328,25 +328,20 @@ export default function WorkerDashboard() {
     if (!user) return;
 
     try {
-      console.log('🚀 Starting accept booking process:', { bookingId: booking.id, userId: user.$id });
-      setAcceptingBookingId(booking.id);
-      
-      // Use the new BookingActionService
+      console.log('🚀 Starting accept booking process:', { bookingId: booking.$id, userId: user.$id });
+      setAcceptingBookingId(booking.$id);
       const { BookingActionService } = await import('@/lib/booking-action-service');
-      
       const result = await BookingActionService.acceptBooking({
-        bookingId: booking.id,
+        bookingId: booking.$id,
         userId: user.$id,
         userRole: 'worker',
         action: 'accept'
       });
-
       console.log('📝 Accept booking result:', result);
-
       if (result.success) {
         toast.success(result.message);
         console.log('🔄 Refreshing dashboard data after successful accept...');
-        await loadDashboardData(true); // Refresh data and wait for completion
+        await loadDashboardData(true);
         console.log('✅ Dashboard data refresh completed');
       } else {
         toast.error(result.message);
@@ -361,15 +356,10 @@ export default function WorkerDashboard() {
   }, [user, loadDashboardData]);
 
   const handleMessageClient = React.useCallback((booking: ProcessedBooking) => {
-    if (!booking.client) {
-      toast.error("Client information not available");
-      return;
-    }
-
     setMessageRecipient({
-      id: booking.client.id,
-      name: booking.client.name,
-      email: booking.client.email || ''
+      id: booking.$id,
+      name: booking.clientName,
+      email: booking.clientEmail || ''
     });
     setShowMessageModal(true);
   }, []);
@@ -458,7 +448,7 @@ export default function WorkerDashboard() {
           icon={CheckCircle}
           label="Completed Jobs"
           value={stats?.completedJobs || 0}
-          change={`${stats?.completionRate}% completion rate`}
+          change={`${stats?.acceptanceRate}% acceptance rate`}
           bgColor="bg-green-100"
           color="text-green-600"
         />
@@ -472,8 +462,8 @@ export default function WorkerDashboard() {
         />
         <StatsCard
           icon={Clock}
-          label="Response Rate"
-          value={`${stats?.responseRate}%`}
+          label="Response Time"
+          value={`${stats?.responseTime} min`}
           change={`${stats?.activeBookings} active bookings`}
           bgColor="bg-purple-100"
           color="text-purple-600"
@@ -509,13 +499,13 @@ export default function WorkerDashboard() {
                     ) : (
                       availableBookings.map(booking => (
                         <BookingCard
-                          key={booking.id}
+                          key={booking.$id}
                           booking={booking}
                           isAvailable={true}
                           onView={handleViewBooking}
                           onAccept={handleAcceptBooking}
                           onMessage={handleMessageClient}
-                          isAccepting={acceptingBookingId === booking.id}
+                          isAccepting={acceptingBookingId === booking.$id}
                         />
                       ))
                     )}
@@ -532,7 +522,7 @@ export default function WorkerDashboard() {
                     ) : (
                       acceptedBookings.map(booking => (
                         <BookingCard
-                          key={booking.id}
+                          key={booking.$id}
                           booking={booking}
                           onView={handleViewBooking}
                           onMessage={handleMessageClient}
