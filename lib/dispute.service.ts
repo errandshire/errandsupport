@@ -1,5 +1,6 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { ID, Query } from 'appwrite';
+import { SMSService } from './sms.service';
 
 /**
  * DISPUTE SERVICE
@@ -87,9 +88,11 @@ export class DisputeService {
         }
       );
 
-      // Notify worker
+      // Notify worker (in-app + SMS)
       try {
         const { notificationService } = await import('./notification-service');
+
+        // In-app notification
         await notificationService.createNotification({
           userId: workerId,
           title: 'Dispute Raised ⚠️',
@@ -99,6 +102,24 @@ export class DisputeService {
           actionUrl: `/worker/disputes/${dispute.$id}`,
           idempotencyKey: `dispute_worker_${dispute.$id}`
         });
+
+        // SMS notification
+        try {
+          const workerUser = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.USERS,
+            workerId
+          );
+          if (workerUser.phone) {
+            await SMSService.sendDisputeNotification(workerUser.phone, {
+              bookingId,
+              status: 'raised',
+              role: 'worker'
+            });
+          }
+        } catch (smsError) {
+          console.error('Failed to send SMS:', smsError);
+        }
       } catch (error) {
         console.error('Failed to notify worker:', error);
       }

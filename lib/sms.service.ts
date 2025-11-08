@@ -1,12 +1,11 @@
 /**
- * SMS Service using Termii API
- * Documentation: https://developers.termii.com/
+ * SMS Service using Twilio API
+ * Documentation: https://www.twilio.com/docs/sms
  */
 
 interface SendSMSParams {
   to: string; // Phone number in international format (e.g., 2348123456789)
   message: string;
-  senderId?: string; // Optional sender ID (default from env)
 }
 
 interface SendSMSResponse {
@@ -17,18 +16,19 @@ interface SendSMSResponse {
 }
 
 export class SMSService {
-  private static readonly API_KEY = process.env.TERMII_API_KEY;
-  private static readonly SENDER_ID = process.env.TERMII_SENDER_ID || 'ErrandSupp'; // Max 11 characters
-  private static readonly BASE_URL = 'https://api.ng.termii.com/api';
+  private static readonly ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+  private static readonly AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+  private static readonly FROM_NUMBER = process.env.TWILIO_PHONE_NUMBER;
+  private static readonly BASE_URL = 'https://api.twilio.com/2010-04-01';
 
   /**
    * Send SMS to a single phone number
    */
-  static async sendSMS({ to, message, senderId }: SendSMSParams): Promise<SendSMSResponse> {
+  static async sendSMS({ to, message }: SendSMSParams): Promise<SendSMSResponse> {
     try {
-      // Validate API key
-      if (!this.API_KEY) {
-        console.error('Termii API key not configured');
+      // Validate credentials
+      if (!this.ACCOUNT_SID || !this.AUTH_TOKEN || !this.FROM_NUMBER) {
+        console.error('Twilio credentials not configured');
         return { success: false, error: 'SMS service not configured' };
       }
 
@@ -48,32 +48,33 @@ export class SMSService {
         ? message.substring(0, 157) + '...'
         : message;
 
-      // Send SMS via Termii API
-      const response = await fetch(`${this.BASE_URL}/sms/send`, {
+      // Create basic auth header
+      const authHeader = 'Basic ' + Buffer.from(`${this.ACCOUNT_SID}:${this.AUTH_TOKEN}`).toString('base64');
+
+      // Send SMS via Twilio API
+      const response = await fetch(`${this.BASE_URL}/Accounts/${this.ACCOUNT_SID}/Messages.json`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          to: phoneNumber,
-          from: senderId || this.SENDER_ID,
-          sms: truncatedMessage,
-          type: 'plain',
-          channel: 'generic',
-          api_key: this.API_KEY,
+        body: new URLSearchParams({
+          To: `+${phoneNumber}`,
+          From: this.FROM_NUMBER,
+          Body: truncatedMessage,
         }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.message_id) {
+      if (response.ok && data.sid) {
         return {
           success: true,
-          messageId: data.message_id,
+          messageId: data.sid,
           message: 'SMS sent successfully',
         };
       } else {
-        console.error('Termii API error:', data);
+        console.error('Twilio API error:', data);
         return {
           success: false,
           error: data.message || 'Failed to send SMS',

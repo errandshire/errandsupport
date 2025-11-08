@@ -1,5 +1,6 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { WalletService } from './wallet.service';
+import { SMSService } from './sms.service';
 
 /**
  * BOOKING COMPLETION SERVICE
@@ -75,9 +76,11 @@ export class BookingCompletionService {
         }
       );
 
-      // Notify worker
+      // Notify worker (in-app + SMS)
       try {
         const { notificationService } = await import('./notification-service');
+
+        // In-app notification
         await notificationService.createNotification({
           userId: workerId,
           title: 'Payment Received! 💰',
@@ -87,6 +90,24 @@ export class BookingCompletionService {
           actionUrl: '/worker/wallet',
           idempotencyKey: `payment_received_${bookingId}_${workerId}`
         });
+
+        // SMS notification
+        try {
+          const workerUser = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.USERS,
+            workerId
+          );
+          if (workerUser.phone) {
+            await SMSService.sendPaymentNotification(workerUser.phone, {
+              amount,
+              type: 'received',
+              reference: bookingId
+            });
+          }
+        } catch (smsError) {
+          console.error('Failed to send SMS:', smsError);
+        }
       } catch (error) {
         console.error('Failed to send notification:', error);
       }

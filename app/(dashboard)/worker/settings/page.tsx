@@ -54,6 +54,44 @@ export default function WorkerSettingsPage() {
     confirmPassword: ''
   });
   const [isChangingPassword, setIsChangingPassword] = React.useState(false);
+  const [isSavingProfile, setIsSavingProfile] = React.useState(false);
+
+  // Profile data
+  const [profileData, setProfileData] = React.useState({
+    firstName: user?.name?.split(' ')[0] || '',
+    lastName: user?.name?.split(' ')[1] || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    bio: '',
+    location: ''
+  });
+
+  // Handle profile save
+  const handleProfileSave = async () => {
+    try {
+      setIsSavingProfile(true);
+
+      // Update user profile
+      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.USERS,
+        user!.$id,
+        {
+          name: `${profileData.firstName} ${profileData.lastName}`.trim(),
+          phone: profileData.phone,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast.error('Failed to update profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Handle password change
   const handlePasswordChange = async () => {
@@ -143,37 +181,56 @@ export default function WorkerSettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="first-name">First Name</Label>
-                        <Input id="first-name" defaultValue={user.name?.split(' ')[0] || ''} />
+                        <Input
+                          id="first-name"
+                          value={profileData.firstName}
+                          onChange={(e) => setProfileData(prev => ({ ...prev, firstName: e.target.value }))}
+                        />
                       </div>
                       <div>
                         <Label htmlFor="last-name">Last Name</Label>
-                        <Input id="last-name" defaultValue={user.name?.split(' ')[1] || ''} />
+                        <Input
+                          id="last-name"
+                          value={profileData.lastName}
+                          onChange={(e) => setProfileData(prev => ({ ...prev, lastName: e.target.value }))}
+                        />
                       </div>
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="email">Email Address</Label>
-                      <Input id="email" type="email" defaultValue={user.email} />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={profileData.email}
+                        disabled
+                        className="bg-gray-50"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="phone">Phone Number</Label>
-                      <Input id="phone" type="tel" defaultValue={user.phone || ''} />
+                      <Input
+                        id="phone"
+                        type="tel"
+                        value={profileData.phone}
+                        onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                      />
                     </div>
-                    
-                    <div>
-                      <Label htmlFor="bio">Bio</Label>
-                      <Input id="bio" placeholder="Tell clients about yourself" />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="location">Location</Label>
-                      <Input id="location" placeholder="City, State" />
-                    </div>
-                    
-                    <Button>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
+
+                    <Button onClick={handleProfileSave} disabled={isSavingProfile}>
+                      {isSavingProfile ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Changes
+                        </>
+                      )}
                     </Button>
                   </CardContent>
                 </Card>

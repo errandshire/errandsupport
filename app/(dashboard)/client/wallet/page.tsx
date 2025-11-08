@@ -227,6 +227,20 @@ export default function ClientWalletPage() {
         }
       );
 
+      // Send SMS notification
+      try {
+        const { SMSService } = await import('@/lib/sms.service');
+        if (user.phone) {
+          await SMSService.sendPaymentNotification(user.phone, {
+            amount: amountToReceive,
+            type: 'withdrawal',
+            reference
+          });
+        }
+      } catch (smsError) {
+        console.error('Failed to send SMS:', smsError);
+      }
+
       toast.success(`Withdrawal initiated! You'll receive ₦${amountToReceive.toLocaleString()} (₦${deduction.toLocaleString()} service fee deducted).`);
       setShowWithdrawModal(false);
       setWithdrawAmount('');

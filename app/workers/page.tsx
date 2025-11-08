@@ -206,9 +206,11 @@ function WorkersPageContent() {
         flattenedBookingRequest
       );
 
-      // STEP 3: Notify worker
+      // STEP 3: Notify worker (in-app + SMS)
       try {
         const { notificationService } = await import('@/lib/notification-service');
+
+        // In-app notification
         await notificationService.createNotification({
           userId: flattenedBookingRequest.workerId,
           title: 'New Booking Request! 🎉',
@@ -218,6 +220,26 @@ function WorkersPageContent() {
           actionUrl: `/worker/bookings?id=${flattenedBookingRequest.id}`,
           idempotencyKey: `new_booking_${flattenedBookingRequest.id}_${flattenedBookingRequest.workerId}`
         });
+
+        // SMS notification
+        try {
+          const { SMSService } = await import('@/lib/sms.service');
+          const workerUser = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.USERS,
+            flattenedBookingRequest.workerId
+          );
+          if (workerUser.phone) {
+            await SMSService.sendBookingNotification(workerUser.phone, {
+              service: flattenedBookingRequest.title,
+              date: new Date(flattenedBookingRequest.scheduledDate).toLocaleDateString(),
+              status: 'pending'
+            });
+          }
+        } catch (smsError) {
+          console.error('Failed to send SMS:', smsError);
+        }
+
         console.log('✅ Notification sent to worker');
       } catch (notificationError) {
         console.error('Failed to send notification:', notificationError);
