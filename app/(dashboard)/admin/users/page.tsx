@@ -256,18 +256,26 @@ export default function AdminUsersPage() {
 
   const deleteUser = async (worker: WorkerDoc) => {
     try {
+      // Delete user document first
+      try {
+        await databases.deleteDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          worker.userId
+        );
+      } catch (error: any) {
+        // User might already be deleted, continue
+        if (error?.code !== 404) {
+          throw error;
+        }
+        console.log("User document already deleted or not found");
+      }
+
       // Delete worker document
       await databases.deleteDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WORKERS,
         worker.$id
-      );
-
-      // Delete user document
-      await databases.deleteDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.USERS,
-        worker.userId
       );
 
       toast.success("User deleted successfully");
