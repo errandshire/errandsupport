@@ -177,10 +177,11 @@ export class BookingCompletionService {
       );
 
       // Create refund transaction record
+      const { ID } = await import('appwrite');
       await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WALLET_TRANSACTIONS,
-        `refund_${bookingId}`,
+        ID.unique(),
         {
           userId: clientId,
           type: 'booking_refund',

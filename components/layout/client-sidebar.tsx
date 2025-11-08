@@ -55,11 +55,11 @@ const sidebarItems = [
     href: "/client/profile",
     icon: User,
   },
-  {
-    title: "Settings",
-    href: "/client/settings",
-    icon: Settings,
-  },
+  // {
+  //   title: "Settings",
+  //   href: "/client/settings",
+  //   icon: Settings,
+  // },
 ];
 
 export function ClientSidebar({ isOpen, onToggle, className }: ClientSidebarProps) {
