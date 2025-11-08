@@ -2,6 +2,7 @@ import { databases } from './appwrite';
 import { ID } from 'appwrite';
 import { Query } from 'appwrite';
 import { COLLECTIONS } from './appwrite';
+import { SMSService } from './sms.service';
 
 export interface Notification {
   id: string;
@@ -145,6 +146,7 @@ class NotificationService {
       throw error; // Re-throw to handle in calling code
     }
   }
+
 
   static async deleteNotification(notificationId: string): Promise<void> {
     if (!notificationId) return;

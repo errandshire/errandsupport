@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { RefreshCw, CheckCircle2, XCircle, Search } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Search, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { emailService, WorkerVerificationData } from "@/lib/email-service";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,6 +68,8 @@ export default function AdminUsersPage() {
   const [rejectionModalOpen, setRejectionModalOpen] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [workerToReject, setWorkerToReject] = React.useState<WorkerDoc | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = React.useState(false);
+  const [userToDelete, setUserToDelete] = React.useState<WorkerDoc | null>(null);
 
   const fetchWorkers = React.useCallback(async () => {
     try {
@@ -249,6 +251,33 @@ export default function AdminUsersPage() {
     } catch (error) {
       console.error("Reject error:", error);
       toast.error("Failed to reject worker");
+    }
+  };
+
+  const deleteUser = async (worker: WorkerDoc) => {
+    try {
+      // Delete worker document
+      await databases.deleteDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        worker.$id
+      );
+
+      // Delete user document
+      await databases.deleteDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.USERS,
+        worker.userId
+      );
+
+      toast.success("User deleted successfully");
+      setDeleteModalOpen(false);
+      setUserToDelete(null);
+      setDetailOpen(false);
+      fetchWorkers();
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete user");
     }
   };
 
@@ -570,16 +599,28 @@ export default function AdminUsersPage() {
                       </div>
                     )}
                     
-                    {getWorkerStatus(selected) === "pending" && (
-                      <div className="flex gap-2 flex-wrap">
-                        <Button size="sm" onClick={() => approveWorker(selected)}>
-                          <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => openRejectionModal(selected)}>
-                          <XCircle className="h-4 w-4 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      {getWorkerStatus(selected) === "pending" && (
+                        <>
+                          <Button size="sm" onClick={() => approveWorker(selected)}>
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openRejectionModal(selected)}>
+                            <XCircle className="h-4 w-4 mr-1" /> Reject
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setUserToDelete(selected);
+                          setDeleteModalOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete User
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -627,8 +668,8 @@ export default function AdminUsersPage() {
               />
             </div>
             <div className="flex gap-2 justify-end">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setRejectionModalOpen(false);
                   setWorkerToReject(null);
@@ -637,7 +678,7 @@ export default function AdminUsersPage() {
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={() => {
                   if (workerToReject && rejectionReason.trim()) {
                     rejectWorker(workerToReject, rejectionReason.trim());
@@ -648,6 +689,44 @@ export default function AdminUsersPage() {
                 disabled={!rejectionReason.trim()}
               >
                 Reject Worker
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Modal */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600">
+              Are you sure you want to permanently delete <strong>{userToDelete?.displayName || userToDelete?.name || "this user"}</strong>?
+            </p>
+            <p className="text-sm text-red-600 font-medium">
+              This action cannot be undone. All user data will be permanently removed.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setUserToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (userToDelete) {
+                    deleteUser(userToDelete);
+                  }
+                }}
+              >
+                Delete User
               </Button>
             </div>
           </div>
