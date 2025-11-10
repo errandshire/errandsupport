@@ -19,7 +19,9 @@ import {
   X,
   Clock,
   Banknote,
-  CreditCard
+  CreditCard,
+  Calendar,
+  MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +44,13 @@ const sidebarItems = [
     title: "Manage Users",
     href: "/admin/users",
     icon: Users,
-    badge: "23",
+    badge: null,
+  },
+  {
+    title: "Messages",
+    href: "/admin/messages",
+    icon: MessageCircle,
+    badge: null,
   },
   {
     title: "Transactions",

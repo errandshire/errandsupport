@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Send, Image, Paperclip, Smile } from "lucide-react";
+import { Send, Image, Paperclip, Smile, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { realtimeMessagingService } from '@/lib/realtime-messaging-service';
@@ -30,12 +31,32 @@ export function ChatInterface({
   const [messages, setMessages] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [sending, setSending] = React.useState(false);
+  const [recipientRole, setRecipientRole] = React.useState<string>('');
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const conversationId = React.useMemo(() => {
     if (!user || !recipientId) return '';
     return [user.$id, recipientId].sort().join('_');
   }, [user, recipientId]);
+
+  // Fetch recipient role
+  React.useEffect(() => {
+    const fetchRecipientRole = async () => {
+      if (!recipientId) return;
+      try {
+        const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+        const recipient = await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          recipientId
+        );
+        setRecipientRole(recipient.role);
+      } catch (error) {
+        console.error('Error fetching recipient role:', error);
+      }
+    };
+    fetchRecipientRole();
+  }, [recipientId]);
 
   // Load messages and setup real-time updates
   React.useEffect(() => {
@@ -149,12 +170,26 @@ export function ChatInterface({
               {recipientName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h3 className="font-medium">{recipientName}</h3>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">{recipientName}</h3>
+              {recipientRole === 'admin' && (
+                <Badge className="bg-red-100 text-red-800 border-red-300">
+                  <Shield className="h-3 w-3 mr-1" />
+                  Admin
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-gray-500">
               {loading ? 'Loading...' : recipientEmail || 'No email available'}
             </p>
           </div>
+          {user?.role === 'admin' && (
+            <Badge className="bg-blue-100 text-blue-800 border-blue-300">
+              <Shield className="h-3 w-3 mr-1" />
+              You are Admin
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -173,6 +208,7 @@ export function ChatInterface({
           <div className="space-y-4">
             {messages.map((msg, index) => {
               const isMine = msg.senderId === user?.$id;
+              const isAdminMessage = (isMine && user?.role === 'admin') || (!isMine && recipientRole === 'admin');
               return (
                 <div
                   key={msg.id || index}
@@ -180,13 +216,29 @@ export function ChatInterface({
                 >
                   <div
                     className={`max-w-[80%] rounded-lg p-3 ${
-                      isMine 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-100 text-gray-900'
+                      isMine
+                        ? isAdminMessage
+                          ? 'bg-red-500 text-white'
+                          : 'bg-blue-500 text-white'
+                        : isAdminMessage
+                          ? 'bg-red-50 text-gray-900 border-2 border-red-200'
+                          : 'bg-gray-100 text-gray-900'
                     }`}
                   >
+                    {isAdminMessage && !isMine && (
+                      <div className="flex items-center gap-1 mb-1">
+                        <Badge className="bg-red-100 text-red-800 border-red-300 text-xs px-1.5 py-0">
+                          <Shield className="h-2.5 w-2.5 mr-0.5" />
+                          Admin
+                        </Badge>
+                      </div>
+                    )}
                     <p className="text-sm">{msg.content}</p>
-                    <div className={`flex items-center justify-between mt-1 ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
+                    <div className={`flex items-center justify-between mt-1 ${
+                      isMine
+                        ? isAdminMessage ? 'text-red-100' : 'text-blue-100'
+                        : 'text-gray-500'
+                    }`}>
                       <p className="text-xs">
                         {new Date(msg.createdAt).toLocaleTimeString()}
                       </p>

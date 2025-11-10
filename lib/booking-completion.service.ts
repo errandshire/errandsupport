@@ -154,6 +154,13 @@ export class BookingCompletionService {
         };
       }
 
+      if (booking.paymentStatus === 'refunded') {
+        return {
+          success: true,
+          message: 'Booking already refunded'
+        };
+      }
+
       if (booking.paymentStatus !== 'held') {
         return {
           success: false,
@@ -163,6 +170,35 @@ export class BookingCompletionService {
 
       // Get client wallet
       const wallet = await WalletService.getOrCreateWallet(clientId);
+
+      // IDEMPOTENCY: Try to create refund transaction first
+      const transactionId = `refund_${bookingId}`;
+      try {
+        await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WALLET_TRANSACTIONS,
+          transactionId,
+          {
+            userId: clientId,
+            type: 'booking_refund',
+            amount: booking.budgetAmount,
+            bookingId,
+            reference: transactionId,
+            status: 'completed',
+            description: `Refund for cancelled booking #${bookingId}`,
+            createdAt: new Date().toISOString()
+          }
+        );
+      } catch (error: any) {
+        if (error.code === 409 || error.message?.includes('already exists')) {
+          console.log(`⚠️ Booking ${bookingId} already refunded`);
+          return {
+            success: true,
+            message: 'Booking already refunded'
+          };
+        }
+        throw error;
+      }
 
       // Move funds from escrow back to balance
       await databases.updateDocument(
@@ -176,25 +212,7 @@ export class BookingCompletionService {
         }
       );
 
-      // Create refund transaction record
-      const { ID } = await import('appwrite');
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WALLET_TRANSACTIONS,
-        ID.unique(),
-        {
-          userId: clientId,
-          type: 'booking_refund',
-          amount: booking.budgetAmount,
-          bookingId,
-          reference: `refund_${bookingId}`,
-          status: 'completed',
-          description: `Refund for cancelled booking #${bookingId}`,
-          createdAt: new Date().toISOString()
-        }
-      );
-
-      // Update booking
+      // Update booking status
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
@@ -202,8 +220,8 @@ export class BookingCompletionService {
         {
           status: 'cancelled',
           paymentStatus: 'refunded',
-          cancellationReason: reason || 'Cancelled by client',
           cancelledAt: new Date().toISOString(),
+          cancellationReason: reason || 'Cancelled',
           updatedAt: new Date().toISOString()
         }
       );

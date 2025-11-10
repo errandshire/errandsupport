@@ -266,13 +266,13 @@ export default function AdminDisputesPage() {
                         Resolve
                       </Button>
                     )}
-                    <Link href={`/messages?userId=${dispute.clientId}`}>
+                    <Link href={`/admin/messages?userId=${dispute.clientId}`}>
                       <Button size="sm" variant="ghost" className="w-full">
                         <MessageSquare className="h-4 w-4 mr-1" />
                         Chat Client
                       </Button>
                     </Link>
-                    <Link href={`/messages?userId=${dispute.workerId}`}>
+                    <Link href={`/admin/messages?userId=${dispute.workerId}`}>
                       <Button size="sm" variant="ghost" className="w-full">
                         <MessageSquare className="h-4 w-4 mr-1" />
                         Chat Worker

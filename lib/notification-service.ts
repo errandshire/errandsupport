@@ -94,8 +94,23 @@ class NotificationService {
     }
 
     try {
-      // Check for recent duplicate notifications (last 5 minutes) if no idempotency key
-      if (!idempotencyKey) {
+      // Check for duplicate notifications using idempotency key first
+      if (idempotencyKey) {
+        const existingNotification = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.NOTIFICATIONS,
+          [
+            Query.equal('idempotencyKey', idempotencyKey),
+            Query.limit(1)
+          ]
+        );
+
+        if (existingNotification.documents.length > 0) {
+          console.log('Duplicate notification prevented (idempotency):', { userId, idempotencyKey });
+          return;
+        }
+      } else {
+        // Fallback: Check for recent duplicate notifications (last 5 minutes) if no idempotency key
         const recentNotifications = await databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.NOTIFICATIONS,
@@ -109,7 +124,7 @@ class NotificationService {
         );
 
         if (recentNotifications.documents.length > 0) {
-          console.log('Duplicate notification prevented:', { userId, title, message });
+          console.log('Duplicate notification prevented (content-based):', { userId, title, message });
           return;
         }
       }

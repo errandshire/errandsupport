@@ -253,13 +253,24 @@ export class DisputeService {
 
       // Handle payment based on resolution
       if (resolution === 'approve_worker') {
-        // Force approve and release payment to worker
-        const { BookingActionService } = await import('./booking-action-service');
-        await BookingActionService.confirmCompletion({
+        // Set booking back to worker_completed so payment can be released
+        await databases.updateDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.BOOKINGS,
+          dispute.bookingId,
+          {
+            status: 'worker_completed',
+            updatedAt: new Date().toISOString()
+          }
+        );
+
+        // Release payment to worker
+        const { BookingCompletionService } = await import('./booking-completion.service');
+        await BookingCompletionService.completeBooking({
           bookingId: dispute.bookingId,
-          userId: dispute.clientId,
-          userRole: 'admin',
-          action: 'force_approve'
+          clientId: dispute.clientId,
+          workerId: dispute.workerId,
+          amount: dispute.amount
         });
       } else if (resolution === 'refund_client') {
         // Refund to client

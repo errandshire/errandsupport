@@ -12,7 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight, Loader2, Eye, EyeOff } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight, Loader2, Eye, EyeOff, Check } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ClientWalletPage() {
@@ -35,7 +37,13 @@ export default function ClientWalletPage() {
   const [isProcessingWithdraw, setIsProcessingWithdraw] = React.useState(false);
   const [bankAccounts, setBankAccounts] = React.useState<any[]>([]);
   const [selectedBankAccount, setSelectedBankAccount] = React.useState('');
+
+  // Add bank modal
   const [showAddBankModal, setShowAddBankModal] = React.useState(false);
+  const [banks, setBanks] = React.useState<any[]>([]);
+  const [newBank, setNewBank] = React.useState({ accountNumber: '', bankCode: '', accountName: '' });
+  const [isVerifyingAccount, setIsVerifyingAccount] = React.useState(false);
+  const [isAddingBank, setIsAddingBank] = React.useState(false);
 
   // Redirect if not authenticated or not client
   React.useEffect(() => {
@@ -83,6 +91,40 @@ export default function ClientWalletPage() {
     }
   };
 
+  // Load banks list
+  const loadBanks = React.useCallback(async () => {
+    try {
+      const banksList = await PaystackService.getBanks();
+      setBanks(banksList);
+    } catch (error) {
+      console.error('Error loading banks:', error);
+    }
+  }, []);
+
+  // Load bank accounts
+  const loadBankAccounts = React.useCallback(async () => {
+    if (!user) return;
+    try {
+      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+      const { Query } = await import('appwrite');
+      const bankAccountsData = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BANK_ACCOUNTS,
+        [Query.equal('userId', user.$id)]
+      );
+      setBankAccounts(bankAccountsData.documents);
+    } catch (error) {
+      console.error('Error loading bank accounts:', error);
+    }
+  }, [user]);
+
+  // Load banks when modal opens
+  React.useEffect(() => {
+    if (showAddBankModal) {
+      loadBanks();
+    }
+  }, [showAddBankModal, loadBanks]);
+
   const handleTopUp = async () => {
     if (!user || !topUpAmount) {
       toast.error('Please enter an amount');
@@ -120,6 +162,81 @@ export default function ClientWalletPage() {
       console.error('Top-up error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to initialize payment');
       setIsProcessingTopUp(false);
+    }
+  };
+
+  // Verify account
+  const handleVerifyAccount = async () => {
+    if (!newBank.accountNumber || !newBank.bankCode) {
+      toast.error('Please enter account number and select bank');
+      return;
+    }
+
+    try {
+      setIsVerifyingAccount(true);
+      const result = await PaystackService.verifyBankAccount({
+        accountNumber: newBank.accountNumber,
+        bankCode: newBank.bankCode
+      });
+
+      setNewBank(prev => ({ ...prev, accountName: result.accountName }));
+      toast.success(`Account verified: ${result.accountName}`);
+    } catch (error) {
+      console.error('Verification error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to verify account');
+    } finally {
+      setIsVerifyingAccount(false);
+    }
+  };
+
+  // Add bank account
+  const handleAddBank = async () => {
+    if (!user || !newBank.accountNumber || !newBank.bankCode || !newBank.accountName) {
+      toast.error('Please verify account first');
+      return;
+    }
+
+    try {
+      setIsAddingBank(true);
+
+      // Create recipient on Paystack
+      const recipient = await PaystackService.createRecipient({
+        accountNumber: newBank.accountNumber,
+        bankCode: newBank.bankCode,
+        accountName: newBank.accountName
+      });
+
+      // Save to database
+      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
+      const { ID } = await import('appwrite');
+      const bankName = banks.find(b => b.code === newBank.bankCode)?.name || 'Unknown Bank';
+
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BANK_ACCOUNTS,
+        ID.unique(),
+        {
+          userId: user.$id,
+          accountNumber: newBank.accountNumber,
+          accountName: newBank.accountName,
+          bankName,
+          bankCode: newBank.bankCode,
+          paystackRecipientCode: recipient.recipientCode,
+          isDefault: bankAccounts.length === 0,
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      toast.success('Bank account added successfully');
+      setShowAddBankModal(false);
+      setNewBank({ accountNumber: '', bankCode: '', accountName: '' });
+      loadBankAccounts();
+
+    } catch (error) {
+      console.error('Add bank error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to add bank account');
+    } finally {
+      setIsAddingBank(false);
     }
   };
 
@@ -570,7 +687,7 @@ export default function ClientWalletPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Bank Account Modal - Reuse from worker wallet */}
+      {/* Add Bank Account Modal */}
       <Dialog open={showAddBankModal} onOpenChange={setShowAddBankModal}>
         <DialogContent>
           <DialogHeader>
@@ -579,12 +696,69 @@ export default function ClientWalletPage() {
               Add your bank account for withdrawals
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 text-center text-gray-600">
-            <p>Bank account setup coming soon!</p>
-            <p className="text-sm mt-2">Please contact support to add your bank account.</p>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="bank">Select Bank</Label>
+              <Select
+                value={newBank.bankCode}
+                onValueChange={(value) => setNewBank(prev => ({ ...prev, bankCode: value, accountName: '' }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose your bank" />
+                </SelectTrigger>
+                <SelectContent>
+                  {banks.map((bank) => (
+                    <SelectItem key={bank.code} value={bank.code}>
+                      {bank.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="accountNumber">Account Number</Label>
+              <Input
+                id="accountNumber"
+                placeholder="0123456789"
+                value={newBank.accountNumber}
+                onChange={(e) => setNewBank(prev => ({ ...prev, accountNumber: e.target.value, accountName: '' }))}
+                maxLength={10}
+              />
+            </div>
+
+            {newBank.accountNumber.length === 10 && newBank.bankCode && !newBank.accountName && (
+              <Button
+                onClick={handleVerifyAccount}
+                disabled={isVerifyingAccount}
+                variant="outline"
+                className="w-full"
+              >
+                {isVerifyingAccount ? 'Verifying...' : 'Verify Account'}
+              </Button>
+            )}
+
+            {newBank.accountName && (
+              <Alert>
+                <Check className="h-4 w-4" />
+                <AlertTitle>Account Verified</AlertTitle>
+                <AlertDescription>{newBank.accountName}</AlertDescription>
+              </Alert>
+            )}
           </div>
           <DialogFooter>
-            <Button onClick={() => setShowAddBankModal(false)}>Close</Button>
+            <Button variant="outline" onClick={() => {
+              setShowAddBankModal(false);
+              setNewBank({ accountNumber: '', bankCode: '', accountName: '' });
+            }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddBank}
+              disabled={!newBank.accountName || isAddingBank}
+            >
+              {isAddingBank ? 'Adding...' : 'Add Bank Account'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

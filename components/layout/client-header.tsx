@@ -46,7 +46,7 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
 
   const handleNotificationClick = async (notification: Notification) => {
     // Mark notification as read
-    await notificationService.markAsRead(notification.$id);
+    await notificationService.markAsRead(notification.id);
     
     // Use actionUrl if available, otherwise handle specific notification types
     if (notification.actionUrl) {
@@ -168,9 +168,9 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
                       No notifications
                     </div>
                   ) : (
-                    notifications.map((notification) => (
+                    notifications.map((notification, index) => (
                       <DropdownMenuItem
-                        key={notification.id}
+                        key={notification.id || `notification-${index}-${notification.createdAt}`}
                         onClick={() => handleNotificationClick(notification)}
                         className="p-3 cursor-pointer"
                       >
