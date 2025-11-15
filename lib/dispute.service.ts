@@ -1,6 +1,6 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { ID, Query } from 'appwrite';
-import { SMSService } from './sms.service';
+import { TermiiSMSService } from './termii-sms.service';
 
 /**
  * DISPUTE SERVICE
@@ -111,7 +111,7 @@ export class DisputeService {
             workerId
           );
           if (workerUser.phone) {
-            await SMSService.sendDisputeNotification(workerUser.phone, {
+            await TermiiSMSService.sendDisputeNotification(workerUser.phone, {
               bookingId,
               status: 'raised',
               role: 'worker'

@@ -1,6 +1,6 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { WalletService } from './wallet.service';
-import { SMSService } from './sms.service';
+import { TermiiSMSService } from './termii-sms.service';
 
 /**
  * BOOKING COMPLETION SERVICE
@@ -99,7 +99,7 @@ export class BookingCompletionService {
             workerId
           );
           if (workerUser.phone) {
-            await SMSService.sendPaymentNotification(workerUser.phone, {
+            await TermiiSMSService.sendPaymentNotification(workerUser.phone, {
               amount,
               type: 'received',
               reference: bookingId

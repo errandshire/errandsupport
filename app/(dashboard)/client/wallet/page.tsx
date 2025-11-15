@@ -346,9 +346,9 @@ export default function ClientWalletPage() {
 
       // Send SMS notification
       try {
-        const { SMSService } = await import('@/lib/sms.service');
+        const { TermiiSMSService } = await import('@/lib/termii-sms.service');
         if (user.phone) {
-          await SMSService.sendPaymentNotification(user.phone, {
+          await TermiiSMSService.sendPaymentNotification(user.phone, {
             amount: amountToReceive,
             type: 'withdrawal',
             reference
