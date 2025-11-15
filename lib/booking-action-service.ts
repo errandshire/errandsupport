@@ -1,5 +1,7 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { BookingCompletionService } from './booking-completion.service';
+import { notificationService } from './notification-service';
+import { TermiiSMSService } from './termii-sms.service';
 
 /**
  * BOOKING ACTION SERVICE
@@ -25,6 +27,12 @@ export class BookingActionService {
     try {
       const { bookingId } = params;
 
+      const booking = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId
+      );
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
@@ -35,6 +43,40 @@ export class BookingActionService {
           updatedAt: new Date().toISOString()
         }
       );
+
+      // Send notifications to client
+      try {
+        const [worker, client] = await Promise.all([
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+        ]);
+
+        // In-app notification
+        await notificationService.createNotification({
+          userId: booking.clientId,
+          title: 'Booking Accepted',
+          message: `${worker.name} accepted your booking for "${booking.title}"`,
+          type: 'success',
+          bookingId,
+          idempotencyKey: `booking_accepted_${bookingId}`
+        });
+
+        // SMS notification
+        if (client.phone) {
+          await TermiiSMSService.sendBookingNotification(client.phone, {
+            service: booking.title,
+            date: new Date(booking.scheduledDate).toLocaleDateString(),
+            status: 'accepted',
+            workerName: worker.name
+          });
+        }
+
+        // Email notification
+        const { BookingNotificationService } = await import('./booking-notification-service');
+        await BookingNotificationService.notifyBookingAccepted(bookingId, booking.clientId, booking.workerId, booking);
+      } catch (notifError) {
+        console.error('Notification error:', notifError);
+      }
 
       return {
         success: true,
@@ -89,6 +131,12 @@ export class BookingActionService {
     try {
       const { bookingId } = params;
 
+      const booking = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId
+      );
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
@@ -99,6 +147,36 @@ export class BookingActionService {
           updatedAt: new Date().toISOString()
         }
       );
+
+      // Send notifications to client
+      try {
+        const [worker, client] = await Promise.all([
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+        ]);
+
+        await notificationService.createNotification({
+          userId: booking.clientId,
+          title: 'Work Started',
+          message: `${worker.name} started working on "${booking.title}"`,
+          type: 'info',
+          bookingId,
+          idempotencyKey: `work_started_${bookingId}`
+        });
+
+        if (client.phone) {
+          await TermiiSMSService.sendSMS({
+            to: client.phone,
+            message: `ErandWork: ${worker.name} started work on "${booking.title}". Track progress in your dashboard.`
+          });
+        }
+
+        // Email notification
+        const { BookingNotificationService } = await import('./booking-notification-service');
+        await BookingNotificationService.notifyWorkStarted(bookingId, booking.clientId, booking.workerId, booking);
+      } catch (notifError) {
+        console.error('Notification error:', notifError);
+      }
 
       return {
         success: true,
@@ -121,6 +199,12 @@ export class BookingActionService {
     try {
       const { bookingId } = params;
 
+      const booking = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId
+      );
+
       // Just update status to worker_completed - DO NOT release payment yet
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -132,6 +216,38 @@ export class BookingActionService {
           updatedAt: new Date().toISOString()
         }
       );
+
+      // Send notifications to client
+      try {
+        const [worker, client] = await Promise.all([
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+        ]);
+
+        await notificationService.createNotification({
+          userId: booking.clientId,
+          title: 'Work Completed',
+          message: `${worker.name} completed "${booking.title}". Please review and confirm to release payment.`,
+          type: 'warning',
+          bookingId,
+          idempotencyKey: `work_completed_${bookingId}`
+        });
+
+        if (client.phone) {
+          await TermiiSMSService.sendBookingNotification(client.phone, {
+            service: booking.title,
+            date: new Date().toLocaleDateString(),
+            status: 'completed',
+            workerName: worker.name
+          });
+        }
+
+        // Email notification
+        const { BookingNotificationService } = await import('./booking-notification-service');
+        await BookingNotificationService.notifyWorkCompleted(bookingId, booking.clientId, booking.workerId, booking);
+      } catch (notifError) {
+        console.error('Notification error:', notifError);
+      }
 
       return {
         success: true,

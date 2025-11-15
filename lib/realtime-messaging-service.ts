@@ -329,13 +329,14 @@ class RealtimeMessagingService {
   private async createMessageNotification(recipientId: string, senderId: string, content: string) {
     try {
       const senderInfo = await this.getUserInfo(senderId);
-      
+
       // Get recipient user info to determine role-based path
       const recipientInfo = await this.getUserInfo(recipientId);
-      const messagesPath = recipientInfo.role === 'worker' 
+      const messagesPath = recipientInfo.role === 'worker'
         ? `/worker/messages?sender=${senderId}`
         : `/client/messages?sender=${senderId}`;
-      
+
+      // In-app notification
       await notificationService.createNotification({
         userId: recipientId,
         title: `New message from ${senderInfo.name}`,
@@ -345,6 +346,15 @@ class RealtimeMessagingService {
         recipientId: recipientId,
         actionUrl: messagesPath
       });
+
+      // SMS notification
+      if (recipientInfo.phone) {
+        const { TermiiSMSService } = await import('./termii-sms.service');
+        await TermiiSMSService.sendSMS({
+          to: recipientInfo.phone,
+          message: `ErandWork: New message from ${senderInfo.name}. Check your inbox.`
+        }).catch(err => console.error('SMS error:', err));
+      }
     } catch (error) {
       console.error('Error creating message notification:', error);
     }

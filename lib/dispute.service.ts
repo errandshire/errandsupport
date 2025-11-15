@@ -117,6 +117,16 @@ export class DisputeService {
               role: 'worker'
             });
           }
+
+          // Send email notification
+          const { emailService } = await import('./email-service');
+          await emailService.sendDisputeRaisedEmail({
+            to: workerUser.email,
+            workerName: workerUser.name,
+            bookingId,
+            category,
+            clientStatement
+          });
         } catch (smsError) {
           console.error('Failed to send SMS:', smsError);
         }
@@ -314,6 +324,30 @@ export class DisputeService {
           actionUrl: `/worker/bookings`,
           idempotencyKey: `dispute_resolved_worker_${disputeId}`
         });
+
+        // Send email notifications
+        const [clientUser, workerUser] = await Promise.all([
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, dispute.clientId),
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, dispute.workerId)
+        ]);
+
+        const { emailService } = await import('./email-service');
+        await Promise.all([
+          emailService.sendDisputeResolvedEmail({
+            to: clientUser.email,
+            userName: clientUser.name,
+            bookingId: dispute.bookingId,
+            resolution: messages[resolution],
+            role: 'client'
+          }),
+          emailService.sendDisputeResolvedEmail({
+            to: workerUser.email,
+            userName: workerUser.name,
+            bookingId: dispute.bookingId,
+            resolution: messages[resolution],
+            role: 'worker'
+          })
+        ]);
       } catch (error) {
         console.error('Failed to send notifications:', error);
       }

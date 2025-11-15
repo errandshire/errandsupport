@@ -105,6 +105,15 @@ export class BookingCompletionService {
               reference: bookingId
             });
           }
+
+          // Send email notification
+          const { BookingNotificationService } = await import('./booking-notification-service');
+          const booking = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.BOOKINGS,
+            bookingId
+          );
+          await BookingNotificationService.notifyPaymentReleased(bookingId, workerId, clientId, booking, amount);
         } catch (smsError) {
           console.error('Failed to send SMS:', smsError);
         }
