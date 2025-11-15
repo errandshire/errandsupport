@@ -79,16 +79,12 @@ export function useAuth() {
         // No active session to delete, which is fine
       }
       
-      console.log('Creating session for:', data.email);
       // Create new session
       const session = await account.createEmailPasswordSession(data.email, data.password);
-      console.log('Session created:', session);
       
       if (session) {
         // Fetch user profile
-        console.log('Fetching user profile for ID:', session.userId);
         const userProfile = await getUserProfile(session.userId);
-        console.log('User profile fetched:', userProfile);
         
         setUser(userProfile);
         setAuthenticated(true);
@@ -160,7 +156,6 @@ export function useAuth() {
           profileData.userId
         );
         if (existingProfile) {
-          console.log('User profile already exists:', profileData.userId);
           return existingProfile as unknown as User;
         }
       } catch (error) {

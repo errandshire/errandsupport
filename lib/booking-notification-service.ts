@@ -1,5 +1,5 @@
 import { databases, COLLECTIONS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 /**
  * Booking Notification Service
@@ -76,7 +76,6 @@ export class BookingNotificationService {
         actionUrl: `${process.env.NEXT_PUBLIC_APP_URL}/client/bookings/${bookingId}`
       });
 
-      console.log(`✅ Booking acceptance notifications sent to client ${clientId}`);
 
     } catch (error) {
       console.error('❌ Failed to send booking acceptance notifications:', error);
@@ -125,7 +124,6 @@ export class BookingNotificationService {
         actionUrl: `${process.env.NEXT_PUBLIC_APP_URL}/client/bookings/${bookingId}`
       });
 
-      console.log(`✅ Work started notifications sent to client ${clientId}`);
 
     } catch (error) {
       console.error('❌ Failed to send work started notifications:', error);
@@ -175,7 +173,6 @@ export class BookingNotificationService {
         amount: bookingData.budgetAmount
       });
 
-      console.log(`✅ Work completion notifications sent to client ${clientId}`);
 
     } catch (error) {
       console.error('❌ Failed to send work completion notifications:', error);
@@ -225,7 +222,6 @@ export class BookingNotificationService {
         amount
       });
 
-      console.log(`✅ Payment release notifications sent to worker ${workerId}`);
 
     } catch (error) {
       console.error('❌ Failed to send payment release notifications:', error);
@@ -286,7 +282,6 @@ export class BookingNotificationService {
         throw new Error(`Resend API error: ${error}`);
       }
 
-      console.log(`✅ Email sent successfully to ${data.to}`);
 
     } catch (error) {
       console.error('❌ Failed to send email notification:', error);
@@ -429,9 +424,9 @@ export class BookingNotificationService {
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         [
-          { attribute: 'userId', value: userId },
-          { attribute: '$createdAt', value: 'desc' },
-          { attribute: '$limit', value: limit }
+          Query.equal('userId', userId),
+          Query.orderDesc('$createdAt'),
+          Query.limit(limit)
         ]
       );
 
@@ -473,8 +468,8 @@ export class BookingNotificationService {
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         [
-          { attribute: 'userId', value: userId },
-          { attribute: 'status', value: 'unread' }
+          Query.equal('userId', userId),
+          Query.equal('status', 'unread')
         ]
       );
 

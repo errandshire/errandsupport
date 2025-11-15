@@ -152,7 +152,6 @@ export default function AdminUsersPage() {
 
         try {
           await emailService.sendWorkerApprovalEmail(emailData);
-          console.log("Approval email sent successfully");
         } catch (emailError) {
           console.error("Failed to send approval email:", emailError);
           // Don't fail the approval if email fails
@@ -168,7 +167,6 @@ export default function AdminUsersPage() {
           type: "success",
           actionUrl: "/worker/dashboard"
         });
-        console.log("Approval notification created successfully");
       } catch (notificationError) {
         console.error("Failed to create approval notification:", notificationError);
         // Don't fail the approval if notification fails
@@ -221,7 +219,6 @@ export default function AdminUsersPage() {
 
         try {
           await emailService.sendWorkerRejectionEmail(emailData);
-          console.log("Rejection email sent successfully");
         } catch (emailError) {
           console.error("Failed to send rejection email:", emailError);
           // Don't fail the rejection if email fails
@@ -237,7 +234,6 @@ export default function AdminUsersPage() {
           type: "warning",
           actionUrl: "/worker/profile"
         });
-        console.log("Rejection notification created successfully");
       } catch (notificationError) {
         console.error("Failed to create rejection notification:", notificationError);
         // Don't fail the rejection if notification fails
@@ -268,7 +264,6 @@ export default function AdminUsersPage() {
         if (error?.code !== 404) {
           throw error;
         }
-        console.log("User document already deleted or not found");
       }
 
       // Delete worker document

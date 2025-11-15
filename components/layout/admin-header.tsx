@@ -67,8 +67,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebar
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
           {/* Logo */}
-          <Link href="/admin/dashboard" className="flex items-center">
-            <span className="text-lg md:text-xl font-bold text-black">Admin Portal</span>
+          <Link href="/admin/dashboard" className="flex items-center space-x-2">
+            <img
+              src="/errandworklogo.png"
+              alt="ErandWork"
+              className="h-8 w-auto"
+            />
+            <span className="text-sm md:text-base font-medium text-neutral-600">
+              Admin Portal
+            </span>
           </Link>
           {/* Spacer */}
           <div className="flex-1" />

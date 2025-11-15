@@ -52,6 +52,10 @@ export interface WorkerProfile {
   responseTimeMinutes?: number; // Optional since it's not in your data
   ratingAverage?: number; // Optional since it's not in your data
   totalReviews?: number; // Optional since it's not in your data
+  workingHoursStart?: string; // Optional availability field
+  workingHoursEnd?: string; // Optional availability field
+  acceptsLastMinute?: boolean; // Optional availability field
+  acceptsWeekends?: boolean; // Optional availability field
 }
 
 export interface BookingRequest {

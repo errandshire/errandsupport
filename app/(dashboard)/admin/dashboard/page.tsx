@@ -187,13 +187,11 @@ export default function AdminDashboard() {
 
   // Handle actions
   const handleApprove = React.useCallback((id: string) => {
-    console.log('Approve registration:', id);
     toast.success('Registration approved successfully');
     // In production, would make API call and refresh data
   }, []);
 
   const handleReview = React.useCallback((id: string) => {
-    console.log('Review registration:', id);
     // In production, would navigate to detailed review page
   }, []);
 

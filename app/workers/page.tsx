@@ -89,7 +89,6 @@ function WorkersPageContent() {
         );
 
         if (response.documents.length === 0) {
-          console.log('No approved workers found in the database');
         }
 
         setWorkers(response.documents as unknown as WorkerProfile[]);
@@ -108,16 +107,13 @@ function WorkersPageContent() {
   useEffect(() => {
     async function fetchWalletBalance() {
       if (!user || user.role !== 'client') {
-        console.log('[Wallet Balance] Skipped - user:', user?.role);
         return;
       }
 
-      console.log('[Wallet Balance] Fetching for user:', user.$id);
 
       try {
         const { WalletService } = await import('@/lib/wallet.service');
         const wallet = await WalletService.getOrCreateWallet(user.$id);
-        console.log('[Wallet Balance] Loaded:', wallet.balance);
         setWalletBalance(wallet.balance);
       } catch (error) {
         console.error('[Wallet Balance] Error:', error);
@@ -240,13 +236,11 @@ function WorkersPageContent() {
           console.error('Failed to send SMS:', smsError);
         }
 
-        console.log('✅ Notification sent to worker');
       } catch (notificationError) {
         console.error('Failed to send notification:', notificationError);
       }
 
       toast.success("Booking created! Payment held securely.");
-      console.log('✅ Booking created with wallet payment');
 
       // Refresh wallet balance
       const wallet = await WalletService.getOrCreateWallet(user.$id);
@@ -278,11 +272,7 @@ function WorkersPageContent() {
     // Check wallet balance before opening booking modal
     const estimatedCost = worker.hourlyRate || 5000; // Use hourly rate or default
 
-    console.log('[Book Worker] Check:', {
-      walletBalance,
-      estimatedCost,
-      workerRate: worker.hourlyRate
-    });
+   
 
     // If wallet balance hasn't loaded yet, show loading message
     if (walletBalance === null || walletBalance === undefined) {

@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
     }
 
     const event = JSON.parse(body);
-    console.log(`📥 Paystack webhook: ${event.event}`);
 
     // Handle different event types
     switch (event.event) {
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
         break;
 
       default:
-        console.log(`ℹ️ Unhandled event type: ${event.event}`);
     }
 
     return NextResponse.json({ status: 'success' });
@@ -71,7 +69,6 @@ async function handleChargeSuccess(data: any) {
     // Amount from Paystack is in kobo, convert to Naira
     const amountInNaira = amount / 100;
 
-    console.log(`💰 Processing wallet top-up: ₦${amountInNaira} (ref: ${reference})`);
 
     // Check if this is a wallet top-up
     if (metadata?.type === 'wallet_topup' && metadata?.userId) {
@@ -83,12 +80,10 @@ async function handleChargeSuccess(data: any) {
       });
 
       if (result.success) {
-        console.log(`✅ Wallet credited: ${result.message}`);
       } else {
         console.error(`❌ Failed to credit wallet: ${result.message}`);
       }
     } else {
-      console.log(`ℹ️ Not a wallet top-up, skipping`);
     }
 
   } catch (error) {
@@ -104,7 +99,6 @@ async function handleTransferSuccess(data: any) {
   try {
     const { reference, amount, recipient } = data;
 
-    console.log(`✅ Transfer successful: ${reference}`);
 
     // Find withdrawal by reference
     const withdrawals = await databases.listDocuments(
@@ -143,7 +137,6 @@ async function handleTransferSuccess(data: any) {
         }
       );
 
-      console.log(`✅ Withdrawal ${withdrawal.$id} marked as completed`);
     }
 
   } catch (error) {
@@ -159,7 +152,6 @@ async function handleTransferFailed(data: any) {
   try {
     const { reference, reason } = data;
 
-    console.log(`❌ Transfer failed: ${reference} - ${reason}`);
 
     // Find withdrawal by reference
     const withdrawals = await databases.listDocuments(
@@ -195,7 +187,6 @@ async function handleTransferFailed(data: any) {
         }
       );
 
-      console.log(`✅ Withdrawal ${withdrawal.$id} failed, funds refunded to wallet`);
     }
 
   } catch (error) {

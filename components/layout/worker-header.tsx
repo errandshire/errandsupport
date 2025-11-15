@@ -99,8 +99,15 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
           {/* Logo */}
-          <Link href="/worker/dashboard" className="flex items-center">
-            <span className="text-lg md:text-xl font-bold text-black">Worker Portal</span>
+          <Link href="/worker/dashboard" className="flex items-center space-x-2">
+            <img
+              src="/errandworklogo.png"
+              alt="ErandWork"
+              className="h-8 w-auto"
+            />
+            <span className="text-sm md:text-base font-medium text-neutral-600">
+              Worker Portal
+            </span>
           </Link>
           {/* Spacer */}
           <div className="flex-1" />

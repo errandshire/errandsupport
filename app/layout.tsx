@@ -53,12 +53,30 @@ export const metadata: Metadata = {
   authors: [{ name: "Errand Support Platform" }],
   creator: "Errand Support Platform",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://erandwork.com"),
+  icons: {
+    icon: [
+      { url: '/errandworklogo.png' },
+      { url: '/errandworklogo.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/errandworklogo.png' },
+    ],
+    shortcut: ['/errandworklogo.png'],
+  },
   openGraph: {
     title: "Errand Support Platform - Premium Marketplace for Local Services",
     description: "Premium web-based marketplace connecting clients with local errand-support workers.",
     type: "website",
     locale: "en_US",
     siteName: "Errand Support Platform",
+    images: [
+      {
+        url: '/errandworklogo.png',
+        width: 1200,
+        height: 630,
+        alt: 'ErandWork Logo',
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",

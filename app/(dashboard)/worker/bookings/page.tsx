@@ -61,7 +61,6 @@ export default function WorkerJobsPage() {
       setIsLoading(true);
       setError(null);
 
-      console.log("Fetching bookings for worker:", user.$id);
 
       const response = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -72,7 +71,6 @@ export default function WorkerJobsPage() {
         ]
       );
 
-      console.log("Raw bookings response:", response.documents);
 
       // Map the bookings to match our flattened structure
       const mappedBookings = response.documents.map(doc => ({
@@ -100,7 +98,6 @@ export default function WorkerJobsPage() {
         clientConfirmedAt: doc.clientConfirmedAt
       }));
 
-      console.log("Mapped bookings:", mappedBookings);
       setBookings(mappedBookings);
     } catch (err) {
       console.error('Error fetching bookings:', err);

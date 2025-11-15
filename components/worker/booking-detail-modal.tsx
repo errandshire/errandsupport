@@ -91,7 +91,6 @@ export function BookingDetailModal({
   // Debug logging
   React.useEffect(() => {
     if (booking) {
-      console.log("Booking Detail Modal - Raw booking:", booking);
     }
   }, [booking]);
 
@@ -104,7 +103,6 @@ export function BookingDetailModal({
 
     try {
       setLoading(true);
-      console.log("Fetching client info for ID:", clientId);
 
       const response = await databases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -112,7 +110,6 @@ export function BookingDetailModal({
         clientId
       );
 
-      console.log("Client info response:", response);
       setClientInfo(response);
     } catch (error) {
       console.error('Error fetching client info:', error);
@@ -253,13 +250,7 @@ export function BookingDetailModal({
     const clientId = b.clientId || b.client;
     const workerId = b.workerId || user.$id; // Fallback to current user
     
-    console.log('🔍 Accept booking validation:', {
-      booking: b,
-      bookingId,
-      clientId,
-      workerId,
-      userRole: user.role
-    });
+    
     
     if (!bookingId) {
       console.error('Missing booking ID:', { booking: b });
@@ -329,13 +320,7 @@ export function BookingDetailModal({
     const clientId = b.clientId || b.client;
     const workerId = b.workerId || user.$id; // Fallback to current user
     
-    console.log('🔍 Reject booking validation:', {
-      booking: b,
-      bookingId,
-      clientId,
-      workerId,
-      userRole: user.role
-    });
+   
     
     if (!bookingId) {
       console.error('Missing booking ID:', { booking: b });
@@ -398,13 +383,7 @@ export function BookingDetailModal({
     const clientId = b.clientId || b.client;
     const workerId = b.workerId || user.$id; // Fallback to current user
     
-    console.log('🔍 Start work validation:', {
-      booking: b,
-      bookingId,
-      clientId,
-      workerId,
-      userRole: user.role
-    });
+    
     
     if (!bookingId) {
       console.error('Missing booking ID:', { booking: b });
@@ -462,13 +441,7 @@ export function BookingDetailModal({
     const clientId = b.clientId || b.client;
     const workerId = b.workerId || user.$id; // Fallback to current user
     
-    console.log('🔍 Mark completed validation:', {
-      booking: b,
-      bookingId,
-      clientId,
-      workerId,
-      userRole: user.role
-    });
+   
     
     if (!bookingId) {
       console.error('Missing booking ID:', { booking: b });

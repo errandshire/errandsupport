@@ -230,10 +230,10 @@ export default function WorkerProfilePage() {
             address: profile.address,
             city: profile.city,
             state: profile.state,
-            workingHoursStart: profile.availability?.startTime,
-            workingHoursEnd: profile.availability?.endTime,
-            acceptsLastMinute: profile.availability?.acceptsUrgent || false,
-            acceptsWeekends: profile.availability?.weekends || false,
+            workingHoursStart: profile.workingHoursStart,
+            workingHoursEnd: profile.workingHoursEnd,
+            acceptsLastMinute: profile.acceptsLastMinute || false,
+            acceptsWeekends: profile.acceptsWeekends || false,
           });
         }
       } catch (error) {
@@ -269,11 +269,9 @@ export default function WorkerProfilePage() {
   };
 
   const handleFieldSave = (fieldName: string, value: any) => {
-    console.log(`Saving field ${fieldName} with value:`, value);
     
     setFormData(prev => {
       const newData = { ...prev, [fieldName]: value };
-      console.log('New form data:', newData);
       return newData;
     });
     
@@ -284,7 +282,6 @@ export default function WorkerProfilePage() {
     });
     
     setHasChanges(true);
-    console.log('hasChanges set to true');
   };
 
   const handleFieldCancel = (fieldName: string) => {
@@ -297,13 +294,11 @@ export default function WorkerProfilePage() {
 
   const handleSaveAllChanges = async () => {
     if (!workerProfile || !hasChanges) {
-      console.log('No changes to save or no worker profile');
       return;
     }
 
     try {
       setIsSaving(true);
-      console.log('Saving changes:', formData);
       
       const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
       
@@ -313,9 +308,7 @@ export default function WorkerProfilePage() {
         updatedAt: new Date().toISOString()
       };
 
-      console.log('Update data:', updateData);
-      console.log('Worker profile ID:', (workerProfile as any).$id);
-
+      
       // Save to backend database
       const result = await databases.updateDocument(
         DATABASE_ID,
@@ -324,7 +317,6 @@ export default function WorkerProfilePage() {
         updateData
       );
 
-      console.log('Update result:', result);
 
       // Update local state after successful save
       setWorkerProfile(prev => prev ? { ...prev, ...updateData } : null);

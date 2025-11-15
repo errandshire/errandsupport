@@ -30,14 +30,11 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
       const email = formData.get("email") as string;
       const password = formData.get("password") as string;
 
-      console.log('Attempting login with:', { email, callbackUrl });
       
       // Use real authentication
       const result = await login({ email, password });
-      console.log('Login result:', result);
       
       if (result.success) {
-        console.log('Login successful, redirecting to:', callbackUrl || '/dashboard');
         toast.success("Logged in successfully!");
         
         // Small delay to ensure auth state is set

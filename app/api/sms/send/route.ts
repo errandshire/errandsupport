@@ -22,11 +22,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Send SMS using server-side environment variables
-    console.log('📱 SMS API called - sending to:', to);
     const result = await TermiiSMSService.sendSMS({ to, message });
 
     if (result.success) {
-      console.log('✅ SMS sent successfully:', result.messageId);
       return NextResponse.json(result);
     } else {
       console.error('❌ SMS failed:', result.error);

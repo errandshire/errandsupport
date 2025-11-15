@@ -484,7 +484,6 @@ class EmailService {
       }
 
       const result = await response.json();
-      console.log('Email sent successfully:', { to, subject, messageId: result.messageId });
       return true;
     } catch (error) {
       console.error('Failed to send email:', { to, subject, error });

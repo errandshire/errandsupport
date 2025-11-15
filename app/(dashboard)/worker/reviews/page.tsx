@@ -161,7 +161,6 @@ export default function WorkerReviewsPage() {
     if (!replyText.trim()) return;
     
     // Here you would normally send the reply to your backend
-    console.log(`Reply to review ${reviewId}:`, replyText);
     
     setReplyingTo(null);
     setReplyText("");
@@ -338,11 +337,11 @@ export default function WorkerReviewsPage() {
                           <div className="flex items-start space-x-3">
                             <Avatar className="w-10 h-10">
                               <AvatarImage src={review.clientAvatar} />
-                              <AvatarFallback>{review.clientName.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{review.clientName?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
                             <div>
                               <div className="flex items-center space-x-2 mb-1">
-                                <h3 className="font-medium text-neutral-900">{review.clientName}</h3>
+                                <h3 className="font-medium text-neutral-900">{review.clientName || 'Anonymous'}</h3>
                                 {review.verified && (
                                   <Badge variant="outline" className="text-green-600">
                                     Verified
@@ -370,7 +369,7 @@ export default function WorkerReviewsPage() {
                             <div className="flex items-center space-x-2 mb-2">
                               <Badge variant="outline">Your Response</Badge>
                             </div>
-                            <p className="text-sm text-neutral-700">{review.response}</p>
+                            <p className="text-sm text-neutral-700">{review.response.comment}</p>
                           </div>
                         )}
                         
@@ -441,11 +440,11 @@ export default function WorkerReviewsPage() {
                           <div className="flex items-start space-x-3">
                             <Avatar className="w-10 h-10">
                               <AvatarImage src={review.clientAvatar} />
-                              <AvatarFallback>{review.clientName.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{review.clientName?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
                             <div>
                               <div className="flex items-center space-x-2 mb-1">
-                                <h3 className="font-medium text-neutral-900">{review.clientName}</h3>
+                                <h3 className="font-medium text-neutral-900">{review.clientName || 'Anonymous'}</h3>
                                 {review.verified && (
                                   <Badge variant="outline" className="text-green-600">
                                     Verified
@@ -470,7 +469,7 @@ export default function WorkerReviewsPage() {
                             <div className="flex items-center space-x-2 mb-2">
                               <Badge variant="outline">Your Response</Badge>
                             </div>
-                            <p className="text-sm text-neutral-700">{review.response}</p>
+                            <p className="text-sm text-neutral-700">{review.response.comment}</p>
                           </div>
                         )}
                         
@@ -508,11 +507,11 @@ export default function WorkerReviewsPage() {
                           <div className="flex items-start space-x-3">
                             <Avatar className="w-10 h-10">
                               <AvatarImage src={review.clientAvatar} />
-                              <AvatarFallback>{review.clientName.charAt(0)}</AvatarFallback>
+                              <AvatarFallback>{review.clientName?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
                             <div>
                               <div className="flex items-center space-x-2 mb-1">
-                                <h3 className="font-medium text-neutral-900">{review.clientName}</h3>
+                                <h3 className="font-medium text-neutral-900">{review.clientName || 'Anonymous'}</h3>
                                 <Badge variant="outline" className="text-yellow-600">
                                   Needs Response
                                 </Badge>

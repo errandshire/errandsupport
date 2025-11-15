@@ -14,12 +14,10 @@ const EMAIL_CONFIG = {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('📧 Email API called');
     
     const body = await request.json();
     const { to, subject, html, type, data } = body;
 
-    console.log('📧 Email request data:', { to, subject, type });
 
     // Validate required fields
     if (!to || !subject || !html) {
@@ -49,10 +47,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Resend API key found, attempting to send email');
 
     // Send email via Resend
-    console.log('📧 Sending email via Resend...');
     const result = await resend.emails.send({
       from: EMAIL_CONFIG.from,
       to,
@@ -61,12 +57,7 @@ export async function POST(request: NextRequest) {
       replyTo: EMAIL_CONFIG.replyTo
     });
 
-    console.log('📧 Email sent successfully:', {
-      to,
-      subject,
-      messageId: result.data?.id,
-      type
-    });
+    
 
     return NextResponse.json({
       success: true,

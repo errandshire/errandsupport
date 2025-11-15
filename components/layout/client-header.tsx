@@ -101,16 +101,16 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
           </Button>
 
           {/* Logo */}
-          <Link href="/client" className="flex items-center">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center lg:hidden">
-                <span className="text-white font-bold text-sm">EP</span>
-              </div>
-              <span className="text-lg lg:text-xl font-bold text-black">
-                <span className="hidden sm:inline">Client Portal</span>
-                <span className="sm:hidden">Portal</span>
-              </span>
-            </div>
+          <Link href="/client" className="flex items-center space-x-2">
+            <img
+              src="/errandworklogo.png"
+              alt="ErandWork"
+              className="h-8 w-auto"
+            />
+            <span className="text-sm lg:text-base font-medium text-neutral-600">
+              <span className="hidden sm:inline">Client Portal</span>
+              <span className="sm:hidden">Portal</span>
+            </span>
           </Link>
 
           {/* Spacer for mobile */}

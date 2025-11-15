@@ -142,7 +142,6 @@ export class BookingCompletionService {
         console.error('Failed to send notification:', error);
       }
 
-      console.log(`✅ Booking ${bookingId} completed, ₦${amount} released to worker ${workerId}`);
 
       return {
         success: true,
@@ -221,7 +220,6 @@ export class BookingCompletionService {
         );
       } catch (error: any) {
         if (error.code === 409 || error.message?.includes('already exists')) {
-          console.log(`⚠️ Booking ${bookingId} already refunded`);
           return {
             success: true,
             message: 'Booking already refunded'
@@ -256,7 +254,6 @@ export class BookingCompletionService {
         }
       );
 
-      console.log(`✅ Booking ${bookingId} cancelled, ₦${booking.budgetAmount} refunded to ${clientId}`);
 
       return {
         success: true,

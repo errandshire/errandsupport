@@ -207,11 +207,9 @@ export default function WorkerDashboard() {
     if (!user) return;
     
     try {
-      console.log('📊 Loading dashboard data...', { force, userId: user.$id });
       
       if (force) {
         setIsRefreshing(true);
-        console.log('🗑️ Cleared cache for force refresh');
       } else {
         setIsLoading(true);
       }
@@ -219,12 +217,7 @@ export default function WorkerDashboard() {
       const { workerDashboardService } = await import('@/lib/worker-dashboard-service');
       const { stats, bookings, balance } = await workerDashboardService.getDashboardData(user.$id);
       
-      console.log('📋 Dashboard data loaded:', {
-        availableCount: bookings.availableBookings.length,
-        acceptedCount: bookings.acceptedBookings.length,
-        availableBookings: bookings.availableBookings.map(b => ({ id: b.$id, status: b.status })),
-        acceptedBookings: bookings.acceptedBookings.map(b => ({ id: b.$id, status: b.status }))
-      });
+     
       
       setStats(stats);
       setAvailableBookings(bookings.availableBookings);
@@ -275,7 +268,6 @@ export default function WorkerDashboard() {
 
   // Handle booking actions
   const handleViewBooking = React.useCallback((booking: ProcessedBooking) => {
-    console.log('🔍 handleViewBooking called with:', booking);
     
     const locationAddress = (booking.location && (booking.location as any).address) || '';
 
@@ -316,19 +308,16 @@ export default function WorkerDashboard() {
       clientEmail: booking.clientEmail
     };
     
-    console.log('📋 Transformed booking for modal:', flattenedBooking);
     
     setSelectedBooking(flattenedBooking);
     setShowBookingDetail(true);
     
-    console.log('✅ Modal should now be open');
   }, [user]);
 
   const handleAcceptBooking = React.useCallback(async (booking: ProcessedBooking) => {
     if (!user) return;
 
     try {
-      console.log('🚀 Starting accept booking process:', { bookingId: booking.$id, userId: user.$id });
       setAcceptingBookingId(booking.$id);
       const { BookingActionService } = await import('@/lib/booking-action-service');
       const result = await BookingActionService.acceptBooking({
@@ -337,12 +326,9 @@ export default function WorkerDashboard() {
         userRole: 'worker',
         action: 'accept'
       });
-      console.log('📝 Accept booking result:', result);
       if (result.success) {
         toast.success(result.message);
-        console.log('🔄 Refreshing dashboard data after successful accept...');
         await loadDashboardData(true);
-        console.log('✅ Dashboard data refresh completed');
       } else {
         toast.error(result.message);
       }

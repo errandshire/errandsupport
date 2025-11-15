@@ -42,7 +42,6 @@ export default function OnboardingPage() {
 
     // If user is already onboarded, redirect to their dashboard
     if (user.isOnboarded) {
-      console.log('User is already onboarded, redirecting to dashboard');
       router.replace(`/${user.role}`);
       return;
     }
@@ -98,8 +97,6 @@ export default function OnboardingPage() {
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   const handleNext = () => {
-    console.log(`Moving from step ${currentStep} to step ${currentStep + 1}`);
-    console.log('Available steps:', steps.map((step, index) => `${index}: ${step.title}`));
     setCompletedSteps(prev => new Set([...prev, currentStep]));
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -375,7 +372,6 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
       const result = await updateProfile(profileData);
       
       if (result.success) {
-        console.log('Professional profile created successfully, moving to next step');
         toast.success("Professional profile created successfully!");
         onNext();
       } else {

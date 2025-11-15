@@ -14,14 +14,12 @@ function DashboardContent() {
     if (loading) return;
 
     if (!isAuthenticated || !user) {
-      console.log('Not authenticated, redirecting to login');
       router.replace("/login?callbackUrl=/dashboard");
       return;
     }
 
     // Redirect to role-specific dashboard
     const dest = `/${user.role}`; // will be /admin, /client, or /worker
-    console.log('Redirecting to role-specific dashboard:', dest);
     router.replace(dest);
   }, [loading, isAuthenticated, user, router]);
 
