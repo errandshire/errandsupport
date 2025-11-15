@@ -232,7 +232,9 @@ class RealtimeMessagingService {
         id: userId,
         name: userInfo.name || userInfo.displayName || 'User',
         avatar: userInfo.avatar || userInfo.profileImage,
-        email: userInfo.email
+        email: userInfo.email,
+        phone: userInfo.phone,
+        role: userInfo.role
       };
 
       this.userCache.set(userId, cachedInfo);
@@ -243,7 +245,9 @@ class RealtimeMessagingService {
         id: userId,
         name: 'User',
         avatar: null,
-        email: null
+        email: null,
+        phone: null,
+        role: null
       };
     }
   }
@@ -268,6 +272,7 @@ class RealtimeMessagingService {
       const conversationId = this.generateConversationId(senderId, recipientId);
       
       // Create message document
+      console.log('💬 Creating message document...', { conversationId, senderId, recipientId });
       const message = await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.MESSAGES,
@@ -281,9 +286,12 @@ class RealtimeMessagingService {
           createdAt: new Date().toISOString()
         }
       );
+      console.log('✅ Message document created:', message.$id);
 
       // Create notification for recipient
+      console.log('🔔 Creating message notification...');
       await this.createMessageNotification(recipientId, senderId, content);
+      console.log('✅ Message notification created');
 
       // Send email notification to recipient
       try {
@@ -348,12 +356,35 @@ class RealtimeMessagingService {
       });
 
       // SMS notification
+      console.log('📱 Checking SMS for recipient:', {
+        recipientId,
+        recipientPhone: recipientInfo.phone,
+        senderName: senderInfo.name
+      });
+
       if (recipientInfo.phone) {
-        const { TermiiSMSService } = await import('./termii-sms.service');
-        await TermiiSMSService.sendSMS({
-          to: recipientInfo.phone,
-          message: `ErandWork: New message from ${senderInfo.name}. Check your inbox.`
-        }).catch(err => console.error('SMS error:', err));
+        console.log('📱 Sending SMS notification to:', recipientInfo.phone);
+
+        // Call server-side API to send SMS (keeps API key secure)
+        try {
+          const response = await fetch('/api/sms/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: recipientInfo.phone,
+              message: `ErandWork: New message from ${senderInfo.name}. Check your inbox.`
+            })
+          });
+
+          const smsResult = await response.json();
+          console.log('📱 SMS result:', smsResult);
+        } catch (smsError) {
+          console.error('📱 SMS error:', smsError);
+        }
+      } else {
+        console.log('⚠️ No phone number found for recipient:', recipientId);
       }
     } catch (error) {
       console.error('Error creating message notification:', error);

@@ -200,11 +200,11 @@ export default function WorkerJobsPage() {
     setSelectedBooking(null);
   };
 
-  const handleMessageClient = (clientId: string, clientName: string) => {
+  const handleMessageClient = (booking: any) => {
     setMessageModal({
       isOpen: true,
-      clientId,
-      clientName
+      clientId: booking.clientId,
+      clientName: booking.clientName || 'Client'
     });
   };
 
@@ -382,9 +382,9 @@ export default function WorkerJobsPage() {
                         >
                           View Details
                         </Button>
-                        <Button 
+                        <Button
                           variant="outline"
-                          onClick={() => handleMessageClient(booking.clientId, 'Client')}
+                          onClick={() => handleMessageClient(booking)}
                         >
                           <MessageCircle className="h-4 w-4" />
                         </Button>

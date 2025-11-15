@@ -18,6 +18,7 @@ export interface WorkerStats {
 
 export interface ProcessedBooking {
   $id: string;
+  clientId: string;
   clientName: string;
   clientEmail: string;
   serviceTitle: string;

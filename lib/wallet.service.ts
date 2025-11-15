@@ -326,4 +326,181 @@ export class WalletService {
       return [];
     }
   }
+
+  /**
+   * ROLLBACK: Reverse a payment release (move funds back from worker to escrow)
+   *
+   * USE CASE:
+   * - Payment released to worker ✅
+   * - Booking update FAILS ❌
+   * - Need to reverse payment to maintain consistency
+   *
+   * BENEFIT:
+   * - Prevents double payments if client retries
+   * - Maintains data integrity
+   * - Allows safe retrying of failed operations
+   */
+  static async rollbackRelease(params: {
+    clientId: string;
+    workerId: string;
+    bookingId: string;
+    amountInNaira: number;
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const { clientId, workerId, bookingId, amountInNaira } = params;
+
+      console.log(`🔄 Rolling back payment release for booking ${bookingId}...`);
+
+      // Get both wallets
+      const [clientWallet, workerWallet] = await Promise.all([
+        this.getOrCreateWallet(clientId),
+        this.getOrCreateWallet(workerId)
+      ]);
+
+      // Verify worker has the funds
+      if (workerWallet.balance < amountInNaira) {
+        console.error(`❌ Rollback failed: Worker has insufficient balance`);
+        return {
+          success: false,
+          message: 'Cannot rollback: Worker has insufficient balance'
+        };
+      }
+
+      // Create rollback transaction record
+      const rollbackTransactionId = `rollback_${bookingId}_${Date.now()}`;
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_TRANSACTIONS,
+        rollbackTransactionId,
+        {
+          userId: workerId,
+          type: 'rollback',
+          amount: -amountInNaira, // Negative amount indicates reversal
+          bookingId,
+          reference: rollbackTransactionId,
+          status: 'completed',
+          description: `Rollback payment for booking #${bookingId}`,
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      // Remove from worker balance
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        workerWallet.$id,
+        {
+          balance: workerWallet.balance - amountInNaira,
+          totalEarned: workerWallet.totalEarned - amountInNaira,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      // Add back to client escrow
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        clientWallet.$id,
+        {
+          escrow: clientWallet.escrow + amountInNaira,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      console.log(`✅ Rolled back ₦${amountInNaira} from ${workerId} to ${clientId} escrow`);
+
+      return {
+        success: true,
+        message: 'Payment rollback successful'
+      };
+
+    } catch (error) {
+      console.error('Error rolling back payment:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to rollback payment'
+      };
+    }
+  }
+
+  /**
+   * ROLLBACK: Reverse an escrow hold (refund to client balance)
+   *
+   * USE CASE:
+   * - Funds held in escrow ✅
+   * - Booking creation FAILS ❌
+   * - Need to release funds back to client balance
+   *
+   * BENEFIT:
+   * - Prevents stuck funds in escrow
+   * - Allows safe retrying of booking creation
+   */
+  static async rollbackHold(params: {
+    clientId: string;
+    bookingId: string;
+    amountInNaira: number;
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const { clientId, bookingId, amountInNaira } = params;
+
+      console.log(`🔄 Rolling back escrow hold for booking ${bookingId}...`);
+
+      // Get wallet
+      const wallet = await this.getOrCreateWallet(clientId);
+
+      // Verify escrow has the funds
+      if (wallet.escrow < amountInNaira) {
+        console.error(`❌ Rollback failed: Insufficient escrow balance`);
+        return {
+          success: false,
+          message: 'Cannot rollback: Insufficient escrow balance'
+        };
+      }
+
+      // Create rollback transaction record
+      const rollbackTransactionId = `rollback_hold_${bookingId}_${Date.now()}`;
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WALLET_TRANSACTIONS,
+        rollbackTransactionId,
+        {
+          userId: clientId,
+          type: 'rollback_hold',
+          amount: amountInNaira,
+          bookingId,
+          reference: rollbackTransactionId,
+          status: 'completed',
+          description: `Rollback escrow hold for booking #${bookingId}`,
+          createdAt: new Date().toISOString()
+        }
+      );
+
+      // Move from escrow back to balance
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        wallet.$id,
+        {
+          balance: wallet.balance + amountInNaira,
+          escrow: wallet.escrow - amountInNaira,
+          totalSpent: wallet.totalSpent - amountInNaira,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      console.log(`✅ Rolled back ₦${amountInNaira} from escrow to ${clientId} balance`);
+
+      return {
+        success: true,
+        message: 'Escrow rollback successful'
+      };
+
+    } catch (error) {
+      console.error('Error rolling back escrow hold:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to rollback escrow'
+      };
+    }
+  }
 }

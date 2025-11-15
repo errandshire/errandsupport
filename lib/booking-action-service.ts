@@ -265,6 +265,10 @@ export class BookingActionService {
   /**
    * Client confirms completion (releases payment to worker)
    * This is the ONLY place where payment is released from escrow to worker
+   *
+   * TRANSACTION ROLLBACK:
+   * - BookingCompletionService.completeBooking() handles payment + booking update atomically
+   * - If either step fails, payment is automatically rolled back
    */
   static async confirmCompletion(params: BookingActionParams) {
     try {
@@ -284,7 +288,7 @@ export class BookingActionService {
         };
       }
 
-      // NOW release payment from escrow to worker
+      // Release payment from escrow to worker (with automatic rollback on failure)
       const paymentResult = await BookingCompletionService.completeBooking({
         bookingId,
         clientId: booking.clientId,
@@ -293,16 +297,16 @@ export class BookingActionService {
       });
 
       if (!paymentResult.success) {
+        // Payment or booking update failed, rollback already happened
         return paymentResult;
       }
 
-      // Update booking to completed status
+      // Update booking confirmation timestamp
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
-          status: 'completed',
           clientConfirmedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }

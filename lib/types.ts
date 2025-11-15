@@ -308,8 +308,8 @@ export interface Wallet extends Models.Document {
 
 export interface WalletTransaction extends Models.Document {
   userId: string;
-  type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw';
-  amount: number;         // Always in Naira
+  type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw' | 'rollback' | 'rollback_hold';
+  amount: number;         // Always in Naira (negative for rollbacks)
   bookingId?: string;     // If related to a booking
   reference: string;      // Paystack reference or unique ID
   status: 'completed' | 'pending' | 'failed';

@@ -12,6 +12,10 @@ export class BookingCompletionService {
 
   /**
    * Complete booking and release funds to worker
+   *
+   * TRANSACTION ROLLBACK IMPLEMENTED:
+   * - If payment release succeeds but booking update fails, payment is rolled back
+   * - This prevents double payments if client retries
    */
   static async completeBooking(params: {
     bookingId: string;
@@ -51,7 +55,7 @@ export class BookingCompletionService {
         };
       }
 
-      // Release funds from escrow to worker
+      // STEP 1: Release funds from escrow to worker
       const releaseResult = await WalletService.releaseFundsToWorker({
         clientId,
         workerId,
@@ -63,18 +67,35 @@ export class BookingCompletionService {
         return releaseResult;
       }
 
-      // Update booking status
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        bookingId,
-        {
-          status: 'completed',
-          paymentStatus: 'released',
-          completedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      );
+      // STEP 2: Update booking status (CRITICAL - if this fails, rollback payment)
+      try {
+        await databases.updateDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.BOOKINGS,
+          bookingId,
+          {
+            status: 'completed',
+            paymentStatus: 'released',
+            completedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        );
+      } catch (bookingUpdateError) {
+        // ROLLBACK: Booking update failed, reverse the payment
+        console.error('❌ Booking update failed, rolling back payment...', bookingUpdateError);
+
+        await WalletService.rollbackRelease({
+          clientId,
+          workerId,
+          bookingId,
+          amountInNaira: amount
+        });
+
+        return {
+          success: false,
+          message: 'Payment processing failed. Please try again.'
+        };
+      }
 
       // Notify worker (in-app + SMS)
       try {

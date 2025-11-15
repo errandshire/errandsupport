@@ -357,7 +357,7 @@ export default function WorkerDashboard() {
 
   const handleMessageClient = React.useCallback((booking: ProcessedBooking) => {
     setMessageRecipient({
-      id: booking.$id,
+      id: booking.clientId, // Use clientId, not booking ID
       name: booking.clientName,
       email: booking.clientEmail || ''
     });
