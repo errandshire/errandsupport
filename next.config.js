@@ -1,5 +1,24 @@
 /** @type {import('next').NextConfig} */
 
+const withPWA = require('next-pwa')({
+  dest: 'public',
+  disable: process.env.NODE_ENV === 'development',
+  register: true,
+  skipWaiting: true,
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+        },
+      },
+    },
+  ],
+})
+
 const nextConfig = {
   eslint: {
     // Warning: This allows production builds to successfully complete even if
@@ -14,4 +33,4 @@ const nextConfig = {
   // Clean configuration - notification system removed, using Resend for emails
 }
 
-module.exports = nextConfig
+module.exports = withPWA(nextConfig)

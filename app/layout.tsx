@@ -52,15 +52,21 @@ export const metadata: Metadata = {
   authors: [{ name: "Errand Support Platform" }],
   creator: "Errand Support Platform",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://erandwork.com"),
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'ErandWork',
+  },
   icons: {
     icon: [
-      { url: '/errandworklogo.png' },
-      { url: '/errandworklogo.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/errandworklogo.png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
-    shortcut: ['/errandworklogo.png'],
+    shortcut: ['/icon-192.png'],
   },
   openGraph: {
     title: "Errand Support Platform - Premium Marketplace for Local Services",
