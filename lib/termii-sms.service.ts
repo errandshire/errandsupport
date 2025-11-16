@@ -83,6 +83,16 @@ export class TermiiSMSService {
         ? message.substring(0, 157) + '...'
         : message;
 
+      // Log request details (without full API key)
+      console.log('📤 Termii Request:', {
+        endpoint: `${this.BASE_URL}/sms/send`,
+        to: phoneNumber,
+        from: this.SENDER_ID,
+        channel: this.CHANNEL,
+        apiKeyPrefix: this.API_KEY?.substring(0, 10) + '...',
+        messageLength: truncatedMessage.length
+      });
+
       // Send SMS via Termii API with automatic retry
       const data = await retryWithBackoff(
         async () => {
@@ -102,6 +112,13 @@ export class TermiiSMSService {
           });
 
           const data = await response.json();
+
+          // Log response
+          console.log('📥 Termii Response:', {
+            status: response.status,
+            ok: response.ok,
+            data: data
+          });
 
           // Check for errors we should NOT retry
           if (!response.ok) {
