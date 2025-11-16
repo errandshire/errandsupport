@@ -6,16 +6,45 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   runtimeCaching: [
+    // Cache static assets (images, fonts, CSS, JS)
     {
-      urlPattern: /^https?.*/,
-      handler: 'NetworkFirst',
+      urlPattern: /^https?.*\.(png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf|otf|eot)$/i,
+      handler: 'CacheFirst',
       options: {
-        cacheName: 'offlineCache',
+        cacheName: 'static-assets',
         expiration: {
-          maxEntries: 200,
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
         },
       },
     },
+    // Cache Next.js static files
+    {
+      urlPattern: /^\/_next\/static\/.*/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'next-static',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
+        },
+      },
+    },
+    // Cache app pages (HTML) - but always check network first
+    {
+      urlPattern: /^https?:\/\/erandwork\.com\/.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'pages',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 24 * 60 * 60, // 1 day
+        },
+        networkTimeoutSeconds: 10, // Fall back to cache if network takes > 10s
+      },
+    },
+    // DO NOT cache API routes, Appwrite, Paystack, or any external APIs
+    // These should always be fresh data from the network
   ],
 })
 
