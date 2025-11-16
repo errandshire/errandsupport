@@ -334,7 +334,7 @@ export default function WorkerSettingsPage() {
                       </Button>
                     </CardContent>
                   </Card>
-
+{/* 
                   <Card>
                     <CardHeader>
                       <CardTitle>Two-Factor Authentication</CardTitle>
@@ -351,7 +351,7 @@ export default function WorkerSettingsPage() {
                         <Switch />
                       </div>
                     </CardContent>
-                  </Card>
+                  </Card> */}
                 </div>
               </TabsContent>
 
@@ -400,7 +400,7 @@ export default function WorkerSettingsPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  {/* <Card>
                     <CardHeader>
                       <CardTitle>Account Actions</CardTitle>
                       <CardDescription>Manage your account</CardDescription>
@@ -426,7 +426,7 @@ export default function WorkerSettingsPage() {
                         </Button>
                       </div>
                     </CardContent>
-                  </Card>
+                  </Card> */}
                 </div>
               </TabsContent>
             </Tabs>

@@ -54,12 +54,12 @@ const sidebarItems = [
     icon: DollarSign,
     badge: null,
   },
-  {
-    title: "Reviews",
-    href: "/worker/reviews",
-    icon: Star,
-    badge: null,
-  },
+  // {
+  //   title: "Reviews",
+  //   href: "/worker/reviews",
+  //   icon: Star,
+  //   badge: null,
+  // },
   
   
   {
@@ -68,12 +68,12 @@ const sidebarItems = [
     icon: User,
     badge: null,
   },
-  {
-    title: "Documents",
-    href: "/worker/documents",
-    icon: FileText,
-    badge: null,
-  },
+  // {
+  //   title: "Documents",
+  //   href: "/worker/documents",
+  //   icon: FileText,
+  //   badge: null,
+  // },
   {
     title: "Settings",
     href: "/worker/settings",

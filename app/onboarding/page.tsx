@@ -189,7 +189,8 @@ export default function OnboardingPage() {
 }
 
 // Personal Information Step
-function PersonalInfoStep({ user, updateProfile, onNext, isFirstStep }: any) {
+function PersonalInfoStep({ user, updateProfile, onNext }: any) {
+  const router = useRouter();
   const {
     register,
     handleSubmit,
@@ -212,6 +213,11 @@ function PersonalInfoStep({ user, updateProfile, onNext, isFirstStep }: any) {
     if (result.success) {
       onNext();
     }
+  };
+
+  const handleBack = () => {
+    // Since this is the first step, go back to the dashboard or previous page
+    router.back();
   };
 
   return (
@@ -260,7 +266,11 @@ function PersonalInfoStep({ user, updateProfile, onNext, isFirstStep }: any) {
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-between">
+        <Button type="button" variant="outline" onClick={handleBack} disabled={isSubmitting}>
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Continue"}
           <ChevronRight className="ml-2 h-4 w-4" />
@@ -602,7 +612,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
     });
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async () => {
     try {
       if (!idDocumentUrl || !selfieWithIdUrl) {
         toast.error('Please upload both ID document and selfie with ID');

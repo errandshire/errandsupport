@@ -1,6 +1,5 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { WalletService } from './wallet.service';
-import { TermiiSMSService } from './termii-sms.service';
 
 /**
  * BOOKING COMPLETION SERVICE
@@ -55,7 +54,7 @@ export class BookingCompletionService {
         };
       }
 
-      // STEP 1: Release funds from escrow to worker
+      // STEP 1: Release funds from escrow to worker (with commission deduction)
       const releaseResult = await WalletService.releaseFundsToWorker({
         clientId,
         workerId,
@@ -66,6 +65,8 @@ export class BookingCompletionService {
       if (!releaseResult.success) {
         return releaseResult;
       }
+
+      const workerAmount = releaseResult.workerAmount || amount;
 
       // STEP 2: Update booking status (CRITICAL - if this fails, rollback payment)
       try {
@@ -101,18 +102,18 @@ export class BookingCompletionService {
       try {
         const { notificationService } = await import('./notification-service');
 
-        // In-app notification
+        // In-app notification - show NET amount received
         await notificationService.createNotification({
           userId: workerId,
           title: 'Payment Received! 💰',
-          message: `You've received ₦${amount.toLocaleString()} for completed job. Check your wallet.`,
+          message: `You've received ₦${workerAmount.toLocaleString()} for completed job (₦${amount.toLocaleString()} - 15% platform fee). Check your wallet.`,
           type: 'success',
           bookingId,
           actionUrl: '/worker/wallet',
           idempotencyKey: `payment_received_${bookingId}_${workerId}`
         });
 
-        // SMS notification
+        // SMS notification - show NET amount (use API endpoint for server-side execution)
         try {
           const workerUser = await databases.getDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -120,11 +121,24 @@ export class BookingCompletionService {
             workerId
           );
           if (workerUser.phone) {
-            await TermiiSMSService.sendPaymentNotification(workerUser.phone, {
-              amount,
-              type: 'received',
-              reference: bookingId
-            });
+            // Call server-side API to send SMS (keeps API key secure)
+            try {
+              const response = await fetch('/api/sms/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: workerUser.phone,
+                  message: `ErandWork: Payment received! ₦${workerAmount.toLocaleString()} has been credited to your wallet for booking #${bookingId}.`
+                })
+              });
+
+              const smsResult = await response.json();
+              console.log('📱 SMS result:', smsResult);
+            } catch (smsError) {
+              console.error('📱 SMS error:', smsError);
+            }
           }
 
           // Send email notification
@@ -134,9 +148,9 @@ export class BookingCompletionService {
             COLLECTIONS.BOOKINGS,
             bookingId
           );
-          await BookingNotificationService.notifyPaymentReleased(bookingId, workerId, clientId, booking, amount);
-        } catch (smsError) {
-          console.error('Failed to send SMS:', smsError);
+          await BookingNotificationService.notifyPaymentReleased(bookingId, workerId, clientId, booking, workerAmount);
+        } catch (error) {
+          console.error('Failed to send notifications:', error);
         }
       } catch (error) {
         console.error('Failed to send notification:', error);

@@ -155,7 +155,7 @@ export function EnhancedBookingModal({
   };
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    if (currentStep < 2) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -402,7 +402,7 @@ export function EnhancedBookingModal({
             </div>
           )}
 
-          {/* Step 2: Payment Method */}
+          {/* Step 2: Summary & Payment Method */}
           {currentStep === 2 && (
             <div className="space-y-4">
             <Card>
@@ -458,31 +458,27 @@ export function EnhancedBookingModal({
                 Your payment is protected by escrow. Funds are only released to the worker when you confirm the job is completed.
               </AlertDescription>
             </Alert>
-          </div>
-        )}
 
-        {/* Step 3: Payment Method */}
-        {currentStep === 3 && (
-          <div className="space-y-4">
+            {/* Payment Method Selection */}
             <div>
               <Label className="text-base font-medium">Choose Payment Method</Label>
               <p className="text-sm text-gray-600 mb-4">Select how you'd like to pay for this service</p>
-              
+
               <RadioGroup value={selectedPaymentMethod} onValueChange={(value) => setSelectedPaymentMethod(value as 'wallet' | 'card')}>
                 {paymentMethods.map((method) => (
                   <div key={method.id} className="relative">
-                    <Label 
+                    <Label
                       htmlFor={method.id}
                       className={`flex items-start space-x-4 p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedPaymentMethod === method.id 
-                          ? 'border-blue-500 bg-blue-50' 
-                          : method.available 
-                            ? 'border-gray-200 hover:border-gray-300' 
+                        selectedPaymentMethod === method.id
+                          ? 'border-blue-500 bg-blue-50'
+                          : method.available
+                            ? 'border-gray-200 hover:border-gray-300'
                             : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-60'
                       }`}
                     >
-                      <RadioGroupItem 
-                        value={method.id} 
+                      <RadioGroupItem
+                        value={method.id}
                         id={method.id}
                         disabled={!method.available}
                       />
@@ -500,7 +496,7 @@ export function EnhancedBookingModal({
                             </Badge>
                           )}
                         </div>
-                        
+
                         {method.available && method.benefits && (
                           <ul className="text-xs text-gray-600 space-y-1">
                             {method.benefits.map((benefit, index) => (
@@ -544,8 +540,8 @@ export function EnhancedBookingModal({
                 <AlertCircle className="h-4 w-4 text-orange-600" />
                 <AlertDescription className="text-orange-800">
                   You need to top up your wallet with ₦{(total - virtualWallet.availableBalance).toLocaleString()} to use wallet payment.
-                  <Button 
-                    variant="link" 
+                  <Button
+                    variant="link"
                     className="p-0 h-auto text-orange-600 hover:text-orange-700"
                     onClick={() => {
                       onClose();

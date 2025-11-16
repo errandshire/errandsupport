@@ -3,11 +3,11 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  User, 
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
   DollarSign,
   Search,
   Filter,
@@ -20,7 +20,8 @@ import {
   CheckCircle,
   XCircle,
   Plus,
-  BookOpen
+  BookOpen,
+  Ban
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,9 @@ function ClientBookingsContent() {
   const [showBookingModal, setShowBookingModal] = React.useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = React.useState(false);
   const [showMessageModal, setShowMessageModal] = React.useState(false);
+  const [showCancelModal, setShowCancelModal] = React.useState(false);
+  const [bookingToCancel, setBookingToCancel] = React.useState<ProcessedBooking | null>(null);
+  const [isCancelling, setIsCancelling] = React.useState(false);
   const [messageRecipient, setMessageRecipient] = React.useState<{
     id: string;
     name: string;
@@ -294,6 +298,46 @@ function ClientBookingsContent() {
       setShowMessageModal(true);
     } else {
       toast.error("Worker information not available");
+    }
+  };
+
+  const handleCancelBooking = (booking: ProcessedBooking) => {
+    // Only allow cancellation if booking hasn't been accepted by worker
+    if (booking.status === 'accepted' || booking.status === 'in_progress' || booking.status === 'completed') {
+      toast.error("Cannot cancel booking that has been accepted or is in progress");
+      return;
+    }
+
+    setBookingToCancel(booking);
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelBooking = async () => {
+    if (!user || !bookingToCancel) return;
+
+    try {
+      setIsCancelling(true);
+      const { BookingCompletionService } = await import('@/lib/booking-completion.service');
+
+      const result = await BookingCompletionService.cancelBooking({
+        bookingId: bookingToCancel.$id,
+        clientId: user.$id,
+        reason: 'Cancelled by client'
+      });
+
+      if (result.success) {
+        toast.success(result.message);
+        setShowCancelModal(false);
+        setBookingToCancel(null);
+        fetchBookings(); // Refresh the bookings list
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toast.error('Failed to cancel booking');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -544,6 +588,23 @@ function ClientBookingsContent() {
                             Message Worker
                           </DropdownMenuItem>
                         )}
+                        {/* Show cancel option only if booking hasn't been accepted yet */}
+                        {booking.status !== 'accepted' &&
+                         booking.status !== 'in_progress' &&
+                         booking.status !== 'completed' &&
+                         booking.status !== 'cancelled' &&
+                         booking.status !== 'worker_completed' && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelBooking(booking);
+                            }}
+                            className="text-red-600"
+                          >
+                            <Ban className="h-4 w-4 mr-2" />
+                            Cancel Booking
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -712,6 +773,102 @@ function ClientBookingsContent() {
         recipientName={messageRecipient?.name}
         recipientEmail={messageRecipient?.email}
       />
+
+      {/* Cancel Booking Modal */}
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Cancel Booking
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              Are you sure you want to cancel this booking?
+            </p>
+
+            {bookingToCancel && (
+              <Card className="bg-gray-50">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{bookingToCancel.title}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(bookingToCancel.scheduledDate).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <p className="text-sm">
+                      ₦{bookingToCancel.budgetAmount.toLocaleString()}
+                    </p>
+                  </div>
+
+                  {bookingToCancel.worker && (
+                    <div className="flex items-center gap-3">
+                      <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                      <p className="text-sm">{bookingToCancel.worker.name}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex gap-2">
+                <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-blue-800">
+                  Your payment will be refunded to your wallet immediately.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCancelModal(false);
+                setBookingToCancel(null);
+              }}
+              disabled={isCancelling}
+              className="w-full sm:flex-1"
+            >
+              Keep Booking
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancelBooking}
+              disabled={isCancelling}
+              className="w-full sm:flex-1"
+            >
+              {isCancelling ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                <>
+                  <Ban className="h-4 w-4 mr-2" />
+                  Yes, Cancel Booking
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

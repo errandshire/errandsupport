@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Libre_Baskerville, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 // import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
 

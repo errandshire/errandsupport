@@ -1,6 +1,7 @@
 import { databases, COLLECTIONS } from './appwrite';
 import { ID, Query } from 'appwrite';
 import type { Wallet, WalletTransaction } from './types';
+import { COMMISSION_RATE } from './constants';
 
 /**
  * SIMPLE WALLET SERVICE
@@ -10,6 +11,7 @@ import type { Wallet, WalletTransaction } from './types';
  * 2. Always check balance before deducting
  * 3. Every operation creates a transaction record
  * 4. All amounts in NAIRA (no conversion bugs)
+ * 5. Platform commission deducted from worker payments (15%)
  */
 
 export class WalletService {
@@ -213,15 +215,24 @@ export class WalletService {
    * Release funds from escrow to worker (job completed)
    *
    * IDEMPOTENCY: Uses bookingId as part of transaction reference
+   *
+   * COMMISSION DEDUCTION:
+   * - Platform takes 15% commission from gross amount
+   * - Worker receives 85% of the payment
+   * - Commission is tracked in separate transaction
    */
   static async releaseFundsToWorker(params: {
     clientId: string;
     workerId: string;
     bookingId: string;
     amountInNaira: number;
-  }): Promise<{ success: boolean; message: string }> {
+  }): Promise<{ success: boolean; message: string; workerAmount?: number; commission?: number }> {
     try {
       const { clientId, workerId, bookingId, amountInNaira } = params;
+
+      // Calculate commission
+      const commissionAmount = Math.round(amountInNaira * COMMISSION_RATE);
+      const workerAmount = amountInNaira - commissionAmount;
 
       // Get both wallets
       const [clientWallet, workerWallet] = await Promise.all([
@@ -237,7 +248,7 @@ export class WalletService {
         };
       }
 
-      // IDEMPOTENCY: Try to create release transaction
+      // IDEMPOTENCY: Try to create worker payment transaction
       const transactionId = `release_${bookingId}`;
       try {
         await databases.createDocument(
@@ -247,11 +258,11 @@ export class WalletService {
           {
             userId: workerId,
             type: 'booking_release',
-            amount: amountInNaira,
+            amount: workerAmount,
             bookingId,
             reference: transactionId,
             status: 'completed',
-            description: `Payment for booking #${bookingId}`,
+            description: `Payment for booking #${bookingId} (after ${COMMISSION_RATE * 100}% commission)`,
             createdAt: new Date().toISOString()
           }
         );
@@ -260,10 +271,37 @@ export class WalletService {
           console.log(`⚠️ Booking ${bookingId} already released`);
           return {
             success: true,
-            message: 'Payment already released'
+            message: 'Payment already released',
+            workerAmount,
+            commission: commissionAmount
           };
         }
         throw error;
+      }
+
+      // Create platform commission transaction record
+      const commissionTransactionId = `commission_${bookingId}`;
+      try {
+        await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WALLET_TRANSACTIONS,
+          commissionTransactionId,
+          {
+            userId: 'platform',
+            type: 'commission',
+            amount: commissionAmount,
+            bookingId,
+            reference: commissionTransactionId,
+            status: 'completed',
+            description: `Platform commission (${COMMISSION_RATE * 100}%) for booking #${bookingId}`,
+            createdAt: new Date().toISOString()
+          }
+        );
+      } catch (error: any) {
+        // Commission transaction already exists, continue
+        if (error.code !== 409 && !error.message?.includes('already exists')) {
+          throw error;
+        }
       }
 
       // Update client wallet (remove from escrow)
@@ -277,23 +315,27 @@ export class WalletService {
         }
       );
 
-      // Update worker wallet (add to balance)
+      // Update worker wallet (add NET amount after commission)
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         workerWallet.$id,
         {
-          balance: workerWallet.balance + amountInNaira,
-          totalEarned: workerWallet.totalEarned + amountInNaira,
+          balance: workerWallet.balance + workerAmount,
+          totalEarned: workerWallet.totalEarned + workerAmount,
           updatedAt: new Date().toISOString()
         }
       );
 
-      console.log(`✅ Released ₦${amountInNaira} from ${clientId} to ${workerId} for booking ${bookingId}`);
+      console.log(`✅ Released ₦${amountInNaira} for booking ${bookingId}:`);
+      console.log(`   Worker receives: ₦${workerAmount.toLocaleString()}`);
+      console.log(`   Platform commission: ₦${commissionAmount.toLocaleString()} (${COMMISSION_RATE * 100}%)`);
 
       return {
         success: true,
-        message: 'Payment released to worker'
+        message: 'Payment released to worker',
+        workerAmount,
+        commission: commissionAmount
       };
 
     } catch (error) {
@@ -339,6 +381,8 @@ export class WalletService {
    * - Prevents double payments if client retries
    * - Maintains data integrity
    * - Allows safe retrying of failed operations
+   *
+   * NOTE: Rolls back the NET amount (after commission) that was paid to worker
    */
   static async rollbackRelease(params: {
     clientId: string;
@@ -351,14 +395,18 @@ export class WalletService {
 
       console.log(`🔄 Rolling back payment release for booking ${bookingId}...`);
 
+      // Calculate what was actually paid to worker (after commission)
+      const commissionAmount = Math.round(amountInNaira * COMMISSION_RATE);
+      const workerAmount = amountInNaira - commissionAmount;
+
       // Get both wallets
       const [clientWallet, workerWallet] = await Promise.all([
         this.getOrCreateWallet(clientId),
         this.getOrCreateWallet(workerId)
       ]);
 
-      // Verify worker has the funds
-      if (workerWallet.balance < amountInNaira) {
+      // Verify worker has the NET amount (what they actually received)
+      if (workerWallet.balance < workerAmount) {
         console.error(`❌ Rollback failed: Worker has insufficient balance`);
         return {
           success: false,
@@ -375,7 +423,7 @@ export class WalletService {
         {
           userId: workerId,
           type: 'rollback',
-          amount: -amountInNaira, // Negative amount indicates reversal
+          amount: -workerAmount, // Negative amount indicates reversal (NET amount)
           bookingId,
           reference: rollbackTransactionId,
           status: 'completed',
@@ -384,19 +432,19 @@ export class WalletService {
         }
       );
 
-      // Remove from worker balance
+      // Remove NET amount from worker balance
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         workerWallet.$id,
         {
-          balance: workerWallet.balance - amountInNaira,
-          totalEarned: workerWallet.totalEarned - amountInNaira,
+          balance: workerWallet.balance - workerAmount,
+          totalEarned: workerWallet.totalEarned - workerAmount,
           updatedAt: new Date().toISOString()
         }
       );
 
-      // Add back to client escrow
+      // Add FULL amount back to client escrow (including the commission that was deducted)
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
@@ -407,7 +455,9 @@ export class WalletService {
         }
       );
 
-      console.log(`✅ Rolled back ₦${amountInNaira} from ${workerId} to ${clientId} escrow`);
+      console.log(`✅ Rolled back payment for booking ${bookingId}:`);
+      console.log(`   Deducted from worker: ₦${workerAmount.toLocaleString()}`);
+      console.log(`   Returned to escrow: ₦${amountInNaira.toLocaleString()}`);
 
       return {
         success: true,

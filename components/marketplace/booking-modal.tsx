@@ -532,7 +532,7 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
             )}
           </div>
 
-          {currentStep !== 'confirmation' && currentStep !== 'payment' && (
+          {currentStep !== 'confirmation' && (
             <div className="flex flex-col sm:flex-row justify-between gap-3 mt-6 sm:mt-8">
               <Button
                 variant="outline"
@@ -543,14 +543,16 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Previous
               </Button>
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                className="h-12 w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600"
-              >
-                Next
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+              {currentStep !== 'payment' && (
+                <Button
+                  onClick={handleNext}
+                  disabled={!canProceed()}
+                  className="h-12 w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              )}
             </div>
           )}
         </div>

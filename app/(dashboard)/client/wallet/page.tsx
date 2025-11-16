@@ -420,14 +420,14 @@ export default function ClientWalletPage() {
                   </p>
                 </div>
 
-                {wallet && wallet.escrow > 0 && (
+                {/* {wallet && wallet.escrow > 0 && (
                   <div className="pt-4 border-t border-blue-400/30">
                     <p className="text-blue-100 text-sm">In Escrow (Active Bookings)</p>
                     <p className="text-2xl font-semibold mt-1">
                       {showBalance ? `₦${(wallet?.escrow ?? 0).toLocaleString()}` : '••••••'}
                     </p>
                   </div>
-                )}
+                )} */}
 
                 <div className="pt-4 border-t border-blue-400/30 space-y-2">
                   <Button
