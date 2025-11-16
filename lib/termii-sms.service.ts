@@ -57,6 +57,16 @@ export class TermiiSMSService {
         return { success: false, error: 'SMS service not configured' };
       }
 
+      // Debug log (without exposing full key)
+      console.log('🔑 Termii Config Check:', {
+        apiKeyLength: this.API_KEY?.length,
+        apiKeyStart: this.API_KEY?.substring(0, 4),
+        apiKeyEnd: this.API_KEY?.substring(this.API_KEY.length - 4),
+        senderId: this.SENDER_ID,
+        channel: this.CHANNEL,
+        hasWhitespace: this.API_KEY?.trim() !== this.API_KEY
+      });
+
       // Clean and validate phone number
       const phoneNumber = this.formatPhoneNumber(to);
       if (!phoneNumber) {

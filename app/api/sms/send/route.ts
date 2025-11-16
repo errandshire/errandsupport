@@ -13,6 +13,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { to, message } = body;
 
+    // Log environment check (without exposing actual keys)
+    console.log('📱 SMS API Route - Environment check:', {
+      hasApiKey: !!process.env.TERMII_API_KEY,
+      hasSenderId: !!process.env.TERMII_SENDER_ID,
+      environment: process.env.NODE_ENV,
+      to: to?.substring(0, 5) + '***' // Log partial phone for debugging
+    });
+
     // Validate input
     if (!to || !message) {
       return NextResponse.json(
@@ -21,10 +29,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if API key is configured
+    if (!process.env.TERMII_API_KEY) {
+      console.error('❌ TERMII_API_KEY not found in environment variables');
+      return NextResponse.json(
+        { success: false, error: 'SMS service not configured - API key missing' },
+        { status: 500 }
+      );
+    }
+
     // Send SMS using server-side environment variables
     const result = await TermiiSMSService.sendSMS({ to, message });
 
     if (result.success) {
+      console.log('✅ SMS sent successfully to:', to?.substring(0, 5) + '***');
       return NextResponse.json(result);
     } else {
       console.error('❌ SMS failed:', result.error);
