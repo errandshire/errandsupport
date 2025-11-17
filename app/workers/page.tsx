@@ -217,20 +217,32 @@ function WorkersPageContent() {
           idempotencyKey: `new_booking_${flattenedBookingRequest.id}_${flattenedBookingRequest.workerId}`
         });
 
-        // SMS notification
+        // SMS notification (via Termii server-side API)
         try {
-          const { SMSService } = await import('@/lib/sms.service');
           const workerUser = await databases.getDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             COLLECTIONS.USERS,
             flattenedBookingRequest.workerId
           );
+
           if (workerUser.phone) {
-            await SMSService.sendBookingNotification(workerUser.phone, {
-              service: flattenedBookingRequest.title,
-              date: new Date(flattenedBookingRequest.scheduledDate).toLocaleDateString(),
-              status: 'pending'
+            const message = `ErrandWork: New booking for ${flattenedBookingRequest.title} on ${new Date(
+              flattenedBookingRequest.scheduledDate
+            ).toLocaleDateString()}. Check your dashboard.`;
+
+            const response = await fetch('/api/sms/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                to: workerUser.phone,
+                message
+              })
             });
+
+            const smsResult = await response.json();
+            console.log('📱 Booking SMS result:', smsResult);
           }
         } catch (smsError) {
           console.error('Failed to send SMS:', smsError);
