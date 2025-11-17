@@ -121,7 +121,7 @@ export default function RegisterPage() {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               {/* Role Selection */}
                 <div className="space-y-3">
-                <Label className="text-base font-medium">I want to...</Label>
+                {/* <Label className="text-base font-medium">I want to...</Label> */}
                 <div className="grid grid-cols-1 gap-3">
                   {roleOptions.map((option) => (
                     <div key={option.value} className="relative">
