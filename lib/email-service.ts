@@ -458,6 +458,50 @@ class EmailTemplateBuilder {
     `;
     return this.getBaseTemplate(content, 'Password Reset Request');
   }
+
+  static welcomeUser(data: { name: string; role: 'client' | 'worker'; nextStepsUrl?: string }): string {
+    const headline = data.role === 'client'
+      ? 'Welcome to ErrandWork!'
+      : 'Welcome to the ErrandWork pro community!';
+
+    const heroCopy = data.role === 'client'
+      ? 'Find trusted, vetted workers for all your errands and projects. Secure payments, real-time updates, and dispute protection keep you in control.'
+      : 'Set up your profile, showcase your skills, and start accepting well-paid errands from verified clients. Payments are secured in escrow and released once the job is done.';
+
+    const actionLabel = data.role === 'client' ? 'Browse Workers' : 'Complete Profile';
+    const actionUrl = data.nextStepsUrl || (data.role === 'client'
+      ? `${EMAIL_CONFIG.baseUrl}/workers`
+      : `${EMAIL_CONFIG.baseUrl}/worker/profile`);
+
+    const tipsList = data.role === 'client'
+      ? `
+        <ul>
+          <li>💳 Fund your wallet and book instantly.</li>
+          <li>🛡️ Payments stay in escrow until you're happy.</li>
+          <li>💬 Chat with workers and track progress.</li>
+        </ul>
+      `
+      : `
+        <ul>
+          <li>✅ Complete your profile and verification.</li>
+          <li>📅 Keep your availability updated.</li>
+          <li>💼 Deliver great service to earn top reviews.</li>
+        </ul>
+      `;
+
+    const content = `
+      <h2>${headline}</h2>
+      <p>Hello ${data.name},</p>
+      <p>${heroCopy}</p>
+      <div class="highlight">
+        <p><strong>Next Steps:</strong></p>
+        ${tipsList}
+      </div>
+      <a href="${actionUrl}" class="button">${actionLabel}</a>
+    `;
+
+    return this.getBaseTemplate(content, 'Welcome to ErrandWork');
+  }
 }
 
 // Email service class
@@ -552,6 +596,18 @@ class EmailService {
     const subject = `Application Status Update - ${EMAIL_CONFIG.company}`;
     const html = EmailTemplateBuilder.workerRejected(data);
     return this.sendEmail(data.worker.email, subject, html, 'worker_rejected');
+  }
+
+  async sendWelcomeEmail(data: { to: string; name: string; role: 'client' | 'worker'; nextStepsUrl?: string }): Promise<boolean> {
+    const subject = data.role === 'client'
+      ? `Welcome ${data.name.split(' ')[0]}! Let's get your errands done`
+      : `Welcome ${data.name.split(' ')[0]}! Let's start earning on ErrandWork`;
+    const html = EmailTemplateBuilder.welcomeUser({
+      name: data.name,
+      role: data.role,
+      nextStepsUrl: data.nextStepsUrl
+    });
+    return this.sendEmail(data.to, subject, html, 'welcome');
   }
 
   // Withdrawal-related emails

@@ -9,7 +9,7 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/forms/form-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { registerSchema, RegisterFormData } from "@/lib/validations";
@@ -49,6 +49,17 @@ export default function RegisterPage() {
     setValue("role", selectedRole);
   }, [selectedRole, setValue]);
 
+  // Handle role selection with toast notification
+  const handleRoleChange = (role: "client" | "worker") => {
+    setSelectedRole(role);
+    const roleName = role === "worker" ? "Worker" : "Client";
+    toast.success(`You're registering as a ${roleName}!`, {
+      description: role === "worker" 
+        ? "You'll be able to offer services and earn money"
+        : "You'll be able to book services from trusted workers"
+    });
+  };
+
   const onSubmit = async (data: RegisterFormData) => {
     try {
       // Show validation errors as toasts
@@ -80,17 +91,18 @@ export default function RegisterPage() {
 
   const roleOptions = [
     {
-      value: "client" as const,
-      title: "I need help with tasks",
-      description: "Find trusted workers for your errands and daily tasks",
-      features: ["Book services instantly", "Trusted verified workers", "Secure payments"],
-    },
-    {
       value: "worker" as const,
-      title: "I want to offer services",
+      title: "Register as a Worker - I want to offer services",
       description: "Earn money by helping others with their daily tasks",
       features: ["Set your own rates", "Flexible schedule", "Get paid securely"],
     },
+    {
+      value: "client" as const,
+      title: "Register as a Client - I need help with tasks",
+      description: "Find trusted workers for your errands and daily tasks",
+      features: ["Book services instantly", "Trusted verified workers", "Secure payments"],
+    },
+    
   ];
 
   return (
@@ -110,18 +122,9 @@ export default function RegisterPage() {
               {/* Role Selection */}
                 <div className="space-y-3">
                 <Label className="text-base font-medium">I want to...</Label>
-                <RadioGroup
-                  value={selectedRole}
-                  onValueChange={(value) => setSelectedRole(value as "client" | "worker")}
-                    className="grid grid-cols-1 gap-3"
-                >
+                <div className="grid grid-cols-1 gap-3">
                   {roleOptions.map((option) => (
                     <div key={option.value} className="relative">
-                      <RadioGroupItem
-                        value={option.value}
-                        id={option.value}
-                        className="peer sr-only"
-                      />
                       <Label
                         htmlFor={option.value}
                         className={cn(
@@ -133,12 +136,20 @@ export default function RegisterPage() {
                         )}
                       >
                           <div className="flex items-start justify-between mb-2">
-                          <div>
-                              <h3 className="font-semibold text-neutral-900">{option.title}</h3>
-                              <p className="text-sm text-neutral-600">{option.description}</p>
+                          <div className="flex items-start gap-3 flex-1">
+                            <Checkbox
+                              id={option.value}
+                              checked={selectedRole === option.value}
+                              onCheckedChange={() => handleRoleChange(option.value)}
+                              className="mt-1"
+                            />
+                            <div>
+                              <p className="text-bold text-neutral-900 text-md">{option.title}</p>
+                              <h2 className="text-xs text-neutral-600">{option.description}</h2>
+                            </div>
                           </div>
                         </div>
-                        <ul className="space-y-1">
+                        <ul className="space-y-1 ml-7">
                           {option.features.map((feature, index) => (
                               <li key={index} className="text-xs text-neutral-500 flex items-center">
                               <div className="w-1 h-1 bg-neutral-400 rounded-full mr-2" />
@@ -149,7 +160,7 @@ export default function RegisterPage() {
                       </Label>
                     </div>
                   ))}
-                </RadioGroup>
+                </div>
               </div>
 
               {/* Personal Information */}

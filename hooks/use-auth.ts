@@ -177,6 +177,47 @@ export function useAuth() {
           updatedAt: new Date().toISOString(),
         }
       );
+
+      // Send welcome communications (non-blocking for auth flow)
+      try {
+        const tasks: Promise<any>[] = [];
+
+        if (profileData.phone) {
+          const welcomeMessage = profileData.role === 'client'
+            ? `Welcome ${profileData.name}! Find trusted workers on ErrandWork. Start booking now.`
+            : `Welcome ${profileData.name}! Start earning on ErrandWork. Complete your profile to get jobs.`;
+
+          const smsTask = fetch('/api/sms/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: profileData.phone,
+              message: welcomeMessage
+            })
+          }).then(async (response) => {
+            if (!response.ok) {
+              const errorBody = await response.text().catch(() => '');
+              throw new Error(`SMS send failed: ${errorBody || response.statusText}`);
+            }
+            return response.json();
+          });
+
+          tasks.push(smsTask);
+        }
+
+        const { emailService } = await import('@/lib/email-service');
+        tasks.push(
+          emailService.sendWelcomeEmail({
+            to: profileData.email,
+            name: profileData.name,
+            role: profileData.role
+          })
+        );
+
+        await Promise.allSettled(tasks);
+      } catch (welcomeError) {
+        console.error('Welcome notification error:', welcomeError);
+      }
       
       return profile as User;
     } catch (error) {
