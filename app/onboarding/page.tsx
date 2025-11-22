@@ -516,10 +516,15 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(onboardingVerificationSchema),
   });
+
+  // Watch ID type and ID number for button validation
+  const idType = watch("idType");
+  const idNumber = watch("idNumber");
 
   // Register form fields that are updated programmatically
   React.useEffect(() => {
@@ -772,11 +777,13 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
           <ChevronLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           disabled={
-            isSubmitting || 
-            !idDocumentUrl || 
+            isSubmitting ||
+            !idType ||
+            !idNumber ||
+            !idDocumentUrl ||
             !selfieWithIdUrl ||
             uploading.idDocument ||
             uploading.selfieWithId

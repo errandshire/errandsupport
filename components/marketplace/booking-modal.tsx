@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Calendar, Clock, MapPin, CreditCard, Check, ArrowRight, ArrowLeft, X } from "lucide-react";
+import { Calendar, Clock, MapPin, CreditCard, Check, ArrowRight, ArrowLeft, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -81,9 +81,13 @@ function StepProgress({ currentStep, steps }: StepProgressProps) {
   );
 }
 
+type BookingFormState = Partial<BookingRequest> & {
+  customServiceAmount?: number;
+};
+
 interface BookingDetailsStepProps {
-  formData: Partial<BookingRequest>;
-  onFormDataChange: (data: Partial<BookingRequest>) => void;
+  formData: BookingFormState;
+  onFormDataChange: (data: BookingFormState) => void;
   worker: WorkerProfile;
 }
 
@@ -157,8 +161,8 @@ function BookingDetailsStep({ formData, onFormDataChange, worker }: BookingDetai
 }
 
 interface SchedulingStepProps {
-  formData: Partial<BookingRequest>;
-  onFormDataChange: (data: Partial<BookingRequest>) => void;
+  formData: BookingFormState;
+  onFormDataChange: (data: BookingFormState) => void;
   worker: WorkerProfile;
 }
 
@@ -221,8 +225,8 @@ function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepPr
 }
 
 interface PaymentStepProps {
-  formData: Partial<BookingRequest>;
-  onFormDataChange: (data: Partial<BookingRequest>) => void;
+  formData: BookingFormState;
+  onFormDataChange: (data: BookingFormState) => void;
   worker: WorkerProfile;
   onBookingSubmit: (booking: Partial<BookingRequest>) => Promise<void>;
 }
@@ -231,33 +235,109 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
   const { user } = useAuth();
   const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
   const [platformFee, setPlatformFee] = React.useState(0);
+  const [pricingMode, setPricingMode] = React.useState<'hourly' | 'custom'>('hourly');
+  const [customAmountInput, setCustomAmountInput] = React.useState('');
 
   const duration = formData.estimatedDuration || 1;
   const subtotal = worker.hourlyRate * duration;
-  const total = subtotal + platformFee;
+  const baseServiceAmount = pricingMode === 'hourly'
+    ? subtotal
+    : (formData.customServiceAmount || 0);
+  const total = baseServiceAmount + platformFee;
+
+  React.useEffect(() => {
+    if (formData.budget?.isHourly === false && formData.customServiceAmount) {
+      setPricingMode('custom');
+      setCustomAmountInput(formData.customServiceAmount.toString());
+    } else {
+      setPricingMode('hourly');
+      setCustomAmountInput('');
+    }
+  }, [formData.budget?.isHourly, formData.customServiceAmount]);
 
   // Fetch platform fee from settings when component mounts or subtotal changes
   React.useEffect(() => {
     const fetchPlatformFee = async () => {
-      const fee = await SettingsService.calculatePlatformFee(subtotal);
-      setPlatformFee(fee);
+      if (baseServiceAmount > 0) {
+        const fee = await SettingsService.calculatePlatformFee(baseServiceAmount);
+        setPlatformFee(fee);
+      } else {
+        setPlatformFee(0);
+      }
     };
     fetchPlatformFee();
-  }, [subtotal]);
+  }, [baseServiceAmount]);
 
-  // Auto-set fixed price budget
+  // Auto-set budget payload (total + currency)
   React.useEffect(() => {
-    if (!formData.budget?.amount || formData.budget.amount !== total) {
+    const totalWithFees = baseServiceAmount > 0 ? total : 0;
+    const shouldUpdateBudget =
+      !formData.budget ||
+      formData.budget.amount !== totalWithFees ||
+      formData.budget.isHourly !== (pricingMode === 'hourly');
+
+    if (shouldUpdateBudget) {
       onFormDataChange({
         ...formData,
         budget: {
-          amount: total,
+          amount: totalWithFees,
+          currency: 'NGN',
+          isHourly: pricingMode === 'hourly'
+        }
+      });
+    }
+  }, [baseServiceAmount, total, pricingMode]);
+
+  const handlePricingModeChange = (mode: 'hourly' | 'custom') => {
+    setPricingMode(mode);
+
+    if (mode === 'custom') {
+      const fallbackAmount = formData.customServiceAmount || subtotal;
+      setCustomAmountInput(fallbackAmount ? fallbackAmount.toString() : '');
+      onFormDataChange({
+        ...formData,
+        customServiceAmount: fallbackAmount,
+        budget: {
+          amount: baseServiceAmount + platformFee,
+          currency: 'NGN',
+          isHourly: false
+        }
+      });
+    } else {
+      setCustomAmountInput('');
+      onFormDataChange({
+        ...formData,
+        customServiceAmount: undefined,
+        budget: {
+          amount: baseServiceAmount + platformFee,
+          currency: 'NGN',
+          isHourly: true
+        }
+      });
+    }
+  };
+
+  const handleCustomAmountChange = (value: string) => {
+    setCustomAmountInput(value);
+    const numericValue = parseFloat(value);
+
+    if (!isNaN(numericValue) && numericValue > 0) {
+      onFormDataChange({
+        ...formData,
+        customServiceAmount: numericValue
+      });
+    } else {
+      onFormDataChange({
+        ...formData,
+        customServiceAmount: undefined,
+        budget: {
+          amount: 0,
           currency: 'NGN',
           isHourly: false
         }
       });
     }
-  }, [total]);
+  };
 
   const initializePayment = async () => {
     if (!user) {
@@ -303,6 +383,60 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment & Budget</h3>
+
+        <div className="space-y-3 mb-4">
+          <Label className="text-sm text-gray-700">Pricing Preference</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => handlePricingModeChange('hourly')}
+              className={cn(
+                "p-3 rounded-lg border-2 text-left transition-colors",
+                pricingMode === 'hourly'
+                  ? "border-emerald-500 bg-emerald-50"
+                  : "border-gray-200 hover:border-emerald-200"
+              )}
+            >
+              <p className="font-medium text-gray-900">Use hourly rate</p>
+              <p className="text-sm text-gray-600">Automatically calculate based on duration</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePricingModeChange('custom')}
+              className={cn(
+                "p-3 rounded-lg border-2 text-left transition-colors",
+                pricingMode === 'custom'
+                  ? "border-emerald-500 bg-emerald-50"
+                  : "border-gray-200 hover:border-emerald-200"
+              )}
+            >
+              <p className="font-medium text-gray-900">Enter custom amount</p>
+              <p className="text-sm text-gray-600">Set the service cost manually</p>
+            </button>
+          </div>
+
+          {pricingMode === 'custom' && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-amount" className="text-sm">Service amount (before platform fee)</Label>
+              <div className="relative">
+                <Input
+                  id="custom-amount"
+                  type="number"
+                  min="100"
+                  placeholder="e.g. 5000"
+                  value={customAmountInput}
+                  onChange={(e) => handleCustomAmountChange(e.target.value)}
+                  className="h-12 pl-10"
+                />
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+              <p className="text-xs text-gray-500">
+                This is the amount the worker will receive before fees. Platform fees are added on top.
+              </p>
+            </div>
+          )}
+        </div>
         
         <div className="space-y-4">
           {/* Payment Breakdown */}
@@ -310,8 +444,12 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
             <h4 className="font-medium text-gray-900 mb-3">Payment Breakdown</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Service ({duration}h × ₦{worker.hourlyRate.toLocaleString()})</span>
-                <span>₦{subtotal.toLocaleString()}</span>
+                <span>
+                  {pricingMode === 'hourly'
+                    ? `Service (${duration}h × ₦${worker.hourlyRate.toLocaleString()})`
+                    : 'Custom service amount'}
+                </span>
+                <span>₦{baseServiceAmount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span>Platform Fee (5%)</span>
@@ -339,7 +477,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
           {/* Payment Button */}
           <Button 
             onClick={initializePayment}
-            disabled={isProcessingPayment || !formData.budget?.amount}
+            disabled={isProcessingPayment || !formData.budget?.amount || baseServiceAmount <= 0}
             className="w-full"
             size="lg"
           >
@@ -359,7 +497,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
 }
 
 interface ConfirmationStepProps {
-  formData: Partial<BookingRequest>;
+  formData: BookingFormState;
   worker: WorkerProfile;
   onConfirm: () => void;
   isSubmitting: boolean;
@@ -420,7 +558,7 @@ function ConfirmationStep({ formData, worker, onConfirm, isSubmitting }: Confirm
 
 export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: BookingModalProps) {
   const [currentStep, setCurrentStep] = React.useState<BookingStep>('details');
-  const [formData, setFormData] = React.useState<Partial<BookingRequest>>({});
+  const [formData, setFormData] = React.useState<BookingFormState>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const steps = [
