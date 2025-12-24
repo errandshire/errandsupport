@@ -656,13 +656,16 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
           COLLECTIONS.WORKERS,
           existingWorkers.documents[0].$id,
           {
+            // ID information
+            idType: idType,
+            idNumber: idNumber,
             // Individual document fields
             idDocument: finalIdUrl,
             selfieWithId: finalSelfieUrl,
             // Additional documents as comma-separated string (Appwrite limitation)
             additionalDocuments: joinDocumentUrls(additionalUrls),
-        verificationStatus: 'pending',
-        submittedAt: new Date().toISOString(),
+            verificationStatus: 'pending',
+            submittedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }
         );
@@ -672,7 +675,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
       const result = await updateProfile({
         isOnboarded: true,
       });
-      
+
       if (result.success) {
         toast.success('Verification documents submitted successfully!');
         onNext();

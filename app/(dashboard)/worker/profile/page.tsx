@@ -4,20 +4,23 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { 
-  Edit3, 
-  Save, 
-  X, 
-  Check, 
-  MapPin, 
-  DollarSign, 
-  Clock, 
+import {
+  Edit3,
+  Save,
+  X,
+  Check,
+  MapPin,
+  DollarSign,
+  Clock,
   Star,
   User,
   Briefcase,
   Settings,
   FileText,
-  Globe
+  Globe,
+  Camera,
+  Upload,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +36,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { WorkerProfile } from "@/lib/types/marketplace";
-import { SERVICE_CATEGORIES, EXPERIENCE_LEVELS } from "@/lib/constants";
+import { SERVICE_CATEGORIES, EXPERIENCE_LEVELS, ID_TYPES } from "@/lib/constants";
+import { DocumentUpload } from "@/components/forms/document-upload";
+import { joinDocumentUrls, parseDocumentUrls } from "@/lib/utils";
 
 // Validation schema for worker profile
 const workerProfileSchema = z.object({
@@ -180,7 +185,23 @@ export default function WorkerProfilePage() {
   const [isSaving, setIsSaving] = React.useState(false);
   const [editingFields, setEditingFields] = React.useState<Set<string>>(new Set());
   const [formData, setFormData] = React.useState<Partial<WorkerProfileFormData>>({});
-  const [hasChanges, setHasChanges] = React.useState(false);
+  const [hasProfileChanges, setHasProfileChanges] = React.useState(false);
+  const [hasDocumentChanges, setHasDocumentChanges] = React.useState(false);
+
+  // Document upload states
+  const [idType, setIdType] = React.useState<string>("");
+  const [idNumber, setIdNumber] = React.useState<string>("");
+  const [idDocumentUrl, setIdDocumentUrl] = React.useState<string>("");
+  const [selfieWithIdUrl, setSelfieWithIdUrl] = React.useState<string>("");
+  const [additionalDocuments, setAdditionalDocuments] = React.useState<string[]>([]);
+  const [idDocumentFile, setIdDocumentFile] = React.useState<File | null>(null);
+  const [selfieWithIdFile, setSelfieWithIdFile] = React.useState<File | null>(null);
+  const [additionalFiles, setAdditionalFiles] = React.useState<File[]>([]);
+  const [uploading, setUploading] = React.useState<{ idDocument: boolean; selfieWithId: boolean }>({
+    idDocument: false,
+    selfieWithId: false
+  });
+  const [isUploadingDocuments, setIsUploadingDocuments] = React.useState(false);
 
   // Handle authentication and loading
   React.useEffect(() => {
@@ -235,6 +256,16 @@ export default function WorkerProfilePage() {
             acceptsLastMinute: profile.acceptsLastMinute || false,
             acceptsWeekends: profile.acceptsWeekends || false,
           });
+
+          // Load existing verification documents
+          const profileAny = profile as any;
+          if (profileAny.idType) setIdType(profileAny.idType);
+          if (profileAny.idNumber) setIdNumber(profileAny.idNumber);
+          if (profileAny.idDocument) setIdDocumentUrl(profileAny.idDocument);
+          if (profileAny.selfieWithId) setSelfieWithIdUrl(profileAny.selfieWithId);
+          if (profileAny.additionalDocuments) {
+            setAdditionalDocuments(parseDocumentUrls(profileAny.additionalDocuments));
+          }
         }
       } catch (error) {
         console.error('Error fetching worker profile:', error);
@@ -269,19 +300,18 @@ export default function WorkerProfilePage() {
   };
 
   const handleFieldSave = (fieldName: string, value: any) => {
-    
     setFormData(prev => {
       const newData = { ...prev, [fieldName]: value };
       return newData;
     });
-    
+
     setEditingFields(prev => {
       const newSet = new Set(prev);
       newSet.delete(fieldName);
       return newSet;
     });
-    
-    setHasChanges(true);
+
+    setHasProfileChanges(true);
   };
 
   const handleFieldCancel = (fieldName: string) => {
@@ -293,7 +323,7 @@ export default function WorkerProfilePage() {
   };
 
   const handleSaveAllChanges = async () => {
-    if (!workerProfile || !hasChanges) {
+    if (!workerProfile || !hasProfileChanges) {
       return;
     }
 
@@ -320,13 +350,199 @@ export default function WorkerProfilePage() {
 
       // Update local state after successful save
       setWorkerProfile(prev => prev ? { ...prev, ...updateData } : null);
-      setHasChanges(false);
+      setHasProfileChanges(false);
       toast.success("Profile updated successfully!");
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error(`Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Document upload helpers
+  const uploadFileToStorage = async (file: File): Promise<string> => {
+    try {
+      const { storage, STORAGE_BUCKET_ID } = await import('@/lib/appwrite');
+      const { ID } = await import('appwrite');
+
+      const fileId = ID.unique();
+      const uploadedFile = await storage.createFile(STORAGE_BUCKET_ID, fileId, file);
+
+      const fileUrl = storage.getFileView(STORAGE_BUCKET_ID, uploadedFile.$id);
+      return fileUrl.toString();
+    } catch (error) {
+      console.error('File upload error:', error);
+      throw new Error('Failed to upload file');
+    }
+  };
+
+  const handleIdDocumentUpload = async (files: File[]): Promise<string[]> => {
+    const file = files[0];
+    if (!file) return [];
+    if (idDocumentUrl.startsWith('blob:')) URL.revokeObjectURL(idDocumentUrl);
+    const previewUrl = URL.createObjectURL(file);
+    setIdDocumentFile(file);
+    setIdDocumentUrl(previewUrl);
+    setHasDocumentChanges(true);
+    return [previewUrl];
+  };
+
+  const handleSelfieWithIdUpload = async (files: File[]): Promise<string[]> => {
+    const file = files[0];
+    if (!file) return [];
+    if (selfieWithIdUrl.startsWith('blob:')) URL.revokeObjectURL(selfieWithIdUrl);
+    const previewUrl = URL.createObjectURL(file);
+    setSelfieWithIdFile(file);
+    setSelfieWithIdUrl(previewUrl);
+    setHasDocumentChanges(true);
+    return [previewUrl];
+  };
+
+  const handleAdditionalDocumentsUpload = async (files: File[]): Promise<string[]> => {
+    const previews: string[] = [];
+    const adds: File[] = [];
+    files.forEach(f => {
+      adds.push(f);
+      previews.push(URL.createObjectURL(f));
+    });
+    setAdditionalFiles(prev => [...prev, ...adds]);
+    setAdditionalDocuments(prev => [...prev, ...previews]);
+    setHasDocumentChanges(true);
+    return previews;
+  };
+
+  const removeIdDocument = () => {
+    setIdDocumentUrl("");
+    setIdDocumentFile(null);
+    setHasDocumentChanges(true);
+  };
+
+  const removeSelfieWithId = () => {
+    setSelfieWithIdUrl("");
+    setSelfieWithIdFile(null);
+    setHasDocumentChanges(true);
+  };
+
+  const removeAdditionalDocument = (url: string) => {
+    setAdditionalDocuments(prev => {
+      const index = prev.indexOf(url);
+      const next = prev.filter(doc => doc !== url);
+      if (index > -1) setAdditionalFiles(files => files.filter((_, i) => i !== index));
+      return next;
+    });
+    setHasDocumentChanges(true);
+  };
+
+  const handleSaveDocuments = async () => {
+    if (!workerProfile) return;
+
+    try {
+      setIsUploadingDocuments(true);
+
+      // Upload files
+      const [finalIdUrl, finalSelfieUrl] = await Promise.all([
+        idDocumentFile ? uploadFileToStorage(idDocumentFile) : Promise.resolve(idDocumentUrl),
+        selfieWithIdFile ? uploadFileToStorage(selfieWithIdFile) : Promise.resolve(selfieWithIdUrl)
+      ]);
+
+      // Upload additional files if any local files exist
+      let additionalUrls = additionalDocuments.filter(url => !url.startsWith('blob:'));
+      if (additionalFiles.length > 0) {
+        const uploaded = await Promise.all(additionalFiles.map(uploadFileToStorage));
+        additionalUrls = [...additionalUrls, ...uploaded];
+      }
+
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.WORKERS,
+        (workerProfile as any).$id,
+        {
+          idType: idType,
+          idNumber: idNumber,
+          idDocument: finalIdUrl,
+          selfieWithId: finalSelfieUrl,
+          additionalDocuments: joinDocumentUrls(additionalUrls),
+          verificationStatus: 'pending',
+          submittedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      );
+
+      // Update local state with actual URLs
+      setIdDocumentUrl(finalIdUrl);
+      setSelfieWithIdUrl(finalSelfieUrl);
+      setAdditionalDocuments(additionalUrls);
+      setIdDocumentFile(null);
+      setSelfieWithIdFile(null);
+      setAdditionalFiles([]);
+
+      // Notify all admins about the document submission
+      try {
+        const { Query } = await import('appwrite');
+        const { notificationService } = await import('@/lib/notification-service');
+
+        // Fetch all admin users
+        const adminUsers = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.USERS,
+          [Query.equal('role', 'admin'), Query.limit(50)]
+        );
+
+        const workerName = (workerProfile as any).displayName || user?.name || 'A worker';
+
+        // Send in-app notification to each admin
+        await Promise.all(
+          adminUsers.documents.map(admin =>
+            notificationService.createNotification({
+              userId: admin.$id,
+              title: 'New Document Submission',
+              message: `${workerName} has submitted/updated their verification documents. Please review.`,
+              type: 'info',
+              actionUrl: '/admin/users'
+            })
+          )
+        );
+
+        // Send email notification to admins
+        const adminEmails = adminUsers.documents
+          .map((admin: any) => admin.email)
+          .filter(Boolean);
+
+        if (adminEmails.length > 0) {
+          await fetch('/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: adminEmails,
+              subject: `New Document Submission - ${workerName}`,
+              html: `
+                <h2>New Verification Document Submission</h2>
+                <p><strong>${workerName}</strong> has submitted/updated their verification documents.</p>
+                <p><strong>ID Type:</strong> ${idType}</p>
+                <p><strong>ID Number:</strong> ${idNumber}</p>
+                <p>Please review the documents in the admin dashboard.</p>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://erandwork.com'}/admin/users" style="display:inline-block;padding:10px 20px;background-color:#16a34a;color:white;text-decoration:none;border-radius:5px;margin-top:10px;">Review Documents</a>
+              `
+            })
+          });
+        }
+
+        console.log('Admin notifications sent successfully');
+      } catch (notifyError) {
+        console.error('Failed to notify admins:', notifyError);
+        // Don't fail the main operation if notification fails
+      }
+
+      toast.success('Verification documents submitted successfully!');
+      setHasDocumentChanges(false);
+    } catch (error) {
+      console.error('Error saving documents:', error);
+      toast.error('Failed to save verification documents');
+    } finally {
+      setIsUploadingDocuments(false);
     }
   };
 
@@ -569,16 +785,13 @@ export default function WorkerProfilePage() {
                     />
                   </CardContent>
                 </Card>
-              </div>
-            </div>
-
-            {/* Save Changes Button - Always visible */}
+                {/* Save Changes Button - For profile info only */}
             <div className="mt-8 flex justify-end">
               <Button
                 onClick={handleSaveAllChanges}
-                disabled={!hasChanges || isSaving}
+                disabled={!hasProfileChanges || isSaving}
                 size="lg"
-                className={`shadow-lg ${hasChanges ? 'bg-[#16a34a] hover:bg-[#15803d]' : 'bg-gray-400 cursor-not-allowed'}`}
+                className={`shadow-lg ${hasProfileChanges ? 'bg-[#16a34a] hover:bg-[#15803d]' : 'bg-gray-400 cursor-not-allowed'}`}
               >
                 {isSaving ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -588,6 +801,164 @@ export default function WorkerProfilePage() {
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
+
+                {/* Verification Documents */}
+                <Card variant="elevated">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Shield className="h-5 w-5 mr-2" />
+                      Verification Documents
+                    </CardTitle>
+                    <CardDescription>
+                      Upload your verification documents to get verified and receive more bookings
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Verification Status */}
+                    {(workerProfile as any)?.verificationStatus && (
+                      <div className={`p-4 rounded-lg ${
+                        (workerProfile as any).verificationStatus === 'verified'
+                          ? 'bg-green-50 border border-green-200'
+                          : (workerProfile as any).verificationStatus === 'rejected'
+                          ? 'bg-red-50 border border-red-200'
+                          : 'bg-yellow-50 border border-yellow-200'
+                      }`}>
+                        <p className={`text-sm font-medium ${
+                          (workerProfile as any).verificationStatus === 'verified'
+                            ? 'text-green-800'
+                            : (workerProfile as any).verificationStatus === 'rejected'
+                            ? 'text-red-800'
+                            : 'text-yellow-800'
+                        }`}>
+                          Status: {(workerProfile as any).verificationStatus === 'verified'
+                            ? '✅ Verified'
+                            : (workerProfile as any).verificationStatus === 'rejected'
+                            ? '❌ Rejected'
+                            : '⏳ Pending Review'}
+                        </p>
+                        {(workerProfile as any).rejectionReason && (
+                          <p className="text-sm text-red-600 mt-1">
+                            Reason: {(workerProfile as any).rejectionReason}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ID Type */}
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">
+                        ID Type <span className="text-red-500">*</span>
+                      </label>
+                      <Select value={idType} onValueChange={(value) => { setIdType(value); setHasDocumentChanges(true); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your ID type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ID_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* ID Number */}
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">
+                        ID Number <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        value={idNumber}
+                        onChange={(e) => { setIdNumber(e.target.value); setHasDocumentChanges(true); }}
+                        placeholder="Enter your ID number"
+                      />
+                    </div>
+
+                    {/* ID Document Upload */}
+                    <DocumentUpload
+                      title="ID Document"
+                      description="Upload a clear photo of your ID document (front side)"
+                      required
+                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+                      maxSize={5}
+                      maxFiles={1}
+                      onUpload={handleIdDocumentUpload}
+                      onRemove={removeIdDocument}
+                      uploadedFiles={idDocumentUrl ? [idDocumentUrl] : []}
+                      uploading={uploading.idDocument}
+                      icon={<FileText className="h-8 w-8" />}
+                    />
+
+                    {/* Selfie with ID Upload */}
+                    <DocumentUpload
+                      title="Selfie with ID"
+                      description="Take a selfie holding your ID document next to your face"
+                      required
+                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+                      maxSize={5}
+                      maxFiles={1}
+                      onUpload={handleSelfieWithIdUpload}
+                      onRemove={removeSelfieWithId}
+                      uploadedFiles={selfieWithIdUrl ? [selfieWithIdUrl] : []}
+                      uploading={uploading.selfieWithId}
+                      icon={<Camera className="h-8 w-8" />}
+                    />
+
+                    {/* Additional Documents Upload */}
+                    <DocumentUpload
+                      title="Additional Documents (Optional)"
+                      description="Upload any additional verification documents (certificates, references, etc.)"
+                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
+                      maxSize={5}
+                      maxFiles={3}
+                      onUpload={handleAdditionalDocumentsUpload}
+                      onRemove={removeAdditionalDocument}
+                      uploadedFiles={additionalDocuments}
+                      icon={<Upload className="h-8 w-8" />}
+                    />
+
+                    {/* Photo Guidelines */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <h4 className="font-medium text-amber-900 mb-2">Photo Guidelines</h4>
+                      <ul className="text-sm text-amber-700 space-y-1">
+                        <li>• Ensure good lighting and clear visibility</li>
+                        <li>• All text on documents should be readable</li>
+                        <li>• Avoid glare, shadows, or blurry images</li>
+                        <li>• For selfie: hold ID next to your face, both should be clearly visible</li>
+                      </ul>
+                    </div>
+
+                    {/* Save Documents Button */}
+                    <Button
+                      onClick={handleSaveDocuments}
+                      disabled={
+                        isUploadingDocuments ||
+                        !idType ||
+                        !idNumber ||
+                        !idDocumentUrl ||
+                        !selfieWithIdUrl
+                      }
+                      className="w-full"
+                    >
+                      {isUploadingDocuments ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Uploading Documents...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Submit Verification Documents
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            
           </div>
         </main>
         

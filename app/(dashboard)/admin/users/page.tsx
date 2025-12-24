@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { RefreshCw, CheckCircle2, XCircle, Search, Trash2 } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Search, Trash2, MessageSquare, Send } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { emailService, WorkerVerificationData } from "@/lib/email-service";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,6 +47,8 @@ type WorkerDoc = {
   backgroundCheckVerified?: boolean;
   verificationStatus?: string;
   verificationDocuments?: string;
+  idType?: string;
+  idNumber?: string;
   idDocument?: string;
   selfieWithId?: string;
   additionalDocuments?: string;
@@ -70,6 +72,11 @@ export default function AdminUsersPage() {
   const [workerToReject, setWorkerToReject] = React.useState<WorkerDoc | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = React.useState(false);
   const [userToDelete, setUserToDelete] = React.useState<WorkerDoc | null>(null);
+  const [messageModalOpen, setMessageModalOpen] = React.useState(false);
+  const [userToMessage, setUserToMessage] = React.useState<WorkerDoc | null>(null);
+  const [messageTitle, setMessageTitle] = React.useState("");
+  const [messageContent, setMessageContent] = React.useState("");
+  const [isSendingMessage, setIsSendingMessage] = React.useState(false);
 
   const fetchWorkers = React.useCallback(async () => {
     try {
@@ -284,6 +291,44 @@ export default function AdminUsersPage() {
     }
   };
 
+  const openMessageModal = (worker: WorkerDoc) => {
+    setUserToMessage(worker);
+    setMessageTitle("");
+    setMessageContent("");
+    setMessageModalOpen(true);
+  };
+
+  const sendMessageToUser = async () => {
+    if (!userToMessage || !messageTitle.trim() || !messageContent.trim()) {
+      toast.error("Please fill in both title and message");
+      return;
+    }
+
+    try {
+      setIsSendingMessage(true);
+
+      // Create in-app notification for the user
+      await notificationService.createNotification({
+        userId: userToMessage.userId,
+        title: messageTitle.trim(),
+        message: messageContent.trim(),
+        type: "info",
+        actionUrl: "/worker/dashboard"
+      });
+
+      toast.success(`Message sent to ${userToMessage.displayName || userToMessage.name || "user"}`);
+      setMessageModalOpen(false);
+      setUserToMessage(null);
+      setMessageTitle("");
+      setMessageContent("");
+    } catch (error) {
+      console.error("Send message error:", error);
+      toast.error("Failed to send message");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return workers;
@@ -396,6 +441,9 @@ export default function AdminUsersPage() {
                             <Button size="sm" variant="outline" onClick={() => openDetails(w)}>
                               View Details
                             </Button>
+                            <Button size="sm" variant="outline" onClick={() => openMessageModal(w)}>
+                              <MessageSquare className="h-4 w-4 mr-1" /> Message
+                            </Button>
                             {getWorkerStatus(w) === "pending" && (
                               <>
                                 <Button size="sm" onClick={() => approveWorker(w)}>
@@ -441,9 +489,14 @@ export default function AdminUsersPage() {
                       </div>
                       
                       <div className="flex flex-col gap-2 pt-2">
-                        <Button size="sm" variant="outline" onClick={() => openDetails(w)} className="w-full">
-                          View Details
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openDetails(w)} className="flex-1">
+                            View Details
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openMessageModal(w)} className="flex-1">
+                            <MessageSquare className="h-4 w-4 mr-1" /> Message
+                          </Button>
+                        </div>
                         {getWorkerStatus(w) === "pending" && (
                           <div className="flex gap-2">
                             <Button size="sm" onClick={() => approveWorker(w)} className="flex-1">
@@ -542,8 +595,11 @@ export default function AdminUsersPage() {
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-4">
                       <Detail label="Verification Status" value={statusBadge(getWorkerStatus(selected))} />
-                      <Detail 
-                        label="ID Document" 
+                      <Detail label="ID Type" value={selected.idType || "—"} />
+                      <Detail label="ID Number" value={selected.idNumber || "—"} />
+                      <Detail label="Submitted At" value={selected.submittedAt ? new Date(selected.submittedAt).toLocaleDateString() : "—"} />
+                      <Detail
+                        label="ID Document"
                         value={
                           (selected.idDocument || selectedUser?.idDocument) ? (
                             <a 
@@ -603,6 +659,9 @@ export default function AdminUsersPage() {
                     )}
                     
                     <div className="flex gap-2 flex-wrap">
+                      <Button size="sm" variant="outline" onClick={() => openMessageModal(selected)}>
+                        <MessageSquare className="h-4 w-4 mr-1" /> Message User
+                      </Button>
                       {getWorkerStatus(selected) === "pending" && (
                         <>
                           <Button size="sm" onClick={() => approveWorker(selected)}>
@@ -730,6 +789,70 @@ export default function AdminUsersPage() {
                 }}
               >
                 Delete User
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Message User Modal */}
+      <Dialog open={messageModalOpen} onOpenChange={setMessageModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Message to User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-neutral-600">
+              Send a message to <strong>{userToMessage?.displayName || userToMessage?.name || "this user"}</strong>.
+              They will receive this as an in-app notification.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Title <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={messageTitle}
+                onChange={(e) => setMessageTitle(e.target.value)}
+                placeholder="Enter message title..."
+                disabled={isSendingMessage}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Message <span className="text-red-500">*</span>
+              </label>
+              <Textarea
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                placeholder="Enter your message..."
+                className="min-h-[120px]"
+                disabled={isSendingMessage}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMessageModalOpen(false);
+                  setUserToMessage(null);
+                  setMessageTitle("");
+                  setMessageContent("");
+                }}
+                disabled={isSendingMessage}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendMessageToUser}
+                disabled={isSendingMessage || !messageTitle.trim() || !messageContent.trim()}
+              >
+                {isSendingMessage ? (
+                  <>Sending...</>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-1" /> Send Message
+                  </>
+                )}
               </Button>
             </div>
           </div>

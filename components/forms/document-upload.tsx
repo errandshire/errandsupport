@@ -205,9 +205,42 @@ export function DocumentUpload({
             </p>
           </div>
 
-          {!isComplete && (
-            <Button 
-              type="button" 
+          {isComplete ? (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Remove existing file first, then allow new upload
+                  if (uploadedFiles.length > 0) {
+                    onRemove(uploadedFiles[0]);
+                  }
+                  setTimeout(() => fileInputRef.current?.click(), 100);
+                }}
+                disabled={uploading}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Replace
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (uploadedFiles.length > 0) {
+                    onRemove(uploadedFiles[0]);
+                  }
+                }}
+                disabled={uploading}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Remove
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
@@ -232,7 +265,7 @@ export function DocumentUpload({
             accept={acceptedTypes.join(',')}
             onChange={handleFileInputChange}
             className="hidden"
-            disabled={uploading || isComplete}
+            disabled={uploading}
           />
         </div>
       </div>
