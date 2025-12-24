@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { 
   Users,
+  UserCircle,
   Settings,
   Shield,
   AlertTriangle,
@@ -247,7 +248,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <StatsCard
           title="Total Users"
           value={stats?.totalUsers.toLocaleString() || '0'}
@@ -261,6 +262,13 @@ export default function AdminDashboard() {
           description="Currently active workers"
           icon={Shield}
           trend={stats?.workerGrowth}
+        />
+        <StatsCard
+          title="Active Clients"
+          value={stats?.activeClients.toLocaleString() || '0'}
+          description={`${stats?.totalClients || 0} total clients`}
+          icon={UserCircle}
+          trend={stats?.clientGrowth}
         />
         <StatsCard
           title="Pending Verifications"
@@ -341,6 +349,12 @@ export default function AdminDashboard() {
                 <Link href="/admin/users">
                   <Users className="h-4 w-4 mr-2" />
                   Manage Users
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/admin/clients">
+                  <UserCircle className="h-4 w-4 mr-2" />
+                  Manage Clients
                 </Link>
               </Button>
               <Button variant="outline" className="w-full justify-start" asChild>

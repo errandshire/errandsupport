@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { RefreshCw, CheckCircle2, XCircle, Search, Trash2, MessageSquare, Send } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Search, Trash2, MessageSquare, Send, Bell } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { emailService, WorkerVerificationData } from "@/lib/email-service";
 import { Textarea } from "@/components/ui/textarea";
@@ -77,6 +77,7 @@ export default function AdminUsersPage() {
   const [messageTitle, setMessageTitle] = React.useState("");
   const [messageContent, setMessageContent] = React.useState("");
   const [isSendingMessage, setIsSendingMessage] = React.useState(false);
+  const [isSendingReminders, setIsSendingReminders] = React.useState(false);
 
   const fetchWorkers = React.useCallback(async () => {
     try {
@@ -329,6 +330,38 @@ export default function AdminUsersPage() {
     }
   };
 
+  const sendDocumentReminders = async () => {
+    try {
+      setIsSendingReminders(true);
+      toast.info("Sending document upload reminders...");
+
+      const response = await fetch('/api/admin/notify-incomplete-workers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send reminders');
+      }
+
+      // Show detailed success message
+      const { stats } = data;
+      const summary = `Sent to ${stats.totalWorkers} workers: ${stats.email.sent} emails, ${stats.sms.sent} SMS, ${stats.inApp.sent} in-app notifications`;
+      toast.success(summary);
+
+      console.log('Document reminders sent:', stats);
+    } catch (error) {
+      console.error("Send reminders error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to send reminders");
+    } finally {
+      setIsSendingReminders(false);
+    }
+  };
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return workers;
@@ -400,6 +433,15 @@ export default function AdminUsersPage() {
           </div>
           <Button variant="outline" size="sm" onClick={fetchWorkers} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={sendDocumentReminders}
+            disabled={isSendingReminders}
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            {isSendingReminders ? "Sending..." : "Send Document Reminders"}
           </Button>
         </div>
       </div>

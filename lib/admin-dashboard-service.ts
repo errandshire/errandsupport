@@ -4,10 +4,13 @@ import { Query } from 'appwrite';
 export interface DashboardStats {
   totalUsers: number;
   activeWorkers: number;
+  activeClients: number;
+  totalClients: number;
   pendingVerifications: number;
   systemHealth: number;
   userGrowth: string;
   workerGrowth: string;
+  clientGrowth: string;
 }
 
 export interface RecentRegistration {
@@ -72,7 +75,7 @@ class AdminDashboardService {
 
     try {
       // Parallel fetch for better performance
-      const [usersResponse, workersResponse] = await Promise.all([
+      const [usersResponse, workersResponse, clientsResponse] = await Promise.all([
         databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.USERS,
@@ -85,8 +88,21 @@ class AdminDashboardService {
             Query.limit(100),
             Query.equal('isActive', true)
           ]
+        ),
+        databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          [
+            Query.equal('role', 'client'),
+            Query.limit(100)
+          ]
         )
       ]);
+
+      // Filter active clients (status === 'active' or isActive !== false and no status field)
+      const activeClients = clientsResponse.documents.filter((client: any) => 
+        client.status === 'active' || (client.isActive !== false && !client.status)
+      );
 
       // Get pending verifications (workers with pending status)
       const pendingResponse = await databases.listDocuments(
@@ -101,10 +117,13 @@ class AdminDashboardService {
       const stats: DashboardStats = {
         totalUsers: usersResponse.total || 0,
         activeWorkers: workersResponse.documents.length,
+        totalClients: clientsResponse.total || 0,
+        activeClients: activeClients.length,
         pendingVerifications: pendingResponse.documents.length,
         systemHealth: 98, // Mock for now - could be real health check
         userGrowth: '+12%', // Mock - would calculate from historical data
-        workerGrowth: '+5%' // Mock - would calculate from historical data
+        workerGrowth: '+5%', // Mock - would calculate from historical data
+        clientGrowth: '+8%' // Mock - would calculate from historical data
       };
 
       this.setCache(cacheKey, stats, this.CACHE_TTL.stats);
@@ -117,10 +136,13 @@ class AdminDashboardService {
       return {
         totalUsers: 0,
         activeWorkers: 0,
+        totalClients: 0,
+        activeClients: 0,
         pendingVerifications: 0,
         systemHealth: 0,
         userGrowth: 'N/A',
-        workerGrowth: 'N/A'
+        workerGrowth: 'N/A',
+        clientGrowth: 'N/A'
       };
     }
   }

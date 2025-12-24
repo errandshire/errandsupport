@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EditableLocationField } from "@/components/forms/editable-location-field";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -248,7 +249,7 @@ export default function ClientProfilePage() {
           phone: response.phone || '',
           address: response.address || '',
           city: response.city || '',
-          state: response.state || '',
+          state: response.state || '', // Load existing state
           notificationPreferences: response.notificationPreferences || {
             email: true,
             push: true,
@@ -462,25 +463,23 @@ export default function ClientProfilePage() {
                 icon={<MapPin className="h-4 w-4" />}
                 placeholder="Your street address"
               />
-              <EditableField
-                label="City"
-                value={formData.city || ''}
-                isEditing={editingFields.has('city')}
-                onEdit={() => handleFieldEdit('city')}
-                onSave={(value) => handleFieldSave('city', value)}
-                onCancel={() => handleFieldCancel('city')}
+              <EditableLocationField
+                label="Location"
+                stateValue={formData.state || ''}
+                cityValue={formData.city || ''}
+                isEditing={editingFields.has('location')}
+                onEdit={() => handleFieldEdit('location')}
+                onSave={(state, city) => {
+                  handleFieldSave('state', state);
+                  handleFieldSave('city', city);
+                  setEditingFields(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete('location');
+                    return newSet;
+                  });
+                }}
+                onCancel={() => handleFieldCancel('location')}
                 icon={<Globe className="h-4 w-4" />}
-                placeholder="Your city"
-              />
-              <EditableField
-                label="State"
-                value={formData.state || ''}
-                isEditing={editingFields.has('state')}
-                onEdit={() => handleFieldEdit('state')}
-                onSave={(value) => handleFieldSave('state', value)}
-                onCancel={() => handleFieldCancel('state')}
-                icon={<Globe className="h-4 w-4" />}
-                placeholder="Your state"
               />
             </CardContent>
           </Card>

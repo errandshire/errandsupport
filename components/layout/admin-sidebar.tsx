@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Home,
   Users,
+  UserCircle,
   FileText,
   Settings,
   BarChart3,
@@ -44,6 +45,12 @@ const sidebarItems = [
     title: "Manage Users",
     href: "/admin/users",
     icon: Users,
+    badge: null,
+  },
+  {
+    title: "Manage Clients",
+    href: "/admin/clients",
+    icon: UserCircle,
     badge: null,
   },
   {

@@ -38,6 +38,7 @@ import { z } from "zod";
 import type { WorkerProfile } from "@/lib/types/marketplace";
 import { SERVICE_CATEGORIES, EXPERIENCE_LEVELS, ID_TYPES } from "@/lib/constants";
 import { DocumentUpload } from "@/components/forms/document-upload";
+import { EditableLocationField } from "@/components/forms/editable-location-field";
 import { joinDocumentUrls, parseDocumentUrls } from "@/lib/utils";
 
 // Validation schema for worker profile
@@ -670,22 +671,22 @@ export default function WorkerProfilePage() {
                       onCancel={() => handleFieldCancel('address')}
                       icon={<MapPin className="h-4 w-4" />}
                     />
-                    <EditableField
-                      label="City"
-                      value={formData.city || ''}
-                      isEditing={editingFields.has('city')}
-                      onEdit={() => handleFieldEdit('city')}
-                      onSave={(value) => handleFieldSave('city', value)}
-                      onCancel={() => handleFieldCancel('city')}
-                      icon={<Globe className="h-4 w-4" />}
-                    />
-                    <EditableField
-                      label="State"
-                      value={formData.state || ''}
-                      isEditing={editingFields.has('state')}
-                      onEdit={() => handleFieldEdit('state')}
-                      onSave={(value) => handleFieldSave('state', value)}
-                      onCancel={() => handleFieldCancel('state')}
+                    <EditableLocationField
+                      label="Location"
+                      stateValue={formData.state || ''}
+                      cityValue={formData.city || ''}
+                      isEditing={editingFields.has('location')}
+                      onEdit={() => handleFieldEdit('location')}
+                      onSave={(state, city) => {
+                        handleFieldSave('state', state);
+                        handleFieldSave('city', city);
+                        setEditingFields(prev => {
+                          const newSet = new Set(prev);
+                          newSet.delete('location');
+                          return newSet;
+                        });
+                      }}
+                      onCancel={() => handleFieldCancel('location')}
                       icon={<Globe className="h-4 w-4" />}
                     />
                     <EditableField

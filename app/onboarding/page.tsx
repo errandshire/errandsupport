@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Upload, MapPin, DollarSign, Clock, Star, X, 
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/forms/form-input";
 import { DocumentUpload } from "@/components/forms/document-upload";
+import { LocationSelect } from "@/components/forms/location-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -191,22 +192,45 @@ export default function OnboardingPage() {
 // Personal Information Step
 function PersonalInfoStep({ user, updateProfile, onNext }: any) {
   const router = useRouter();
+  const [selectedState, setSelectedState] = React.useState(user?.state || "");
+  const [selectedCity, setSelectedCity] = React.useState(user?.city || "");
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    setValue,
+    watch,
   } = useForm({
     resolver: zodResolver(clientProfileSchema),
     defaultValues: {
       name: user.name || "",
       phone: user.phone || "",
-      address: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: "Nigeria",
+      address: user.address || "",
+      city: user.city || "",
+      state: user.state || "",
+      postalCode: user.postalCode || "",
+      country: user.country || "Nigeria",
     },
   });
+
+  // Load existing location values on mount
+  React.useEffect(() => {
+    if (user?.state) {
+      setSelectedState(user.state);
+      setValue("state", user.state);
+    }
+    if (user?.city) {
+      setSelectedCity(user.city);
+      setValue("city", user.city);
+    }
+  }, [user, setValue]);
+
+  // Sync form values with location selects
+  React.useEffect(() => {
+    setValue("state", selectedState);
+    setValue("city", selectedCity);
+  }, [selectedState, selectedCity, setValue]);
 
   const onSubmit = async (data: any) => {
     const result = await updateProfile(data);
@@ -245,26 +269,32 @@ function PersonalInfoStep({ user, updateProfile, onNext }: any) {
         disabled={isSubmitting}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <FormInput
-          {...register("city")}
-          label="City"
-          error={errors.city?.message}
-          disabled={isSubmitting}
-        />
-        <FormInput
-          {...register("state")}
-          label="State"
-          error={errors.state?.message}
-          disabled={isSubmitting}
-        />
-        <FormInput
-          {...register("postalCode")}
-          label="Postal Code"
-          error={errors.postalCode?.message}
-          disabled={isSubmitting}
-        />
-      </div>
+      <LocationSelect
+        selectedState={selectedState}
+        selectedCity={selectedCity}
+        onStateChange={(state) => {
+          setSelectedState(state);
+          setValue("state", state);
+        }}
+        onCityChange={(city) => {
+          setSelectedCity(city);
+          setValue("city", city);
+        }}
+        stateLabel="State"
+        cityLabel="City"
+        stateError={errors.state?.message}
+        cityError={errors.city?.message}
+        disabled={isSubmitting}
+        stateRequired
+        cityRequired
+      />
+
+      <FormInput
+        {...register("postalCode")}
+        label="Postal Code (Optional)"
+        error={errors.postalCode?.message}
+        disabled={isSubmitting}
+      />
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={handleBack} disabled={isSubmitting}>

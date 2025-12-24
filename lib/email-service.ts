@@ -502,6 +502,44 @@ class EmailTemplateBuilder {
 
     return this.getBaseTemplate(content, 'Welcome to ErrandWork');
   }
+
+  static documentReminder(data: EmailUser): string {
+    const content = `
+      <h2>Complete Your Profile to Start Earning</h2>
+      <p>Hello ${data.name},</p>
+      <p>We noticed that your worker profile is almost complete! To start receiving bookings and earning money on ${EMAIL_CONFIG.company}, you need to upload your verification documents.</p>
+
+      <div class="highlight">
+        <p><strong>Required Documents:</strong></p>
+        <ul>
+          <li>📄 <strong>Valid ID Document</strong> - National ID, Passport, Driver's License, or Voter Card</li>
+          <li>🤳 <strong>Selfie with ID</strong> - A clear photo of you holding your ID document</li>
+          <li>📋 <strong>Additional Documents</strong> (Optional) - Certifications, references, or other credentials</li>
+        </ul>
+      </div>
+
+      <p><strong>Why do we need these documents?</strong></p>
+      <ul>
+        <li>✅ Verify your identity and build trust with clients</li>
+        <li>🛡️ Protect both you and our platform users</li>
+        <li>💼 Unlock access to high-quality job opportunities</li>
+        <li>⭐ Stand out with a verified badge on your profile</li>
+      </ul>
+
+      <a href="${EMAIL_CONFIG.baseUrl}/onboarding" class="button">Upload Documents Now</a>
+
+      <p><strong>What happens after upload?</strong></p>
+      <ul>
+        <li>Our team will review your documents within 24-48 hours</li>
+        <li>You'll receive an email notification about your verification status</li>
+        <li>Once approved, you can start accepting bookings immediately!</li>
+      </ul>
+
+      <p>Don't miss out on earning opportunities. Complete your verification today!</p>
+      <p>If you have any questions or need assistance, our support team is here to help.</p>
+    `;
+    return this.getBaseTemplate(content, 'Complete Your Profile - Upload Documents');
+  }
 }
 
 // Email service class
@@ -639,6 +677,12 @@ class EmailService {
     const subject = `Reset Your Password - ${EMAIL_CONFIG.company}`;
     const html = EmailTemplateBuilder.passwordReset(data);
     return this.sendEmail(data.to, subject, html, 'password_reset');
+  }
+
+  async sendDocumentReminderEmail(data: EmailUser): Promise<boolean> {
+    const subject = `Complete Your Profile - Upload Verification Documents`;
+    const html = EmailTemplateBuilder.documentReminder(data);
+    return this.sendEmail(data.email, subject, html, 'document_reminder');
   }
 
   // Bulk email sending for notifications
