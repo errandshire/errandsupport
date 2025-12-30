@@ -86,10 +86,12 @@ export function Footer({ className }: FooterProps) {
                 <Mail className="h-4 w-4" />
                 <span>support@erandwork.com</span>
               </div>
-              {/* <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4" />
-                <span>+1 (555) 123-4567</span>
-              </div> */}
+                <a href="tel:+2349163213366" className="hover:text-white transition-colors">
+                  +234 916 321 3366
+                </a>
+              </div>
               <div className="flex items-center space-x-2">
                 <MapPin className="h-4 w-4" />
                 <span>Lagos, Nigeria</span>
