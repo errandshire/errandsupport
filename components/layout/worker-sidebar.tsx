@@ -17,7 +17,8 @@ import {
   BarChart3,
   ChevronLeft,
   Menu,
-  X
+  X,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,10 +38,10 @@ const sidebarItems = [
     badge: null,
   },
   {
-    title: "Bookings",
-    href: "/worker/bookings",
-    icon: Calendar,
-    badge: "3",
+    title: "Jobs",
+    href: "/worker/jobs",
+    icon: Briefcase,
+    badge: null,
   },
   {
     title: "Messages",

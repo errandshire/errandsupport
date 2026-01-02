@@ -12,6 +12,15 @@ import { RefreshCw, Search, Trash2, MessageSquare, Send, UserCheck, UserX, Eye, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { notificationService } from "@/lib/notification-service";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 type ClientDoc = {
   $id: string;
@@ -43,6 +52,7 @@ type ClientStats = {
 export default function AdminClientsPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [clients, setClients] = React.useState<ClientDoc[]>([]);
+  const [totalCount, setTotalCount] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -56,32 +66,59 @@ export default function AdminClientsPage() {
   const [messageContent, setMessageContent] = React.useState("");
   const [isSendingMessage, setIsSendingMessage] = React.useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [itemsPerPage] = React.useState(20);
 
-  const fetchClients = React.useCallback(async () => {
+  const fetchClients = React.useCallback(async (page: number = 1, searchQuery: string = "") => {
     try {
       setIsLoading(true);
+
+      // Build queries
+      const queries = [
+        Query.equal('role', 'client'),
+        Query.orderDesc("$createdAt"),
+        Query.limit(20), // Fixed value instead of state
+        Query.offset((page - 1) * 20)
+      ];
+
+      // Add search if provided - fetch more for client-side filtering
+      if (searchQuery.trim()) {
+        queries.splice(2, 2); // Remove limit and offset for search
+        queries.push(Query.limit(5000)); // Fetch ALL records for searching across all pages
+      }
+
       const res = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.USERS,
-        [
-          Query.equal('role', 'client'),
-          Query.orderDesc("$createdAt"),
-          Query.limit(100)
-        ]
+        queries
       );
 
-      setClients(res.documents as unknown as ClientDoc[]);
+      setTotalCount(res.total);
+
+      // Filter search results if search query provided
+      let filteredClients = res.documents;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        filteredClients = res.documents.filter((c: any) => {
+          const text = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.state || ""} ${c.city || ""}`.toLowerCase();
+          return text.includes(q);
+        });
+      }
+
+      setClients(filteredClients as unknown as ClientDoc[]);
     } catch (error) {
       console.error("Error loading clients:", error);
       toast.error("Failed to load clients");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, []); // Remove itemsPerPage dependency
 
+  // Fetch clients when page or search changes
   React.useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
+    fetchClients(currentPage, search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, search]); // Removed fetchClients dependency
 
   const fetchClientStats = React.useCallback(async (clientId: string) => {
     try {
@@ -260,14 +297,21 @@ export default function AdminClientsPage() {
     }
   };
 
-  const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter(c => {
-      const text = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.state || ""} ${c.city || ""}`.toLowerCase();
-      return text.includes(q);
-    });
-  }, [clients, search]);
+  // Pagination calculations (server-side)
+  const totalPages = search.trim()
+    ? Math.ceil(clients.length / itemsPerPage)
+    : Math.ceil(totalCount / itemsPerPage);
+
+  // For search, we do client-side pagination since we fetch all results
+  // For normal view, clients already contains the current page from server
+  const displayedClients = search.trim()
+    ? clients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : clients;
+
+  // Reset to page 1 when search changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   const getClientStatus = (client: ClientDoc) => {
     if (client.status === 'suspended') return 'suspended';
@@ -311,7 +355,7 @@ export default function AdminClientsPage() {
               className="pl-8 w-full sm:w-64"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={fetchClients} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchClients(currentPage, search)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </div>
@@ -319,12 +363,12 @@ export default function AdminClientsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Clients ({clients.length})</CardTitle>
+          <CardTitle>Clients ({search.trim() ? clients.length : totalCount})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="text-sm text-neutral-500">Loading...</div>
-          ) : filtered.length === 0 ? (
+          ) : clients.length === 0 ? (
             <div className="text-sm text-neutral-500">No clients found.</div>
           ) : (
             <>
@@ -342,7 +386,7 @@ export default function AdminClientsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(client => (
+                    {displayedClients.map(client => (
                       <tr key={client.$id} className="border-b align-top">
                         <td className="py-3 pr-4 font-medium">{client.name || "—"}</td>
                         <td className="py-3 pr-4">{client.email || "—"}</td>
@@ -386,7 +430,7 @@ export default function AdminClientsPage() {
 
               {/* Mobile Card View */}
               <div className="md:hidden space-y-4">
-                {filtered.map(client => (
+                {displayedClients.map(client => (
                   <Card key={client.$id} className="p-4">
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
@@ -446,6 +490,57 @@ export default function AdminClientsPage() {
                 ))}
               </div>
             </>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Show first page, last page, current page, and pages around current
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>

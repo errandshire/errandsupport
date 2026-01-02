@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { RefreshCw, CheckCircle2, XCircle, Search, Trash2, MessageSquare, Send, Bell } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,6 +15,15 @@ import { emailService, WorkerVerificationData } from "@/lib/email-service";
 import { Textarea } from "@/components/ui/textarea";
 import { notificationService } from "@/lib/notification-service";
 import { parseDocumentUrls } from "@/lib/utils";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 type WorkerDoc = {
   $id: string;
@@ -57,11 +67,13 @@ type WorkerDoc = {
   verifiedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  hasProfile?: boolean; // Indicates if worker has a profile in WORKERS collection
 };
 
 export default function AdminUsersPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [workers, setWorkers] = React.useState<WorkerDoc[]>([]);
+  const [totalCount, setTotalCount] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -78,55 +90,135 @@ export default function AdminUsersPage() {
   const [messageContent, setMessageContent] = React.useState("");
   const [isSendingMessage, setIsSendingMessage] = React.useState(false);
   const [isSendingReminders, setIsSendingReminders] = React.useState(false);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [itemsPerPage] = React.useState(20);
+  const [profileFilter, setProfileFilter] = React.useState<"all" | "with-profile" | "without-profile">("all");
 
-  const fetchWorkers = React.useCallback(async () => {
+  const fetchWorkers = React.useCallback(async (page: number = 1, searchQuery: string = "", filter: string = "all") => {
     try {
       setIsLoading(true);
+
+      // Build queries to fetch from USERS collection (role = worker)
+      const queries = [
+        Query.equal('role', 'worker'),
+        Query.orderDesc("$createdAt"),
+        Query.limit(20), // Fixed value instead of state
+        Query.offset((page - 1) * 20)
+      ];
+
+      // Add search if provided
+      if (searchQuery.trim()) {
+        // Fetch all records up to Appwrite's maximum limit (5000)
+        queries.splice(2, 2); // Remove limit and offset for search
+        queries.push(Query.limit(5000)); // Fetch ALL records for searching across all pages
+      }
+
       const res = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.WORKERS,
-        [
-          Query.orderDesc("$createdAt"),
-          Query.limit(100)
-        ]
+        COLLECTIONS.USERS,
+        queries
       );
 
-      // Fetch user data for each worker in parallel
-      const workersWithUserData = await Promise.all(
-        res.documents.map(async (worker) => {
+      setTotalCount(res.total);
+
+      // Fetch worker profile for each user in parallel
+      const usersWithWorkerData = await Promise.all(
+        res.documents.map(async (user) => {
           try {
-            const user = await databases.getDocument(
+            // Try to get worker profile
+            const workerProfileResponse = await databases.listDocuments(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              COLLECTIONS.USERS,
-              worker.userId
+              COLLECTIONS.WORKERS,
+              [Query.equal('userId', user.$id), Query.limit(1)]
             );
+
+            const workerProfile = workerProfileResponse.documents[0];
+
+            if (workerProfile) {
+              return {
+                ...workerProfile,
+                userId: user.$id,
+                name: user.name,
+                displayName: user.name,
+                email: user.email,
+                phone: user.phone,
+                city: user.city,
+                state: user.state,
+                address: user.address,
+                hasProfile: true
+              };
+            } else {
+              return {
+                $id: user.$id,
+                userId: user.$id,
+                name: user.name,
+                displayName: user.name,
+                email: user.email,
+                phone: user.phone,
+                city: user.city,
+                state: user.state,
+                address: user.address,
+                hasProfile: false,
+                isVerified: false,
+                isActive: false,
+                categories: [],
+                verificationStatus: "pending"
+              };
+            }
+          } catch (error) {
+            console.warn(`Could not fetch worker profile for user ${user.$id}:`, error);
             return {
-              ...worker,
+              $id: user.$id,
+              userId: user.$id,
+              name: user.name,
+              displayName: user.name,
               email: user.email,
               phone: user.phone,
               city: user.city,
               state: user.state,
-              address: user.address
+              address: user.address,
+              hasProfile: false,
+              isVerified: false,
+              isActive: false,
+              categories: [],
+              verificationStatus: "pending"
             };
-          } catch (error) {
-            console.warn(`Could not fetch user data for worker ${worker.userId}:`, error);
-            return worker;
           }
         })
       );
 
-      setWorkers(workersWithUserData as unknown as WorkerDoc[]);
+      // Apply profile filter
+      let filteredByProfile = usersWithWorkerData;
+      if (filter === "with-profile") {
+        filteredByProfile = usersWithWorkerData.filter((w: any) => w.hasProfile);
+      } else if (filter === "without-profile") {
+        filteredByProfile = usersWithWorkerData.filter((w: any) => !w.hasProfile);
+      }
+
+      // Filter search results if search query provided
+      let filteredWorkers = filteredByProfile;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        filteredWorkers = filteredByProfile.filter((w: any) => {
+          const text = `${w.displayName || ""} ${w.name || ""} ${w.email || ""} ${w.phone || ""} ${w.state || ""} ${w.city || ""}`.toLowerCase();
+          return text.includes(q);
+        });
+      }
+
+      setWorkers(filteredWorkers as unknown as WorkerDoc[]);
     } catch (error) {
       console.error("Error loading workers:", error);
       toast.error("Failed to load workers");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, []); // Remove itemsPerPage dependency
 
+  // Fetch workers when page, search, or filter changes
   React.useEffect(() => {
-    fetchWorkers();
-  }, [fetchWorkers]);
+    fetchWorkers(currentPage, search, profileFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, search, profileFilter]); // Removed fetchWorkers dependency
 
   const approveWorker = async (worker: WorkerDoc) => {
     try {
@@ -362,14 +454,21 @@ export default function AdminUsersPage() {
     }
   };
 
-  const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return workers;
-    return workers.filter(w => {
-      const text = `${w.displayName || w.name || ""} ${w.email || ""} ${w.state || ""} ${w.city || ""} ${(w.categories || []).join(" ")}`.toLowerCase();
-      return text.includes(q);
-    });
-  }, [workers, search]);
+  // Pagination calculations (server-side)
+  const totalPages = search.trim()
+    ? Math.ceil(workers.length / itemsPerPage)
+    : Math.ceil(totalCount / itemsPerPage);
+
+  // For search, we do client-side pagination since we fetch all results
+  // For normal view, workers already contains the current page from server
+  const displayedWorkers = search.trim()
+    ? workers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : workers;
+
+  // Reset to page 1 when search or filter changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search, profileFilter]);
 
   const getWorkerStatus = (worker: WorkerDoc) => {
     if (worker.verificationStatus === "verified" || worker.isVerified) {
@@ -422,6 +521,16 @@ export default function AdminUsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-serif font-bold">Manage Users</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <Select value={profileFilter} onValueChange={(value: any) => setProfileFilter(value)}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by profile" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Workers ({totalCount})</SelectItem>
+              <SelectItem value="with-profile">With Profile (252)</SelectItem>
+              <SelectItem value="without-profile">Without Profile (170)</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative">
             <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
             <Input
@@ -431,7 +540,7 @@ export default function AdminUsersPage() {
               className="pl-8 w-full sm:w-64"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={fetchWorkers} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchWorkers(currentPage, search, profileFilter)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
           <Button
@@ -448,12 +557,12 @@ export default function AdminUsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Workers</CardTitle>
+          <CardTitle>Workers ({search.trim() ? workers.length : totalCount})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="text-sm text-neutral-500">Loading...</div>
-          ) : filtered.length === 0 ? (
+          ) : workers.length === 0 ? (
             <div className="text-sm text-neutral-500">No workers found.</div>
           ) : (
             <>
@@ -471,9 +580,16 @@ export default function AdminUsersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(w => (
+                    {displayedWorkers.map(w => (
                       <tr key={w.$id} className="border-b align-top">
-                        <td className="py-3 pr-4 font-medium">{w.displayName || w.name || "—"}</td>
+                        <td className="py-3 pr-4 font-medium">
+                          {w.displayName || w.name || "—"}
+                          {!(w as any).hasProfile && (
+                            <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-700 border-amber-200">
+                              No Profile
+                            </Badge>
+                          )}
+                        </td>
                         <td className="py-3 pr-4">{w.email || "—"}</td>
                         <td className="py-3 pr-4">{[w.city, w.state].filter(Boolean).join(", ") || "—"}</td>
                         <td className="py-3 pr-4">{(w.categories && w.categories.length) ? w.categories.slice(0, 3).join(", ") : "—"}</td>
@@ -506,12 +622,19 @@ export default function AdminUsersPage() {
 
               {/* Mobile Card View */}
               <div className="md:hidden space-y-4">
-                {filtered.map(w => (
+                {displayedWorkers.map(w => (
                   <Card key={w.$id} className="p-4">
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-sm truncate">{w.displayName || w.name || "—"}</h3>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium text-sm truncate">{w.displayName || w.name || "—"}</h3>
+                            {!(w as any).hasProfile && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 shrink-0">
+                                No Profile
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-neutral-500 truncate">{w.email || "—"}</p>
                         </div>
                         <div className="ml-2">
@@ -555,6 +678,57 @@ export default function AdminUsersPage() {
                 ))}
               </div>
             </>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Show first page, last page, current page, and pages around current
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>

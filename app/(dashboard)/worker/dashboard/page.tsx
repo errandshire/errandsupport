@@ -545,6 +545,15 @@ export default function WorkerDashboard() {
               <CardTitle className="text-lg">🚀 Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <Button
+                className="w-full justify-start bg-blue-500 hover:bg-blue-600 text-white"
+                asChild
+              >
+                <Link href="/worker/jobs">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Browse Available Jobs
+                </Link>
+              </Button>
               <Button variant="outline" className="w-full justify-start" asChild>
                 <Link href="/worker/wallet">
                   <DollarSign className="h-4 w-4 mr-2" />

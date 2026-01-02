@@ -159,6 +159,66 @@ export interface BookingLocation {
   instructions?: string;
 }
 
+// Job Posting Types
+export interface Job extends Models.Document {
+  clientId: string;
+  title: string;
+  description: string;
+  categoryId: string;
+  budgetType: 'fixed' | 'range';
+  budgetMin: number;
+  budgetMax: number;
+  locationAddress: string;
+  locationLat?: number;
+  locationLng?: number;
+  scheduledDate: string;
+  scheduledTime: string;
+  duration: number; // in hours
+  skillsRequired?: string[];
+  attachments?: string[]; // URLs to photos in Appwrite Storage
+  status: JobStatus;
+  assignedWorkerId?: string;
+  assignedAt?: string;
+  bookingId?: string; // Links to created booking after acceptance
+  expiresAt: string;
+  viewCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type JobStatus =
+  | 'open'
+  | 'assigned'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'expired';
+
+export interface JobFormData {
+  title: string;
+  description: string;
+  categoryId: string;
+  budgetType: 'fixed' | 'range';
+  budgetMin: number;
+  budgetMax: number;
+  locationAddress: string;
+  locationLat?: number;
+  locationLng?: number;
+  scheduledDate: string;
+  scheduledTime: string;
+  duration: number;
+  skillsRequired?: string[];
+  attachments?: File[]; // Files to upload
+}
+
+export interface JobWithDetails extends Job {
+  clientName: string;
+  clientEmail: string;
+  clientRating: number;
+  categoryName: string;
+  distanceFromWorker?: number; // in kilometers
+}
+
 // Review Types
 export interface Review extends Models.Document {
   bookingId: string;

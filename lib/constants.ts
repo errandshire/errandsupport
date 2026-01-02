@@ -73,6 +73,10 @@ export const NOTIFICATION_TYPES = {
   SYSTEM_ANNOUNCEMENT: 'system_announcement',
   NEW_MESSAGE: 'new_message',
   FILE_SHARED: 'file_shared',
+  JOB_POSTED: 'job_posted',
+  JOB_ACCEPTED: 'job_accepted',
+  JOB_FILLED: 'job_filled',
+  JOB_EXPIRED: 'job_expired',
 } as const;
 
 // Service Categories
@@ -170,6 +174,37 @@ export const RATING_OPTIONS = [
 // Commission Rates
 export const COMMISSION_RATE = 0.15; // 15%
 export const PAYMENT_PROCESSING_FEE = 0.029; // 2.9%
+
+// Job Posting Constants
+export const JOB_STATUS = {
+  OPEN: 'open',
+  ASSIGNED: 'assigned',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  EXPIRED: 'expired',
+} as const;
+
+export const JOB_EXPIRY_HOURS = 72; // Jobs expire after 3 days if not accepted
+export const MAX_JOB_ATTACHMENTS = 5; // Maximum number of photos per job
+export const MAX_JOB_TITLE_LENGTH = 200;
+export const MAX_JOB_DESCRIPTION_LENGTH = 2000;
+
+export const JOB_BUDGET_TYPES = {
+  FIXED: 'fixed',
+  RANGE: 'range',
+} as const;
+
+export const JOB_DURATION_OPTIONS = [
+  { value: 1, label: '1 hour' },
+  { value: 2, label: '2 hours' },
+  { value: 3, label: '3 hours' },
+  { value: 4, label: '4 hours' },
+  { value: 6, label: '6 hours' },
+  { value: 8, label: '8 hours (Full day)' },
+  { value: 12, label: '12 hours' },
+  { value: 24, label: '24 hours' },
+] as const;
 
 // Search Sort Options
 export const SORT_OPTIONS = [
@@ -286,6 +321,7 @@ export const QUERY_KEYS = {
   USER: 'user',
   WORKERS: 'workers',
   BOOKINGS: 'bookings',
+  JOBS: 'jobs',
   CATEGORIES: 'categories',
   SERVICES: 'services',
   REVIEWS: 'reviews',

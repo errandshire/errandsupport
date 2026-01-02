@@ -4,9 +4,9 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  Search, 
-  Calendar, 
+import {
+  Search,
+  Calendar,
   Plus,
   CheckCircle,
   TrendingUp,
@@ -20,7 +20,8 @@ import {
   Settings,
   Star,
   ArrowRight,
-  BookOpen
+  BookOpen,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,11 +33,12 @@ import { clientDashboardService } from "@/lib/client-dashboard-service";
 import type { ClientStats, RecentBooking, QuickAction } from "@/lib/client-dashboard-service";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { JobPostingModal } from "@/components/client/job-posting-modal";
 
 // Lazy load heavy components
-const ClientDashboardSkeleton = React.lazy(() => 
-  import("@/components/client/dashboard-skeleton").then(module => ({ 
-    default: module.ClientDashboardSkeleton 
+const ClientDashboardSkeleton = React.lazy(() =>
+  import("@/components/client/dashboard-skeleton").then(module => ({
+    default: module.ClientDashboardSkeleton
   }))
 );
 
@@ -194,6 +196,7 @@ function ClientDashboardContent() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [isJobModalOpen, setIsJobModalOpen] = React.useState(false);
 
   // Handle authentication and loading
   React.useEffect(() => {
@@ -343,9 +346,17 @@ function ClientDashboardContent() {
             />
           </div>
         </form>
-        <Button 
-          size="lg" 
-          className="bg-green-500 hover:bg-green-600 text-white h-11 sm:h-12 px-4 sm:px-6" 
+        <Button
+          size="lg"
+          className="bg-blue-500 hover:bg-blue-600 text-white h-11 sm:h-12 px-4 sm:px-6"
+          onClick={() => setIsJobModalOpen(true)}
+        >
+          <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+          <span className="whitespace-nowrap">Post a Job</span>
+        </Button>
+        <Button
+          size="lg"
+          className="bg-green-500 hover:bg-green-600 text-white h-11 sm:h-12 px-4 sm:px-6"
           asChild
         >
           <Link href="/workers">
@@ -456,6 +467,17 @@ function ClientDashboardContent() {
           </div>
         </div>
       </div>
+
+      {/* Job Posting Modal */}
+      <JobPostingModal
+        isOpen={isJobModalOpen}
+        onClose={() => setIsJobModalOpen(false)}
+        clientId={user.$id}
+        onJobCreated={() => {
+          setIsJobModalOpen(false);
+          handleRefresh();
+        }}
+      />
     </div>
   );
 }
