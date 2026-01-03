@@ -291,7 +291,9 @@ export class JobAcceptanceService {
           locationCountry: 'Nigeria', // Default
           description: job.description, // Use description field instead of notes
           title: job.title, // Add job title
-          totalAmount: job.budgetMax, // Use max budget
+          budgetAmount: job.budgetMax, // Use max budget (renamed from totalAmount)
+          budgetCurrency: 'NGN',
+          budgetIsHourly: false,
           paymentStatus: 'unpaid', // Will be 'held' after escrow
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
