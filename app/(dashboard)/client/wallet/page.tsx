@@ -493,11 +493,12 @@ export default function ClientWalletPage() {
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-full ${
                           tx.type === 'topup' ? 'bg-green-100 text-green-600' :
+                          tx.type === 'booking_refund' ? 'bg-green-100 text-green-600' :
                           tx.type === 'booking_hold' ? 'bg-orange-100 text-orange-600' :
                           tx.type === 'withdraw' ? 'bg-blue-100 text-blue-600' :
                           'bg-gray-100 text-gray-600'
                         }`}>
-                          {tx.type === 'topup' ? (
+                          {tx.type === 'topup' || tx.type === 'booking_refund' ? (
                             <ArrowDownRight className="h-4 w-4" />
                           ) : (
                             <ArrowUpRight className="h-4 w-4" />
@@ -518,9 +519,9 @@ export default function ClientWalletPage() {
                       </div>
                       <div className="text-right">
                         <p className={`font-semibold ${
-                          tx.type === 'topup' ? 'text-green-600' : 'text-red-600'
+                          tx.type === 'topup' || tx.type === 'booking_refund' ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          {tx.type === 'topup' ? '+' : '-'}₦{(tx.amount ?? 0).toLocaleString()}
+                          {tx.type === 'topup' || tx.type === 'booking_refund' ? '+' : '-'}₦{(tx.amount ?? 0).toLocaleString()}
                         </p>
                         <p className="text-sm text-gray-500 capitalize">{tx.status}</p>
                       </div>
