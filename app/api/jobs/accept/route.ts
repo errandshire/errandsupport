@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JobAcceptanceService } from '@/lib/job-acceptance.service';
 import { JobNotificationService } from '@/lib/job-notification.service';
 import { databases, COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
-import { Query, Client, Databases } from 'appwrite';
+import { Query } from 'appwrite';
+import { Client, Databases } from 'node-appwrite';
 
 // Create admin client for job updates (uses API key)
 function getAdminClient() {
