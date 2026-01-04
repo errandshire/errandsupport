@@ -701,6 +701,22 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
         );
       }
 
+      // ALSO update USERS collection to keep documents in sync
+      // Note: USERS collection uses different status values (pending/approved/denied)
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.USERS,
+        user.$id,
+        {
+          idType: idType,
+          idNumber: idNumber,
+          idDocument: finalIdUrl,
+          selfieWithId: finalSelfieUrl,
+          additionalDocuments: joinDocumentUrls(additionalUrls),
+          verificationStatus: 'pending', // USERS schema uses: pending/approved/denied
+        }
+      );
+
       // Update user profile to mark as onboarded
       const result = await updateProfile({
         isOnboarded: true,

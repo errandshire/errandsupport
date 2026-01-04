@@ -330,16 +330,21 @@ export default function WorkerProfilePage() {
 
     try {
       setIsSaving(true);
-      
+
       const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      
+
+      // Security validation: Ensure the worker profile belongs to the current user
+      if ((workerProfile as any).userId !== user?.$id) {
+        throw new Error('Unauthorized: This worker profile does not belong to you');
+      }
+
       // Prepare update data - only include changed fields
       const updateData = {
         ...formData,
         updatedAt: new Date().toISOString()
       };
 
-      
+
       // Save to backend database
       const result = await databases.updateDocument(
         DATABASE_ID,
@@ -441,6 +446,13 @@ export default function WorkerProfilePage() {
     try {
       setIsUploadingDocuments(true);
 
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+
+      // Security validation: Ensure the worker profile belongs to the current user
+      if ((workerProfile as any).userId !== user?.$id) {
+        throw new Error('Unauthorized: This worker profile does not belong to you');
+      }
+
       // Upload files
       const [finalIdUrl, finalSelfieUrl] = await Promise.all([
         idDocumentFile ? uploadFileToStorage(idDocumentFile) : Promise.resolve(idDocumentUrl),
@@ -454,8 +466,7 @@ export default function WorkerProfilePage() {
         additionalUrls = [...additionalUrls, ...uploaded];
       }
 
-      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-
+      // Update WORKERS collection
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.WORKERS,
@@ -469,6 +480,22 @@ export default function WorkerProfilePage() {
           verificationStatus: 'pending',
           submittedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+        }
+      );
+
+      // ALSO update USERS collection to keep documents in sync
+      // Note: USERS collection uses different status values (pending/approved/denied)
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.USERS,
+        user.$id,
+        {
+          idType: idType,
+          idNumber: idNumber,
+          idDocument: finalIdUrl,
+          selfieWithId: finalSelfieUrl,
+          additionalDocuments: joinDocumentUrls(additionalUrls),
+          verificationStatus: 'pending', // USERS schema uses: pending/approved/denied
         }
       );
 

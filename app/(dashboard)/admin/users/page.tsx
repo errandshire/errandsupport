@@ -222,6 +222,25 @@ export default function AdminUsersPage() {
 
   const approveWorker = async (worker: WorkerDoc) => {
     try {
+      // Security validation: Verify worker belongs to a valid user
+      if (!worker.userId) {
+        toast.error("Cannot approve: Worker has no associated user ID");
+        return;
+      }
+
+      // Verify the userId matches a real user in USERS collection
+      try {
+        await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          worker.userId
+        );
+      } catch (error) {
+        toast.error("Cannot approve: Worker's userId does not match any user in the system");
+        console.error("userId validation failed:", error);
+        return;
+      }
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WORKERS,
@@ -288,6 +307,25 @@ export default function AdminUsersPage() {
 
   const rejectWorker = async (worker: WorkerDoc, reason: string) => {
     try {
+      // Security validation: Verify worker belongs to a valid user
+      if (!worker.userId) {
+        toast.error("Cannot reject: Worker has no associated user ID");
+        return;
+      }
+
+      // Verify the userId matches a real user in USERS collection
+      try {
+        await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.USERS,
+          worker.userId
+        );
+      } catch (error) {
+        toast.error("Cannot reject: Worker's userId does not match any user in the system");
+        console.error("userId validation failed:", error);
+        return;
+      }
+
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WORKERS,
