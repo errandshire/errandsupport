@@ -249,7 +249,7 @@ export default function AdminUsersPage() {
           isVerified: true,
           idVerified: true,
           backgroundCheckVerified: true,
-          verificationStatus: "verified",
+          verificationStatus: "approved", // Standardized: pending | approved | denied
           verifiedAt: new Date().toISOString(),
           rejectionReason: null,
           isActive: true,
@@ -334,7 +334,7 @@ export default function AdminUsersPage() {
           isVerified: false,
           idVerified: false,
           backgroundCheckVerified: false,
-          verificationStatus: "rejected",
+          verificationStatus: "denied", // Standardized: pending | approved | denied
           verifiedAt: null,
           rejectionReason: reason,
           isActive: false,
@@ -509,21 +509,22 @@ export default function AdminUsersPage() {
   }, [search, profileFilter]);
 
   const getWorkerStatus = (worker: WorkerDoc) => {
-    if (worker.verificationStatus === "verified" || worker.isVerified) {
+    // Status values are now standardized: pending | approved | denied
+    if (worker.verificationStatus === "approved" || worker.isVerified) {
       return "approved";
     }
-    if (worker.verificationStatus === "rejected") {
-      return "rejected";
+    if (worker.verificationStatus === "denied") {
+      return "denied";
     }
     return "pending";
   };
 
-  const statusBadge = (status: "pending" | "approved" | "rejected") => {
+  const statusBadge = (status: "pending" | "approved" | "denied") => {
     switch (status) {
       case "approved":
         return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
-      case "rejected":
-        return <Badge variant="secondary">Rejected</Badge>;
+      case "denied":
+        return <Badge variant="destructive">Denied</Badge>;
       default:
         return <Badge variant="outline">Pending</Badge>;
     }

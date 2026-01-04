@@ -87,14 +87,9 @@ async function syncDocumentsToUsers() {
       if (worker.selfieWithId) documentData.selfieWithId = worker.selfieWithId;
       if (worker.additionalDocuments) documentData.additionalDocuments = worker.additionalDocuments;
 
-      // Map verificationStatus from WORKERS schema to USERS schema
+      // Both collections now use same status values: pending | approved | denied
       if (worker.verificationStatus) {
-        const statusMap = {
-          'verified': 'approved',
-          'rejected': 'denied',
-          'pending': 'pending'
-        };
-        documentData.verificationStatus = statusMap[worker.verificationStatus] || 'pending';
+        documentData.verificationStatus = worker.verificationStatus;
       }
 
       // Only update if there's data to sync

@@ -702,7 +702,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
       }
 
       // ALSO update USERS collection to keep documents in sync
-      // Note: USERS collection uses different status values (pending/approved/denied)
+      // Both collections now use standardized status values: pending | approved | denied
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.USERS,
@@ -713,7 +713,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
           idDocument: finalIdUrl,
           selfieWithId: finalSelfieUrl,
           additionalDocuments: joinDocumentUrls(additionalUrls),
-          verificationStatus: 'pending', // USERS schema uses: pending/approved/denied
+          verificationStatus: 'pending',
         }
       );
 
