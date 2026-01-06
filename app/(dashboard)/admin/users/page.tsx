@@ -9,8 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { RefreshCw, CheckCircle2, XCircle, Search, Trash2, MessageSquare, Send, Bell } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Search, Trash2, MessageSquare, Send, Bell, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 import { emailService, WorkerVerificationData } from "@/lib/email-service";
 import { Textarea } from "@/components/ui/textarea";
 import { notificationService } from "@/lib/notification-service";
@@ -70,6 +72,33 @@ type WorkerDoc = {
   hasProfile?: boolean; // Indicates if worker has a profile in WORKERS collection
 };
 
+// Format date to readable format: "11:55 am on Jan 2, 2025"
+function formatReadableDate(isoString: string | undefined): string {
+  if (!isoString) return "—";
+
+  try {
+    const date = new Date(isoString);
+
+    // Format time (e.g., "11:55 am")
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Format date (e.g., "Jan 2, 2025")
+    const dateStr = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    return `${timeStr} on ${dateStr}`;
+  } catch (error) {
+    return isoString; // Fallback to original if parsing fails
+  }
+}
+
 export default function AdminUsersPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [workers, setWorkers] = React.useState<WorkerDoc[]>([]);
@@ -92,13 +121,57 @@ export default function AdminUsersPage() {
   const [isSendingReminders, setIsSendingReminders] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const [itemsPerPage] = React.useState(20);
-  const [profileFilter, setProfileFilter] = React.useState<"all" | "with-profile" | "without-profile">("all");
+  const [idDocumentFilter, setIdDocumentFilter] = React.useState<"all" | "with-id" | "without-id">("all");
+  const [dataSource, setDataSource] = React.useState<"users" | "workers">("users");
+  const [sortOrder, setSortOrder] = React.useState<"date" | "name-asc" | "name-desc">("date");
 
-  const fetchWorkers = React.useCallback(async (page: number = 1, searchQuery: string = "", filter: string = "all") => {
+  const fetchWorkers = React.useCallback(async (page: number = 1, searchQuery: string = "", filter: string = "all", source: string = "users") => {
     try {
       setIsLoading(true);
 
-      // Build queries to fetch from USERS collection (role = worker)
+      // If source is WORKERS, query WORKERS collection directly
+      if (source === "workers") {
+        const queries = [
+          Query.orderDesc("$createdAt"),
+          Query.limit(20),
+          Query.offset((page - 1) * 20)
+        ];
+
+        // Add search if provided
+        if (searchQuery.trim()) {
+          queries.splice(1, 2); // Remove limit and offset for search
+          queries.push(Query.limit(5000)); // Fetch ALL records for searching
+        }
+
+        const res = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.WORKERS,
+          queries
+        );
+
+        setTotalCount(res.total);
+
+        // Workers already have all data in WORKERS collection
+        let workersData = res.documents.map((worker: any) => ({
+          ...worker,
+          hasProfile: true, // All records in WORKERS have profiles
+          // Use WORKERS data directly (email, phone, name are already there)
+        }));
+
+        // Filter search results if search query provided
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          workersData = workersData.filter((w: any) => {
+            const text = `${w.displayName || ""} ${w.name || ""} ${w.email || ""} ${w.phone || ""} ${w.state || ""} ${w.city || ""}`.toLowerCase();
+            return text.includes(q);
+          });
+        }
+
+        setWorkers(workersData as unknown as WorkerDoc[]);
+        return;
+      }
+
+      // Default: Build queries to fetch from USERS collection (role = worker)
       const queries = [
         Query.equal('role', 'worker'),
         Query.orderDesc("$createdAt"),
@@ -187,19 +260,19 @@ export default function AdminUsersPage() {
         })
       );
 
-      // Apply profile filter
-      let filteredByProfile = usersWithWorkerData;
-      if (filter === "with-profile") {
-        filteredByProfile = usersWithWorkerData.filter((w: any) => w.hasProfile);
-      } else if (filter === "without-profile") {
-        filteredByProfile = usersWithWorkerData.filter((w: any) => !w.hasProfile);
+      // Apply ID document filter
+      let filteredByIdDocument = usersWithWorkerData;
+      if (filter === "with-id") {
+        filteredByIdDocument = usersWithWorkerData.filter((w: any) => w.idDocument);
+      } else if (filter === "without-id") {
+        filteredByIdDocument = usersWithWorkerData.filter((w: any) => !w.idDocument);
       }
 
       // Filter search results if search query provided
-      let filteredWorkers = filteredByProfile;
+      let filteredWorkers = filteredByIdDocument;
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
-        filteredWorkers = filteredByProfile.filter((w: any) => {
+        filteredWorkers = filteredByIdDocument.filter((w: any) => {
           const text = `${w.displayName || ""} ${w.name || ""} ${w.email || ""} ${w.phone || ""} ${w.state || ""} ${w.city || ""}`.toLowerCase();
           return text.includes(q);
         });
@@ -214,11 +287,11 @@ export default function AdminUsersPage() {
     }
   }, []); // Remove itemsPerPage dependency
 
-  // Fetch workers when page, search, or filter changes
+  // Fetch workers when page, search, filter, or dataSource changes
   React.useEffect(() => {
-    fetchWorkers(currentPage, search, profileFilter);
+    fetchWorkers(currentPage, search, idDocumentFilter, dataSource);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, profileFilter]); // Removed fetchWorkers dependency
+  }, [currentPage, search, idDocumentFilter, dataSource]); // Removed fetchWorkers dependency
 
   const approveWorker = async (worker: WorkerDoc) => {
     try {
@@ -258,12 +331,12 @@ export default function AdminUsersPage() {
       );
 
       // Send approval email to worker
-      if (worker.email || selectedUser?.email) {
+      if (worker.email) {
         const emailData: WorkerVerificationData = {
           worker: {
             id: worker.userId,
             name: worker.displayName || worker.name || "Worker",
-            email: worker.email || selectedUser?.email || ""
+            email: worker.email || ""
           },
           action: "approved",
           adminName: "Admin Team"
@@ -343,12 +416,12 @@ export default function AdminUsersPage() {
       );
 
       // Send rejection email to worker
-      if (worker.email || selectedUser?.email) {
+      if (worker.email) {
         const emailData: WorkerVerificationData = {
           worker: {
             id: worker.userId,
             name: worker.displayName || worker.name || "Worker",
-            email: worker.email || selectedUser?.email || ""
+            email: worker.email || ""
           },
           action: "rejected",
           rejectionReason: reason,
@@ -493,20 +566,42 @@ export default function AdminUsersPage() {
   };
 
   // Pagination calculations (server-side)
+  // Apply sorting to workers
+  const sortedWorkers = React.useMemo(() => {
+    const workersCopy = [...workers];
+
+    if (sortOrder === "name-asc") {
+      return workersCopy.sort((a, b) => {
+        const nameA = (a.displayName || a.name || "").toLowerCase();
+        const nameB = (b.displayName || b.name || "").toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    } else if (sortOrder === "name-desc") {
+      return workersCopy.sort((a, b) => {
+        const nameA = (a.displayName || a.name || "").toLowerCase();
+        const nameB = (b.displayName || b.name || "").toLowerCase();
+        return nameB.localeCompare(nameA);
+      });
+    }
+
+    // Default: sort by date (newest first) - already sorted from query
+    return workersCopy;
+  }, [workers, sortOrder]);
+
   const totalPages = search.trim()
-    ? Math.ceil(workers.length / itemsPerPage)
+    ? Math.ceil(sortedWorkers.length / itemsPerPage)
     : Math.ceil(totalCount / itemsPerPage);
 
   // For search, we do client-side pagination since we fetch all results
   // For normal view, workers already contains the current page from server
   const displayedWorkers = search.trim()
-    ? workers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-    : workers;
+    ? sortedWorkers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : sortedWorkers;
 
-  // Reset to page 1 when search or filter changes
+  // Reset to page 1 when search, filter, or sort changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, profileFilter]);
+  }, [search, idDocumentFilter, dataSource, sortOrder]);
 
   const getWorkerStatus = (worker: WorkerDoc) => {
     // Status values are now standardized: pending | approved | denied
@@ -560,16 +655,59 @@ export default function AdminUsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-serif font-bold">Manage Users</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <Select value={profileFilter} onValueChange={(value: any) => setProfileFilter(value)}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter by profile" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Workers ({totalCount})</SelectItem>
-              <SelectItem value="with-profile">With Profile (252)</SelectItem>
-              <SelectItem value="without-profile">Without Profile (170)</SelectItem>
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="data-source" className="text-sm font-medium">Data Source</Label>
+                  <Select value={dataSource} onValueChange={(value: any) => setDataSource(value)}>
+                    <SelectTrigger id="data-source" className="w-full">
+                      <SelectValue placeholder="Data source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="users">From USERS Collection</SelectItem>
+                      <SelectItem value="workers">From WORKERS Collection</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="id-document-filter" className="text-sm font-medium">ID Document Filter</Label>
+                  <Select value={idDocumentFilter} onValueChange={(value: any) => setIdDocumentFilter(value)} disabled={dataSource === "workers"}>
+                    <SelectTrigger id="id-document-filter" className="w-full">
+                      <SelectValue placeholder="Filter by ID document" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Workers ({totalCount})</SelectItem>
+                      <SelectItem value="with-id">✅ With ID Document</SelectItem>
+                      <SelectItem value="without-id">❌ Without ID Document</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sort-order" className="text-sm font-medium">Sort Order</Label>
+                  <Select value={sortOrder} onValueChange={(value: any) => setSortOrder(value)}>
+                    <SelectTrigger id="sort-order" className="w-full">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">📅 Date (Newest)</SelectItem>
+                      <SelectItem value="name-asc">🔤 Name (A-Z)</SelectItem>
+                      <SelectItem value="name-desc">🔤 Name (Z-A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <div className="relative">
             <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
             <Input
@@ -579,7 +717,7 @@ export default function AdminUsersPage() {
               className="pl-8 w-full sm:w-64"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => fetchWorkers(currentPage, search, profileFilter)} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchWorkers(currentPage, search, idDocumentFilter, dataSource)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
           <Button
@@ -596,7 +734,12 @@ export default function AdminUsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Workers ({search.trim() ? workers.length : totalCount})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Workers ({search.trim() ? workers.length : totalCount})</CardTitle>
+            <Badge variant={dataSource === "workers" ? "default" : "secondary"} className="ml-2">
+              {dataSource === "workers" ? "📊 WORKERS Collection" : "👥 USERS Collection"}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -613,7 +756,7 @@ export default function AdminUsersPage() {
                       <th className="py-2 pr-4">Name</th>
                       <th className="py-2 pr-4">Email</th>
                       <th className="py-2 pr-4">Location</th>
-                      <th className="py-2 pr-4">Categories</th>
+                      <th className="py-2 pr-4">ID Document</th>
                       <th className="py-2 pr-4">Status</th>
                       <th className="py-2 pr-4">Actions</th>
                     </tr>
@@ -623,15 +766,21 @@ export default function AdminUsersPage() {
                       <tr key={w.$id} className="border-b align-top">
                         <td className="py-3 pr-4 font-medium">
                           {w.displayName || w.name || "—"}
-                          {!(w as any).hasProfile && (
+                          {!w.idDocument && (
                             <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-700 border-amber-200">
-                              No Profile
+                              No ID Doc
                             </Badge>
                           )}
                         </td>
                         <td className="py-3 pr-4">{w.email || "—"}</td>
                         <td className="py-3 pr-4">{[w.city, w.state].filter(Boolean).join(", ") || "—"}</td>
-                        <td className="py-3 pr-4">{(w.categories && w.categories.length) ? w.categories.slice(0, 3).join(", ") : "—"}</td>
+                        <td className="py-3 pr-4">
+                          {w.idDocument ? (
+                            <span className="text-green-600 text-xs">✅ Uploaded</span>
+                          ) : (
+                            <span className="text-red-600 text-xs">❌ Not uploaded</span>
+                          )}
+                        </td>
                         <td className="py-3 pr-4">{statusBadge(getWorkerStatus(w))}</td>
                         <td className="py-3 pr-4">
                           <div className="flex gap-2 flex-wrap">
@@ -668,9 +817,9 @@ export default function AdminUsersPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-medium text-sm truncate">{w.displayName || w.name || "—"}</h3>
-                            {!(w as any).hasProfile && (
+                            {!w.idDocument && (
                               <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 shrink-0">
-                                No Profile
+                                No ID Doc
                               </Badge>
                             )}
                           </div>
@@ -687,8 +836,14 @@ export default function AdminUsersPage() {
                           <span className="ml-1">{[w.city, w.state].filter(Boolean).join(", ") || "—"}</span>
                         </div>
                         <div>
-                          <span className="text-neutral-500">Categories:</span>
-                          <span className="ml-1">{(w.categories && w.categories.length) ? w.categories.slice(0, 3).join(", ") : "—"}</span>
+                          <span className="text-neutral-500">ID Document:</span>
+                          <span className="ml-1">
+                            {w.idDocument ? (
+                              <span className="text-green-600">✅ Uploaded</span>
+                            ) : (
+                              <span className="text-red-600">❌ Not uploaded</span>
+                            )}
+                          </span>
                         </div>
                       </div>
                       
@@ -792,8 +947,8 @@ export default function AdminUsersPage() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <Detail label="Name" value={selected.displayName || selected.name || "—"} />
-                      <Detail label="Email" value={selected.email || selectedUser?.email || "—"} />
-                      <Detail label="Phone" value={selected.phone || selectedUser?.phone || "—"} />
+                      <Detail label="Email" value={selected.email || "—"} />
+                      <Detail label="Phone" value={selected.phone || "—"} />
                       <Detail label="User ID" value={<code className="font-mono break-all text-xs">{selected.userId || "—"}</code>} />
                       <Detail label="Worker Doc ID" value={<code className="font-mono break-all text-xs">{selected.$id}</code>} />
                       <Detail label="Status" value={statusBadge(getWorkerStatus(selected))} />
@@ -852,13 +1007,13 @@ export default function AdminUsersPage() {
                       <Detail label="Verification Status" value={statusBadge(getWorkerStatus(selected))} />
                       <Detail label="ID Type" value={selected.idType || "—"} />
                       <Detail label="ID Number" value={selected.idNumber || "—"} />
-                      <Detail label="Submitted At" value={selected.submittedAt ? new Date(selected.submittedAt).toLocaleDateString() : "—"} />
+                      <Detail label="Submitted At" value={formatReadableDate(selected.submittedAt)} />
                       <Detail
                         label="ID Document"
                         value={
-                          (selected.idDocument || selectedUser?.idDocument) ? (
-                            <a 
-                              href={selected.idDocument || selectedUser?.idDocument} 
+                          selected.idDocument ? (
+                            <a
+                              href={selected.idDocument} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 underline"
@@ -871,9 +1026,9 @@ export default function AdminUsersPage() {
                       <Detail 
                         label="Selfie with ID" 
                         value={
-                          (selected.selfieWithId || selectedUser?.selfieWithId) ? (
-                            <a 
-                              href={selected.selfieWithId || selectedUser?.selfieWithId} 
+                          selected.selfieWithId ? (
+                            <a
+                              href={selected.selfieWithId} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 underline"
@@ -886,9 +1041,9 @@ export default function AdminUsersPage() {
                       <Detail 
                         label="Additional Docs" 
                         value={
-                          (selected.additionalDocuments || selectedUser?.additionalDocuments) ? (
+                          selected.additionalDocuments ? (
                             <div className="space-y-1">
-                              {parseDocumentUrls(selected.additionalDocuments || selectedUser?.additionalDocuments || '').map((url, index) => (
+                              {parseDocumentUrls(selected.additionalDocuments || '').map((url, index) => (
                                 <a 
                                   key={index}
                                   href={url} 
@@ -903,7 +1058,7 @@ export default function AdminUsersPage() {
                           ) : "❌ None"
                         } 
                       />
-                      <Detail label="Verified At" value={selected.verifiedAt || "—"} />
+                      <Detail label="Verified At" value={formatReadableDate(selected.verifiedAt)} />
                       <Detail label="Is Verified" value={selected.isVerified ? "Yes" : "No"} />
                     </div>
                     
@@ -948,8 +1103,8 @@ export default function AdminUsersPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                      <Detail label="Created" value={selected.createdAt || selectedUser?.$createdAt || "—"} />
-                      <Detail label="Updated" value={selected.updatedAt || selectedUser?.$updatedAt || "—"} />
+                      <Detail label="Created" value={formatReadableDate(selected.createdAt)} />
+                      <Detail label="Updated" value={formatReadableDate(selected.updatedAt)} />
                       <Detail label="Profile Image" value={selected.profileImage ? "Uploaded" : "Not uploaded"} />
                       <Detail label="Cover Image" value={selected.coverImage ? "Uploaded" : "Not uploaded"} />
                     </div>

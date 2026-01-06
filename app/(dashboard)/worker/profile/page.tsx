@@ -483,21 +483,8 @@ export default function WorkerProfilePage() {
         }
       );
 
-      // ALSO update USERS collection to keep documents in sync
-      // Both collections now use standardized status values: pending | approved | denied
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        user.$id,
-        {
-          idType: idType,
-          idNumber: idNumber,
-          idDocument: finalIdUrl,
-          selfieWithId: finalSelfieUrl,
-          additionalDocuments: joinDocumentUrls(additionalUrls),
-          verificationStatus: 'pending',
-        }
-      );
+      // Verification documents are stored only in WORKERS collection
+      // USERS collection only contains shared basic info (email, phone, name, role)
 
       // Update local state with actual URLs
       setIdDocumentUrl(finalIdUrl);

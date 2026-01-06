@@ -31,6 +31,8 @@ export default function OnboardingPage() {
   const { user, isAuthenticated, loading, updateProfile } = useAuth();
   const [currentStep, setCurrentStep] = React.useState(0);
   const [completedSteps, setCompletedSteps] = React.useState<Set<number>>(new Set());
+  // Store Step 2 (Professional Details) data to be used in Step 3
+  const [professionalData, setProfessionalData] = React.useState<any>(null);
 
   // Handle authentication and loading
   React.useEffect(() => {
@@ -181,6 +183,8 @@ export default function OnboardingPage() {
               isFirstStep={currentStep === 0}
               isLastStep={currentStep === steps.length - 1}
               router={router}
+              professionalData={professionalData}
+              setProfessionalData={setProfessionalData}
             />
           </CardContent>
         </Card>
@@ -311,9 +315,9 @@ function PersonalInfoStep({ user, updateProfile, onNext }: any) {
 }
 
 // Worker Profile Step
-function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
+function WorkerProfileStep({ user, updateProfile, onNext, onPrevious, setProfessionalData }: any) {
   const [selectedCategories, setSelectedCategories] = React.useState<string[]>([]);
-  
+
   const {
     register,
     handleSubmit,
@@ -331,13 +335,17 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
 
   const onSubmit = async (data: any) => {
     try {
-      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID, Query } = await import('appwrite');
-
-      // Create worker profile data
+      // Store professional data in state to be used in Step 3
+      // DO NOT create WORKERS profile yet - wait until verification documents are uploaded
       const workerProfileData = {
         userId: user.$id,
-        displayName: user.name || 'Worker', // Add displayName from user's name
+        // Copy registration data from USERS to WORKERS
+        email: user.email,
+        phone: user.phone || '',
+        name: user.name || '',
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ').slice(1).join(' ') || '',
+        displayName: user.name || 'Worker',
         bio: data.bio,
         // Flatten experience
         experienceYears: data.experience,
@@ -348,9 +356,8 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
         currency: "NGN",
         // Arrays are supported
         categories: selectedCategories,
-        skills: [], // Will be updated in next step
-        
-        // languages: ["English"], // Default
+        skills: [],
+
         // Flatten availability
         workingDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
         workingHoursStart: "09:00",
@@ -377,50 +384,29 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
         updatedAt: new Date().toISOString(),
       };
 
-      // Upsert worker profile in WORKERS collection to avoid duplicates per user
-      const existing = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.WORKERS,
-        [Query.equal('userId', user.$id), Query.limit(1)]
-      );
+      // Store the data for Step 3 to use
+      setProfessionalData(workerProfileData);
 
-      if (existing.documents && existing.documents.length > 0) {
-        const docId = (existing.documents[0] as any).$id as string;
-        await databases.updateDocument(
-          DATABASE_ID,
-          COLLECTIONS.WORKERS,
-          docId,
-          { ...workerProfileData, updatedAt: new Date().toISOString() }
-        );
-      } else {
-        await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.WORKERS,
-        ID.unique(),
-        workerProfileData
-      );
-      }
-
-      // Update user profile with worker-specific data
+      // Update user profile with worker-specific data (in USERS collection)
       const profileData = {
         ...data,
         categories: selectedCategories,
         // Don't mark as onboarded yet - wait for verification step
         isOnboarded: false,
       };
-      
+
       const result = await updateProfile(profileData);
-      
+
       if (result.success) {
-        toast.success("Professional profile created successfully!");
+        toast.success("Professional details saved! Next, upload verification documents.");
         onNext();
       } else {
         console.error('Profile update failed:', result.error);
-        toast.error("Failed to create professional profile");
+        toast.error("Failed to save professional details");
       }
     } catch (error) {
-      console.error('Error submitting worker profile:', error);
-      toast.error("Failed to create professional profile");
+      console.error('Error saving worker profile:', error);
+      toast.error("Failed to save professional details");
     }
   };
 
@@ -528,7 +514,7 @@ function WorkerProfileStep({ user, updateProfile, onNext, onPrevious }: any) {
 }
 
 // Verification Step
-function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
+function VerificationStep({ user, onNext, onPrevious, updateProfile, professionalData }: any) {
   // Preview URLs for UI; actual uploads will happen on submit
   const [idDocumentUrl, setIdDocumentUrl] = React.useState<string>("");
   const [selfieWithIdUrl, setSelfieWithIdUrl] = React.useState<string>("");
@@ -653,6 +639,12 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
         toast.error('Please upload both ID document and selfie with ID');
         return;
       }
+
+      if (!professionalData) {
+        toast.error('Professional details are missing. Please go back and complete Step 2.');
+        return;
+      }
+
       // Upload files now (deferred upload)
       setUploading({ idDocument: true, selfieWithId: true });
       const [finalIdUrl, finalSelfieUrl] = await Promise.all([
@@ -668,56 +660,53 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile }: any) {
         additionalUrls = [...additionalUrls, ...uploaded];
       }
 
-      // Update the WORKERS collection with verification documents
+      // NOW create the complete WORKERS profile with professional data + verification documents
       const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query } = await import('appwrite');
+      const { Query, ID } = await import('appwrite');
 
-      // Find the worker document to update
+      // Check if worker profile already exists (shouldn't for new users, but handle edge cases)
       const existingWorkers = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', user.$id), Query.limit(1)]
       );
 
+      const completeWorkerProfile = {
+        ...professionalData, // Professional details from Step 2
+        // Add verification data
+        idType: idType,
+        idNumber: idNumber,
+        idDocument: finalIdUrl,
+        selfieWithId: finalSelfieUrl,
+        additionalDocuments: joinDocumentUrls(additionalUrls),
+        verificationStatus: 'pending',
+        submittedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       if (existingWorkers.documents.length > 0) {
-        // Update existing worker document with verification data
+        // Update existing worker document (edge case: user abandoned previously)
         await databases.updateDocument(
           DATABASE_ID,
           COLLECTIONS.WORKERS,
           existingWorkers.documents[0].$id,
-          {
-            // ID information
-            idType: idType,
-            idNumber: idNumber,
-            // Individual document fields
-            idDocument: finalIdUrl,
-            selfieWithId: finalSelfieUrl,
-            // Additional documents as comma-separated string (Appwrite limitation)
-            additionalDocuments: joinDocumentUrls(additionalUrls),
-            verificationStatus: 'pending',
-            submittedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
+          completeWorkerProfile
         );
+        toast.success('Worker profile updated successfully!');
+      } else {
+        // Create NEW worker document with complete data (normal flow)
+        await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.WORKERS,
+          ID.unique(),
+          completeWorkerProfile
+        );
+        toast.success('Worker profile created successfully!');
       }
 
-      // ALSO update USERS collection to keep documents in sync
-      // Both collections now use standardized status values: pending | approved | denied
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        user.$id,
-        {
-          idType: idType,
-          idNumber: idNumber,
-          idDocument: finalIdUrl,
-          selfieWithId: finalSelfieUrl,
-          additionalDocuments: joinDocumentUrls(additionalUrls),
-          verificationStatus: 'pending',
-        }
-      );
-
       // Update user profile to mark as onboarded
+      // Only shared fields (isOnboarded) should be updated in USERS
+      // Verification documents are stored only in WORKERS collection
       const result = await updateProfile({
         isOnboarded: true,
       });
