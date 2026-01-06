@@ -178,12 +178,8 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
           toast.error('Please enter a valid budget range');
           return false;
         }
-        // Check wallet balance
-        const maxBudget = formData.budgetMax || 0;
-        if (walletBalance < maxBudget) {
-          toast.error(`Insufficient balance. You have ₦${walletBalance.toLocaleString()}, need ₦${maxBudget.toLocaleString()}`);
-          return false;
-        }
+        // Note: Wallet balance check removed - clients can post jobs without funding
+        // They'll need to fund to view applicants after workers apply
         return true;
       case 'review':
         return true;
@@ -488,13 +484,8 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
 
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-900">
-                  <strong>Your Wallet Balance:</strong> ₦{walletBalance.toLocaleString()}
+                  <strong>💡 Note:</strong> You can post this job without funding your wallet. Once workers apply, you'll need to fund your wallet to view their profiles and select a worker.
                 </p>
-                {formData.budgetMax && formData.budgetMax > walletBalance && (
-                  <p className="text-sm text-red-600 mt-2">
-                    Insufficient balance. Please top up your wallet.
-                  </p>
-                )}
               </div>
             </div>
           )}

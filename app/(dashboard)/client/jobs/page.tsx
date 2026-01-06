@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Job } from "@/lib/types";
 import { JobPostingModal } from "@/components/client/job-posting-modal";
+import { JobDetailsModal } from "@/components/client/job-details-modal";
 import { JobCard } from "@/components/client/job-card";
 import { JobPostingService } from "@/lib/job-posting.service";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +19,9 @@ export default function ClientJobsPage() {
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('all');
+  const [applicantCounts, setApplicantCounts] = React.useState<Record<string, number>>({});
+  const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
 
   const fetchJobs = React.useCallback(async () => {
     if (!user?.$id) return;
@@ -26,6 +30,30 @@ export default function ClientJobsPage() {
     try {
       const fetchedJobs = await JobPostingService.getClientJobs(user.$id);
       setJobs(fetchedJobs);
+
+      // Fetch applicant counts for open jobs
+      const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
+      const { Query } = await import('appwrite');
+
+      const counts: Record<string, number> = {};
+      for (const job of fetchedJobs.filter(j => j.status === 'open')) {
+        try {
+          const applications = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.JOB_APPLICATIONS,
+            [
+              Query.equal('jobId', job.$id),
+              Query.equal('status', 'pending'),
+              Query.limit(1) // We only need the count
+            ]
+          );
+          counts[job.$id] = applications.total;
+        } catch (error) {
+          console.error(`Failed to fetch applicant count for job ${job.$id}:`, error);
+          counts[job.$id] = 0;
+        }
+      }
+      setApplicantCounts(counts);
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
       toast.error('Failed to load jobs');
@@ -44,8 +72,8 @@ export default function ClientJobsPage() {
   }, [jobs, activeTab]);
 
   const handleViewDetails = (job: Job) => {
-    // TODO: Open job details modal
-    toast.info(`Viewing job: ${job.title}`);
+    setSelectedJob(job);
+    setIsDetailsModalOpen(true);
   };
 
   const stats = React.useMemo(() => ({
@@ -122,7 +150,12 @@ export default function ClientJobsPage() {
           ) : (
             <div className="grid gap-4">
               {filteredJobs.map(job => (
-                <JobCard key={job.$id} job={job} onViewDetails={handleViewDetails} />
+                <JobCard
+                  key={job.$id}
+                  job={job}
+                  onViewDetails={handleViewDetails}
+                  applicantCount={applicantCounts[job.$id]}
+                />
               ))}
             </div>
           )}
@@ -135,6 +168,17 @@ export default function ClientJobsPage() {
         onClose={() => setIsModalOpen(false)}
         clientId={user.$id}
         onJobCreated={fetchJobs}
+      />
+
+      {/* Job Details Modal */}
+      <JobDetailsModal
+        job={selectedJob}
+        isOpen={isDetailsModalOpen}
+        onClose={() => {
+          setIsDetailsModalOpen(false);
+          setSelectedJob(null);
+        }}
+        onJobUpdated={fetchJobs}
       />
     </div>
   );

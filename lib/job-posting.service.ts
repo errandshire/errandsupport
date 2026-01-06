@@ -68,6 +68,8 @@ export class JobPostingService {
         bookingId: null,
         expiresAt: expiresAt.toISOString(),
         viewCount: 0,
+        requiresFunding: false, // Will be set to true when first worker applies
+        applicantCount: 0, // Incremented when workers apply
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

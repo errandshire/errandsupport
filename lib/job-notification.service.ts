@@ -13,53 +13,91 @@ import { NOTIFICATION_TYPES } from './constants';
 export class JobNotificationService {
   /**
    * Notify workers when a new job is posted
-   * Only notify workers whose categories match the job category
+   * Notifies ALL verified and active workers (no category filtering)
+   * Processes in batches to avoid overwhelming the system
    */
-  static async notifyNewJobPosted(job: Job, maxWorkers: number = 20): Promise<void> {
+  static async notifyNewJobPosted(job: Job): Promise<void> {
     try {
-      // Find workers with matching category who are verified and active
-      const workers = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.WORKERS,
-        [
-          Query.equal('isVerified', true),
-          Query.equal('isActive', true),
-          Query.equal('categories', job.categoryId),
-          Query.orderDesc('rating'),
-          Query.limit(maxWorkers)
-        ]
-      );
+      // Fetch ALL verified and active workers (no category filter, no limit)
+      // Process in batches of 100 to avoid memory issues
+      const batchSize = 100;
+      let offset = 0;
+      let totalNotified = 0;
 
-      console.log(`Notifying ${workers.documents.length} workers about new job: ${job.title}`);
+      while (true) {
+        const workers = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.WORKERS,
+          [
+            Query.equal('isVerified', true),
+            Query.equal('isActive', true),
+            Query.limit(batchSize),
+            Query.offset(offset)
+          ]
+        );
 
-      // Send in-app notifications to all matching workers
-      const notificationPromises = workers.documents.map(async (worker) => {
-        await notificationService.createNotification({
-          userId: worker.userId,
-          title: 'New Job Available!',
-          message: `A new ${job.categoryId} job is available: "${job.title}" - Budget: ₦${job.budgetMax.toLocaleString()}`,
-          type: 'info',
-          bookingId: job.$id,
-          actionUrl: `/worker/jobs?jobId=${job.$id}`,
-          idempotencyKey: `job_posted_${job.$id}_${worker.userId}`,
+        if (workers.documents.length === 0) {
+          break; // No more workers to notify
+        }
+
+        console.log(`Notifying batch of ${workers.documents.length} workers (offset: ${offset})`);
+
+        // Send in-app notifications to all workers in this batch
+        const notificationPromises = workers.documents.map(async (worker) => {
+          await notificationService.createNotification({
+            userId: worker.userId,
+            title: 'New Job Available!',
+            message: `New job posted: "${job.title}" - Budget: ₦${job.budgetMax.toLocaleString()}`,
+            type: 'info',
+            bookingId: job.$id,
+            actionUrl: `/worker/jobs?jobId=${job.$id}`,
+            idempotencyKey: `job_posted_${job.$id}_${worker.userId}`,
+          });
         });
 
-        // Optional: Send SMS to top-rated workers (first 5)
-        if (workers.documents.indexOf(worker) < 5 && worker.phone) {
-          const message = `New job on ErandWork: ${job.title} - ₦${job.budgetMax.toLocaleString()}. View details: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/jobs`;
-          await TermiiSMSService.sendSMS({
-            to: worker.phone,
-            message
-          }).catch(err => console.error('SMS failed:', err));
+        await Promise.all(notificationPromises);
+        totalNotified += workers.documents.length;
+
+        // If we got less than batchSize, we've reached the end
+        if (workers.documents.length < batchSize) {
+          break;
         }
-      });
 
-      await Promise.all(notificationPromises);
+        offset += batchSize;
+      }
 
-      console.log(`✅ Notified ${workers.documents.length} workers about job ${job.$id}`);
+      console.log(`✅ Notified ${totalNotified} workers about job ${job.$id}`);
     } catch (error) {
       console.error('Error notifying workers about new job:', error);
       // Don't throw - notification failures shouldn't block job creation
+    }
+  }
+
+  /**
+   * Notify client when a worker applies to their job
+   */
+  static async notifyWorkerApplied(
+    job: Job,
+    worker: { userId: string; displayName?: string; name?: string; email?: string }
+  ): Promise<void> {
+    try {
+      const workerName = worker.displayName || worker.name || 'A worker';
+
+      // In-app notification to client
+      await notificationService.createNotification({
+        userId: job.clientId,
+        title: 'New Application Received!',
+        message: `${workerName} is interested in your job "${job.title}"`,
+        type: 'info',
+        bookingId: job.$id,
+        actionUrl: `/client/jobs?jobId=${job.$id}`,
+        idempotencyKey: `worker_applied_${job.$id}_${worker.userId}`,
+      });
+
+      console.log(`✅ Notified client ${job.clientId} about application from worker ${worker.userId}`);
+    } catch (error) {
+      console.error('Error notifying client about worker application:', error);
+      // Don't throw - notification failures shouldn't block application
     }
   }
 

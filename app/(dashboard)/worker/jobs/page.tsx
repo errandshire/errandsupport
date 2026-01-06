@@ -21,6 +21,8 @@ export default function WorkerJobsPage() {
   const [workerCategories, setWorkerCategories] = React.useState<string[]>([]);
   const [expandedJobId, setExpandedJobId] = React.useState<string | null>(null);
   const [jobDetails, setJobDetails] = React.useState<Record<string, JobWithDetails>>({});
+  const [appliedJobs, setAppliedJobs] = React.useState<Set<string>>(new Set()); // Track jobs worker has applied to
+  const [applyingToJob, setApplyingToJob] = React.useState<string | null>(null); // Track current application in progress
 
   // Fetch worker data
   React.useEffect(() => {
@@ -117,51 +119,78 @@ export default function WorkerJobsPage() {
     }
   };
 
-  const handleAcceptJob = async (job: Job) => {
+  // Check which jobs worker has already applied to
+  React.useEffect(() => {
+    const checkApplications = async () => {
+      if (!user?.$id) return;
+
+      try {
+        const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
+        const { Query } = await import('appwrite');
+
+        // Fetch all applications by this worker
+        const applications = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.JOB_APPLICATIONS,
+          [
+            Query.equal('workerId', user.$id),
+            Query.equal('status', 'pending'),
+            Query.limit(100)
+          ]
+        );
+
+        const appliedJobIds = new Set(applications.documents.map((app: any) => app.jobId));
+        setAppliedJobs(appliedJobIds);
+      } catch (error) {
+        console.error('Failed to fetch applications:', error);
+      }
+    };
+
+    checkApplications();
+  }, [user?.$id]);
+
+  const handleApplyToJob = async (job: Job) => {
     if (!user) return;
 
     try {
-      const response = await fetch('/api/jobs/accept', {
+      setApplyingToJob(job.$id);
+
+      const response = await fetch('/api/jobs/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId: job.$id,
           workerId: user.$id,
+          message: '', // Optional: could add a message field in the UI
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        toast.error(data.message || 'Failed to accept job');
+        toast.error(data.message || 'Failed to apply to job');
 
-        // If job was already accepted by someone else, remove it from the list
-        if (data.message?.toLowerCase().includes('already accepted') ||
+        // If job is no longer available, remove it from the list
+        if (data.message?.toLowerCase().includes('no longer accepting') ||
             data.message?.toLowerCase().includes('no longer available')) {
           setJobs(prevJobs => prevJobs.filter(j => j.$id !== job.$id));
           setExpandedJobId(null);
-        } else {
-          // For other errors, just refresh the list
-          fetchJobs();
         }
         return;
       }
 
-      toast.success('Job accepted successfully!');
+      toast.success('Application submitted! The client will review your application.');
 
-      // Remove the accepted job from the list immediately
-      setJobs(prevJobs => prevJobs.filter(j => j.$id !== job.$id));
-      setExpandedJobId(null);
+      // Add this job to applied jobs
+      setAppliedJobs(prev => new Set([...prev, job.$id]));
 
-      // Redirect to booking
-      if (data.bookingId) {
-        window.location.href = `/worker/bookings?id=${data.bookingId}`;
-      }
+      // Keep the job in the list but mark as applied
+      // Don't remove it - worker can still see it
     } catch (error) {
-      console.error('Failed to accept job:', error);
-      toast.error('Failed to accept job. Please try again.');
-      // Refresh list to get latest status
-      fetchJobs();
+      console.error('Failed to apply to job:', error);
+      toast.error('Failed to apply to job. Please try again.');
+    } finally {
+      setApplyingToJob(null);
     }
   };
 
@@ -326,17 +355,28 @@ export default function WorkerJobsPage() {
                           </div>
                         </div>
 
-                        {/* Accept Button */}
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAcceptJob(job);
-                          }}
-                          className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
-                          size="lg"
-                        >
-                          Accept This Job
-                        </Button>
+                        {/* Apply/Interest Button */}
+                        {appliedJobs.has(job.$id) ? (
+                          <Button
+                            disabled
+                            className="w-full bg-gray-400 text-sm sm:text-base"
+                            size="lg"
+                          >
+                            ✓ Application Sent
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApplyToJob(job);
+                            }}
+                            disabled={applyingToJob === job.$id}
+                            className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
+                            size="lg"
+                          >
+                            {applyingToJob === job.$id ? 'Applying...' : 'Show Interest'}
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-3 sm:pt-4 text-center">

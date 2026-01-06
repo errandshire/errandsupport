@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Calendar, Clock, DollarSign, Eye } from "lucide-react";
+import { MapPin, Calendar, Clock, DollarSign, Eye, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 interface JobCardProps {
   job: Job;
   onViewDetails: (job: Job) => void;
+  applicantCount?: number;
 }
 
 const statusConfig = {
@@ -22,7 +23,7 @@ const statusConfig = {
   expired: { label: 'Expired', color: 'bg-gray-100 text-gray-800' },
 };
 
-export function JobCard({ job, onViewDetails }: JobCardProps) {
+export function JobCard({ job, onViewDetails, applicantCount }: JobCardProps) {
   const status = statusConfig[job.status];
 
   return (
@@ -60,12 +61,25 @@ export function JobCard({ job, onViewDetails }: JobCardProps) {
             </div>
           </div>
 
-          {job.viewCount > 0 && (
-            <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-              <Eye className="h-3 w-3" />
-              <span>{job.viewCount} views</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+            {job.viewCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                <span>{job.viewCount} views</span>
+              </div>
+            )}
+            {job.status === 'open' && applicantCount !== undefined && (
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                <span className={cn(
+                  "font-medium",
+                  applicantCount > 0 ? "text-green-600" : "text-gray-500"
+                )}>
+                  {applicantCount} {applicantCount === 1 ? 'applicant' : 'applicants'}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

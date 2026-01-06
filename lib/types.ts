@@ -182,6 +182,8 @@ export interface Job extends Models.Document {
   bookingId?: string; // Links to created booking after acceptance
   expiresAt: string;
   viewCount: number;
+  requiresFunding?: boolean; // Whether client needs to fund wallet to view applicants
+  applicantCount?: number; // Cached count of interested workers
   createdAt: string;
   updatedAt: string;
 }
@@ -217,6 +219,36 @@ export interface JobWithDetails extends Job {
   clientRating: number;
   categoryName: string;
   distanceFromWorker?: number; // in kilometers
+}
+
+// Job Application Types
+export interface JobApplication extends Models.Document {
+  jobId: string;
+  workerId: string;
+  clientId: string;
+  status: JobApplicationStatus;
+  message?: string; // Worker's pitch/message to client
+  appliedAt: string;
+  selectedAt?: string;
+  rejectedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type JobApplicationStatus =
+  | 'pending'    // Waiting for client to review
+  | 'selected'   // Client chose this worker
+  | 'rejected'   // Client chose another worker
+  | 'withdrawn'; // Worker withdrew application
+
+export interface JobApplicationWithDetails extends JobApplication {
+  workerName: string;
+  workerEmail: string;
+  workerRating: number;
+  workerProfileImage?: string;
+  workerBio?: string;
+  workerExperienceYears?: number;
+  workerCategories?: string[];
 }
 
 // Review Types
