@@ -224,32 +224,133 @@ export class JobPostingService {
   }
 
   /**
-   * Cancel a job
+   * Cancel a job and notify all applicants
+   * @param jobId - Job ID to cancel
+   * @param clientId - Client ID (for authorization)
+   * @param reason - Optional cancellation reason
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
-  static async cancelJob(jobId: string, clientId: string, reason?: string): Promise<Job> {
-    try {
-      const job = await this.getJobById(jobId);
+  static async cancelJob(
+    jobId: string,
+    clientId: string,
+    reason?: string,
+    dbClient?: any
+  ): Promise<Job> {
+    const db = dbClient || databases;
 
-      // Verify the client owns this job
+    try {
+      // 1. Get job details
+      const job = await db.getDocument(
+        DATABASE_ID,
+        COLLECTIONS.JOBS,
+        jobId
+      );
+
+      // 2. Verify the client owns this job
       if (job.clientId !== clientId) {
         throw new Error('Unauthorized to cancel this job');
       }
 
-      // Update job status to cancelled
-      const response = await databases.updateDocument(
+      // 3. Check if job can be cancelled
+      if (job.status === JOB_STATUS.CANCELLED) {
+        throw new Error('Job is already cancelled');
+      }
+
+      if (job.status === JOB_STATUS.COMPLETED) {
+        throw new Error('Cannot cancel a completed job');
+      }
+
+      // 4. If job is assigned, we need to handle escrow refund
+      if (job.status === JOB_STATUS.ASSIGNED && job.bookingId) {
+        // Import wallet service dynamically to avoid circular dependencies
+        const { WalletService } = await import('./wallet.service');
+
+        try {
+          // Release escrow back to client
+          await WalletService.releaseEscrow(job.bookingId, 'refund');
+        } catch (escrowError) {
+          console.error('Error releasing escrow:', escrowError);
+          // Continue with cancellation even if escrow release fails
+          // Admin can manually handle this
+        }
+
+        // Update booking status to cancelled
+        try {
+          await db.updateDocument(
+            DATABASE_ID,
+            COLLECTIONS.BOOKINGS,
+            job.bookingId,
+            {
+              status: 'cancelled',
+              paymentStatus: 'refunded',
+            }
+          );
+        } catch (bookingError) {
+          console.error('Error updating booking:', bookingError);
+        }
+      }
+
+      // 5. Update job status to cancelled
+      const response = await db.updateDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
         jobId,
         {
           status: JOB_STATUS.CANCELLED,
-          updatedAt: new Date().toISOString(),
         }
       );
+
+      // 6. Reject all pending applications
+      const { JobApplicationService } = await import('./job-application.service');
+      try {
+        await JobApplicationService.rejectPendingApplications(jobId, undefined, db);
+      } catch (appError) {
+        console.error('Error rejecting applications:', appError);
+      }
+
+      // 7. Notify all applicants about cancellation
+      try {
+        const applications = await db.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.JOB_APPLICATIONS,
+          [
+            Query.equal('jobId', jobId),
+            Query.limit(100)
+          ]
+        );
+
+        const { notificationService } = await import('./notification-service');
+
+        for (const app of applications.documents) {
+          try {
+            const worker = await db.getDocument(
+              DATABASE_ID,
+              COLLECTIONS.WORKERS,
+              app.workerId
+            );
+
+            await notificationService.createNotification({
+              userId: worker.userId,
+              title: 'Job Cancelled',
+              message: `The job "${job.title}" has been cancelled by the client${reason ? `: ${reason}` : '.'}`,
+              type: 'info',
+              jobId: jobId,
+              actionUrl: '/worker/jobs',
+              idempotencyKey: `job_cancelled_${jobId}_${worker.userId}`,
+            });
+          } catch (notifError) {
+            console.error(`Failed to notify worker ${app.workerId}:`, notifError);
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error sending cancellation notifications:', notificationError);
+        // Don't fail the cancellation if notifications fail
+      }
 
       return response as unknown as Job;
     } catch (error) {
       console.error('Error cancelling job:', error);
-      throw new Error('Failed to cancel job');
+      throw error;
     }
   }
 

@@ -18,11 +18,15 @@ export class WalletService {
 
   /**
    * Get or create wallet for user
+   * @param userId - User ID to get/create wallet for
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
-  static async getOrCreateWallet(userId: string): Promise<Wallet> {
+  static async getOrCreateWallet(userId: string, dbClient?: any): Promise<Wallet> {
+    const db = dbClient || databases;
+
     try {
       // Try to get existing wallet
-      const wallets = await databases.listDocuments(
+      const wallets = await db.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         [Query.equal('userId', userId), Query.limit(1)]
@@ -33,7 +37,7 @@ export class WalletService {
       }
 
       // Create new wallet
-      const wallet = await databases.createDocument(
+      const wallet = await db.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         ID.unique(),
@@ -133,17 +137,21 @@ export class WalletService {
    * Hold funds for a booking (client pays, money goes to escrow)
    *
    * IDEMPOTENCY: Uses bookingId as part of transaction reference
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async holdFundsForBooking(params: {
     clientId: string;
     bookingId: string;
     amountInNaira: number;
+    dbClient?: any;
   }): Promise<{ success: boolean; message: string }> {
+    const db = params.dbClient || databases;
+
     try {
       const { clientId, bookingId, amountInNaira } = params;
 
       // Get wallet
-      const wallet = await this.getOrCreateWallet(clientId);
+      const wallet = await this.getOrCreateWallet(clientId, db);
 
       // CHECK BALANCE
       if (wallet.balance < amountInNaira) {
@@ -156,7 +164,7 @@ export class WalletService {
       // IDEMPOTENCY: Try to create transaction
       const transactionId = `hold_${bookingId}`;
       try {
-        await databases.createDocument(
+        await db.createDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.WALLET_TRANSACTIONS,
           transactionId,
@@ -183,7 +191,7 @@ export class WalletService {
       }
 
       // Move from balance to escrow
-      await databases.updateDocument(
+      await db.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,

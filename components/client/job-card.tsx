@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Calendar, Clock, DollarSign, Eye, Users } from "lucide-react";
+import { MapPin, Calendar, Clock, DollarSign, Eye, Users, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 interface JobCardProps {
   job: Job;
   onViewDetails: (job: Job) => void;
+  onCancelJob?: (job: Job) => void;
   applicantCount?: number;
 }
 
@@ -23,8 +24,9 @@ const statusConfig = {
   expired: { label: 'Expired', color: 'bg-gray-100 text-gray-800' },
 };
 
-export function JobCard({ job, onViewDetails, applicantCount }: JobCardProps) {
+export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: JobCardProps) {
   const status = statusConfig[job.status];
+  const canCancel = job.status === 'open' || job.status === 'assigned';
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => onViewDetails(job)}>
@@ -83,7 +85,20 @@ export function JobCard({ job, onViewDetails, applicantCount }: JobCardProps) {
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t flex justify-end">
+      <div className="mt-3 pt-3 border-t flex justify-end gap-2">
+        {canCancel && onCancelJob && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelJob(job);
+            }}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Cancel Job
+          </Button>
+        )}
         <Button size="sm" variant="outline" onClick={(e) => {
           e.stopPropagation();
           onViewDetails(job);

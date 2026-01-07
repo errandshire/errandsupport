@@ -22,16 +22,20 @@ export class WorkerSelectionService {
    * @param jobId - ID of the job
    * @param applicationId - ID of the application being selected
    * @param clientId - ID of the client (for validation)
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    * @returns Booking ID
    */
   static async selectWorkerForJob(
     jobId: string,
     applicationId: string,
-    clientId: string
+    clientId: string,
+    dbClient?: any
   ): Promise<string> {
+    const db = dbClient || databases; // Use provided client or default to client-side
+
     try {
       // 1. Get job details
-      const job = await databases.getDocument(
+      const job = await db.getDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
         jobId
@@ -48,7 +52,7 @@ export class WorkerSelectionService {
       }
 
       // 4. Get application details
-      const application = await databases.getDocument(
+      const application = await db.getDocument(
         DATABASE_ID,
         COLLECTIONS.JOB_APPLICATIONS,
         applicationId
@@ -65,7 +69,7 @@ export class WorkerSelectionService {
       }
 
       // 7. Get worker details
-      const worker = await databases.getDocument(
+      const worker = await db.getDocument(
         DATABASE_ID,
         COLLECTIONS.WORKERS,
         application.workerId
@@ -80,13 +84,46 @@ export class WorkerSelectionService {
         throw new Error('Worker is no longer active');
       }
 
-      // 9. Check client wallet balance
-      const clientWallet = await WalletService.getOrCreateWallet(clientId);
-      const availableBalance = clientWallet.balance - clientWallet.escrow;
+      // 9. Check client wallet balance - Query directly like /api/jobs/apply does
+      console.log('💰 Fetching wallet for clientId:', clientId);
+
+      const wallets = await db.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.VIRTUAL_WALLETS,
+        [Query.equal('userId', clientId)]
+      );
+
+      console.log('💰 Wallet query result:', {
+        clientId,
+        foundWallets: wallets.documents.length,
+        wallets: wallets.documents
+      });
+
+      if (wallets.documents.length === 0) {
+        throw new Error('Wallet not found. Please add funds to your wallet first.');
+      }
+
+      const clientWallet = wallets.documents[0];
+
+      // Ensure balance and escrow are numbers, default to 0 if undefined/null
+      const walletBalance = Number(clientWallet.balance) || 0;
+      const walletEscrow = Number(clientWallet.escrow) || 0;
+      const availableBalance = walletBalance - walletEscrow;
+
+      console.log('💰 Wallet balance check:', {
+        clientId,
+        walletId: clientWallet.$id,
+        rawBalance: clientWallet.balance,
+        rawEscrow: clientWallet.escrow,
+        walletBalance,
+        walletEscrow,
+        availableBalance,
+        requiredAmount: job.budgetMax
+      });
 
       if (availableBalance < job.budgetMax) {
         throw new Error(
-          `Insufficient funds. You need ₦${job.budgetMax.toLocaleString()} but have ₦${availableBalance.toLocaleString()}`
+          `Insufficient funds. You need ₦${job.budgetMax.toLocaleString()} but have ₦${availableBalance.toLocaleString()} available`
         );
       }
 
@@ -95,23 +132,19 @@ export class WorkerSelectionService {
         clientId: job.clientId,
         workerId: worker.$id,
         serviceId: job.categoryId,
+        categoryId: job.categoryId,
         workerUserId: worker.userId,
         scheduledDate: job.scheduledDate,
         scheduledTime: job.scheduledTime,
         duration: job.duration,
-        location: job.locationAddress,
-        locationLat: job.locationLat,
-        locationLng: job.locationLng,
-        amount: job.budgetMax,
+        totalAmount: job.budgetMax,
         status: 'confirmed' as const,
-        paymentStatus: 'held_in_escrow' as const,
+        paymentStatus: 'held' as const,
         jobId: job.$id,
         notes: job.description,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
 
-      const booking = await databases.createDocument(
+      const booking = await db.createDocument(
         DATABASE_ID,
         COLLECTIONS.BOOKINGS,
         ID.unique(),
@@ -120,15 +153,61 @@ export class WorkerSelectionService {
 
       // 11. Hold funds in escrow
       try {
-        await WalletService.holdFundsForBooking({
+        // Create hold transaction
+        const transactionId = `hold_${booking.$id}`;
+
+        console.log('💳 Creating escrow hold transaction:', {
+          transactionId,
           clientId,
           bookingId: booking.$id,
-          amountInNaira: job.budgetMax,
+          amount: job.budgetMax
         });
+
+        try {
+          await db.createDocument(
+            DATABASE_ID,
+            COLLECTIONS.WALLET_TRANSACTIONS,
+            transactionId,
+            {
+              userId: clientId,
+              type: 'booking_hold',
+              amount: job.budgetMax,
+              bookingId: booking.$id,
+              reference: transactionId,
+              status: 'completed',
+              description: `Payment held for booking #${booking.$id}`,
+              createdAt: new Date().toISOString()
+            }
+          );
+          console.log('✅ Transaction created');
+        } catch (transError: any) {
+          if (transError.code === 409 || transError.message?.includes('already exists')) {
+            console.log(`⚠️ Transaction ${transactionId} already exists`);
+            // Transaction already exists, continue
+          } else {
+            throw transError;
+          }
+        }
+
+        // Update wallet - move from balance to escrow
+        console.log('💰 Moving funds to escrow...');
+        await db.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.VIRTUAL_WALLETS,
+          clientWallet.$id,
+          {
+            balance: walletBalance - job.budgetMax,
+            escrow: walletEscrow + job.budgetMax,
+            totalSpent: (clientWallet.totalSpent || 0) + job.budgetMax,
+            updatedAt: new Date().toISOString()
+          }
+        );
+        console.log('✅ Funds moved to escrow');
+
       } catch (escrowError) {
         // Rollback booking if escrow fails
-        console.error('Escrow failed, rolling back booking:', escrowError);
-        await databases.deleteDocument(
+        console.error('❌ Escrow failed, rolling back booking:', escrowError);
+        await db.deleteDocument(
           DATABASE_ID,
           COLLECTIONS.BOOKINGS,
           booking.$id
@@ -137,7 +216,7 @@ export class WorkerSelectionService {
       }
 
       // 12. Update job status
-      await databases.updateDocument(
+      await db.updateDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
         jobId,
@@ -146,7 +225,6 @@ export class WorkerSelectionService {
           assignedWorkerId: worker.$id,
           assignedAt: new Date().toISOString(),
           bookingId: booking.$id,
-          updatedAt: new Date().toISOString(),
         }
       );
 
@@ -154,11 +232,12 @@ export class WorkerSelectionService {
       await JobApplicationService.updateApplicationStatus(
         applicationId,
         'selected',
-        new Date().toISOString()
+        new Date().toISOString(),
+        db
       );
 
       // 14. Reject all other pending applications
-      await JobApplicationService.rejectPendingApplications(jobId, applicationId);
+      await JobApplicationService.rejectPendingApplications(jobId, applicationId, db);
 
       // 15. Send notification to selected worker
       try {
@@ -193,7 +272,7 @@ export class WorkerSelectionService {
 
       // 17. Notify rejected workers
       try {
-        const rejectedApplications = await databases.listDocuments(
+        const rejectedApplications = await db.listDocuments(
           DATABASE_ID,
           COLLECTIONS.JOB_APPLICATIONS,
           [
@@ -205,7 +284,7 @@ export class WorkerSelectionService {
 
         for (const app of rejectedApplications.documents) {
           try {
-            const rejWorker = await databases.getDocument(
+            const rejWorker = await db.getDocument(
               DATABASE_ID,
               COLLECTIONS.WORKERS,
               app.workerId

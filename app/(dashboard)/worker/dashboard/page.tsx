@@ -404,6 +404,20 @@ export default function WorkerDashboard() {
         </div>
       </div>
 
+      {/* Mobile Quick Action - Browse Jobs */}
+      <div className="mb-6 lg:hidden">
+        <Button
+          className="w-full justify-center bg-blue-500 hover:bg-blue-600 text-white h-12"
+          size="lg"
+          asChild
+        >
+          <Link href="/worker/jobs">
+            <Calendar className="h-5 w-5 mr-2" />
+            Browse Available Jobs
+          </Link>
+        </Button>
+      </div>
+
       {/* Availability Status */}
       {isAvailable && (
         <div className="mb-6">
@@ -545,8 +559,9 @@ export default function WorkerDashboard() {
               <CardTitle className="text-lg">🚀 Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Browse Jobs - Hidden on mobile, shown on desktop */}
               <Button
-                className="w-full justify-start bg-blue-500 hover:bg-blue-600 text-white"
+                className="w-full justify-start bg-blue-500 hover:bg-blue-600 text-white hidden lg:flex"
                 asChild
               >
                 <Link href="/worker/jobs">

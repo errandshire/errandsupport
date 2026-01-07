@@ -340,12 +340,16 @@ export class JobApplicationService {
    * @param applicationId - ID of the application
    * @param status - New status
    * @param timestamp - Optional timestamp for selectedAt/rejectedAt
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async updateApplicationStatus(
     applicationId: string,
     status: JobApplicationStatus,
-    timestamp?: string
+    timestamp?: string,
+    dbClient?: any
   ): Promise<void> {
+    const db = dbClient || databases;
+
     try {
       const updateData: any = {
         status,
@@ -357,7 +361,7 @@ export class JobApplicationService {
         updateData.rejectedAt = timestamp;
       }
 
-      await databases.updateDocument(
+      await db.updateDocument(
         DATABASE_ID,
         COLLECTIONS.JOB_APPLICATIONS,
         applicationId,
@@ -375,13 +379,17 @@ export class JobApplicationService {
    *
    * @param jobId - ID of the job
    * @param excludeApplicationId - Optional application ID to exclude (e.g., selected worker)
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async rejectPendingApplications(
     jobId: string,
-    excludeApplicationId?: string
+    excludeApplicationId?: string,
+    dbClient?: any
   ): Promise<void> {
+    const db = dbClient || databases;
+
     try {
-      const applications = await databases.listDocuments(
+      const applications = await db.listDocuments(
         DATABASE_ID,
         COLLECTIONS.JOB_APPLICATIONS,
         [
@@ -404,7 +412,8 @@ export class JobApplicationService {
           await this.updateApplicationStatus(
             app.$id,
             'rejected',
-            rejectTimestamp
+            rejectTimestamp,
+            db
           );
         })
       );

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerSelectionService } from '@/lib/worker-selection.service';
+const { serverDatabases } = require('@/lib/appwrite-server');
 
 /**
  * POST /api/jobs/select-worker
@@ -39,11 +40,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Select worker
+    // 3. Select worker (use server databases for elevated permissions)
     const bookingId = await WorkerSelectionService.selectWorkerForJob(
       jobId,
       applicationId,
-      tempClientId
+      tempClientId,
+      serverDatabases
     );
 
     return NextResponse.json({
