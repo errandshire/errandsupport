@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobApplicationService } from '@/lib/job-application.service';
 import { JobNotificationService } from '@/lib/job-notification.service';
-import { databases, COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
+const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
+import { Query } from 'appwrite';
 
 /**
  * POST /api/jobs/apply
@@ -38,17 +39,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Apply to job
+    // Apply to job (use server databases for elevated permissions)
     const application = await JobApplicationService.applyToJob(
       jobId,
       tempWorkerId,
-      message
+      message,
+      serverDatabases
     );
 
     // Get job and worker details for notification
     const [job, worker] = await Promise.all([
-      databases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId),
-      databases.getDocument(DATABASE_ID, COLLECTIONS.WORKERS, tempWorkerId)
+      serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId),
+      serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.WORKERS, tempWorkerId)
     ]);
 
     // Send notification to client about new applicant
@@ -200,7 +202,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify job belongs to client
-    const job = await databases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId);
+    const job = await serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId);
     if (job.clientId !== clientId) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized to view applications for this job' },
@@ -211,10 +213,10 @@ export async function GET(request: NextRequest) {
     // Check if client needs to fund wallet
     if (job.requiresFunding) {
       // Get client's wallet balance
-      const wallets = await databases.listDocuments(
+      const wallets = await serverDatabases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.VIRTUAL_WALLETS,
-        [databases.Query.equal('userId', clientId)]
+        [Query.equal('userId', clientId)]
       );
 
       if (wallets.documents.length === 0) {

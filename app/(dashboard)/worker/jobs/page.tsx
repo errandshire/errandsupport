@@ -19,6 +19,7 @@ export default function WorkerJobsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedCategory, setSelectedCategory] = React.useState<string>('all');
   const [workerCategories, setWorkerCategories] = React.useState<string[]>([]);
+  const [workerId, setWorkerId] = React.useState<string | null>(null); // Store worker document ID
   const [expandedJobId, setExpandedJobId] = React.useState<string | null>(null);
   const [jobDetails, setJobDetails] = React.useState<Record<string, JobWithDetails>>({});
   const [appliedJobs, setAppliedJobs] = React.useState<Set<string>>(new Set()); // Track jobs worker has applied to
@@ -43,6 +44,7 @@ export default function WorkerJobsPage() {
           const worker = workers.documents[0];
           console.log('👤 Worker data:', worker);
           console.log('📂 Worker categories:', worker.categories);
+          setWorkerId(worker.$id); // Store the worker document ID
           setWorkerCategories(worker.categories || []);
         } else {
           console.warn('⚠️ No worker profile found for user:', user.$id);
@@ -122,7 +124,7 @@ export default function WorkerJobsPage() {
   // Check which jobs worker has already applied to
   React.useEffect(() => {
     const checkApplications = async () => {
-      if (!user?.$id) return;
+      if (!workerId) return;
 
       try {
         const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
@@ -133,7 +135,7 @@ export default function WorkerJobsPage() {
           DATABASE_ID,
           COLLECTIONS.JOB_APPLICATIONS,
           [
-            Query.equal('workerId', user.$id),
+            Query.equal('workerId', workerId), // Use worker document ID
             Query.equal('status', 'pending'),
             Query.limit(100)
           ]
@@ -147,22 +149,35 @@ export default function WorkerJobsPage() {
     };
 
     checkApplications();
-  }, [user?.$id]);
+  }, [workerId]); // Depend on workerId instead of user.$id
 
   const handleApplyToJob = async (job: Job) => {
-    if (!user) return;
+    if (!user || !workerId) {
+      toast.error('Worker profile not found. Please refresh the page.');
+      return;
+    }
+
+    console.log('🚀 Applying to job with:', {
+      jobId: job.$id,
+      workerId: workerId,
+      userId: user.$id
+    });
 
     try {
       setApplyingToJob(job.$id);
 
+      const requestBody = {
+        jobId: job.$id,
+        workerId: workerId, // Use worker document ID instead of user ID
+        message: '', // Optional: could add a message field in the UI
+      };
+
+      console.log('📤 Sending request:', requestBody);
+
       const response = await fetch('/api/jobs/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobId: job.$id,
-          workerId: user.$id,
-          message: '', // Optional: could add a message field in the UI
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

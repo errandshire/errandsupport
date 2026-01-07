@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, COLLECTIONS } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Permission, Role } from 'appwrite';
 import { JobApplication, JobApplicationWithDetails, JobApplicationStatus } from './types';
 
 /**
@@ -16,16 +16,23 @@ export class JobApplicationService {
    * @param jobId - ID of the job to apply to
    * @param workerId - ID of the worker applying
    * @param message - Optional message/pitch from worker
+   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    * @returns The created application
    */
   static async applyToJob(
     jobId: string,
     workerId: string,
-    message?: string
+    message?: string,
+    dbClient?: any
   ): Promise<JobApplication> {
+    const db = dbClient || databases; // Use provided client or default to client-side
+
     try {
+      console.log('📝 applyToJob called with:', { jobId, workerId, message });
+
       // 1. Check if worker already applied
-      const existingApplications = await databases.listDocuments(
+      console.log('1️⃣ Checking for existing applications...');
+      const existingApplications = await db.listDocuments(
         DATABASE_ID,
         COLLECTIONS.JOB_APPLICATIONS,
         [
@@ -40,11 +47,13 @@ export class JobApplicationService {
       }
 
       // 2. Get job details to validate and get clientId
-      const job = await databases.getDocument(
+      console.log('2️⃣ Fetching job details for jobId:', jobId);
+      const job = await db.getDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
         jobId
       );
+      console.log('✅ Job fetched:', job.$id);
 
       // 3. Validate job is still open
       if (job.status !== 'open') {
@@ -52,11 +61,13 @@ export class JobApplicationService {
       }
 
       // 4. Validate worker is verified and active
-      const worker = await databases.getDocument(
+      console.log('4️⃣ Fetching worker details for workerId:', workerId);
+      const worker = await db.getDocument(
         DATABASE_ID,
         COLLECTIONS.WORKERS,
         workerId
       );
+      console.log('✅ Worker fetched:', worker.$id);
 
       if (!worker.isVerified) {
         throw new Error('You must be verified to apply to jobs');
@@ -74,27 +85,34 @@ export class JobApplicationService {
         status: 'pending' as JobApplicationStatus,
         message: message || '',
         appliedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
 
-      const application = await databases.createDocument(
+      const application = await db.createDocument(
         DATABASE_ID,
         COLLECTIONS.JOB_APPLICATIONS,
         ID.unique(),
-        applicationData
+        applicationData,
+        [
+          // Worker can read, update, and delete their own application
+          Permission.read(Role.user(worker.userId)),
+          Permission.update(Role.user(worker.userId)),
+          Permission.delete(Role.user(worker.userId)),
+          // Client can read the application
+          Permission.read(Role.user(job.clientId)),
+          // Client can update the application (to select/reject)
+          Permission.update(Role.user(job.clientId)),
+        ]
       );
 
       // 6. Increment applicant count on job (optimistic)
       const currentCount = job.applicantCount || 0;
-      await databases.updateDocument(
+      await db.updateDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
         jobId,
         {
           applicantCount: currentCount + 1,
           requiresFunding: true, // Mark job as requiring funding to view applicants
-          updatedAt: new Date().toISOString()
         }
       );
 
@@ -255,7 +273,6 @@ export class JobApplicationService {
         applicationId,
         {
           status: 'withdrawn' as JobApplicationStatus,
-          updatedAt: new Date().toISOString()
         }
       );
 
@@ -273,7 +290,6 @@ export class JobApplicationService {
         application.jobId,
         {
           applicantCount: Math.max(0, currentCount - 1),
-          updatedAt: new Date().toISOString()
         }
       );
     } catch (error) {
@@ -333,7 +349,6 @@ export class JobApplicationService {
     try {
       const updateData: any = {
         status,
-        updatedAt: new Date().toISOString()
       };
 
       if (status === 'selected' && timestamp) {

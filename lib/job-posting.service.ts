@@ -1,5 +1,5 @@
 import { databases, storage, COLLECTIONS, DATABASE_ID, STORAGE_BUCKET_ID } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Permission, Role } from 'appwrite';
 import { Job, JobFormData, JobWithDetails } from './types';
 import { JOB_EXPIRY_HOURS, JOB_STATUS } from './constants';
 
@@ -78,7 +78,17 @@ export class JobPostingService {
         DATABASE_ID,
         COLLECTIONS.JOBS,
         ID.unique(),
-        jobData
+        jobData,
+        [
+          // Client (owner) has full access
+          Permission.read(Role.user(clientId)),
+          Permission.update(Role.user(clientId)),
+          Permission.delete(Role.user(clientId)),
+          // Any authenticated user can read (to browse jobs)
+          Permission.read(Role.users()),
+          // Any authenticated user can update (to increment applicant count)
+          Permission.update(Role.users()),
+        ]
       );
 
       return response as unknown as Job;
