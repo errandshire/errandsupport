@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
+import {
   Home,
   Calendar,
   Search,
@@ -13,7 +13,8 @@ import {
   User,
   Wallet,
   Menu,
-  X
+  X,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,11 @@ const sidebarItems = [
     title: "Dashboard",
     href: "/client/dashboard",
     icon: Home,
+  },
+  {
+    title: "My Jobs",
+    href: "/client/jobs",
+    icon: Briefcase,
   },
   {
     title: "My Bookings",
