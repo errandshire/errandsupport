@@ -66,18 +66,25 @@ interface BookingDetailModalProps {
   onRefresh?: () => void;
 }
 
-export function BookingDetailModal({ 
-  isOpen, 
-  onClose, 
-  booking, 
+export function BookingDetailModal({
+  isOpen,
+  onClose,
+  booking,
   onOpenMessage,
-  onRefresh 
+  onRefresh
 }: BookingDetailModalProps) {
   const { user } = useAuth();
   const [clientInfo, setClientInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
-  
+  const [showCancelConfirm, setShowCancelConfirm] = React.useState(false);
+  const [cancelEligibility, setCancelEligibility] = React.useState<{
+    canCancel: boolean;
+    hoursRemaining?: number;
+    hoursElapsed?: number;
+    reason?: string;
+  } | null>(null);
+
   // Local booking state for immediate UI updates
   const [localBooking, setLocalBooking] = React.useState<any>(null);
 
@@ -433,16 +440,16 @@ export function BookingDetailModal({
       toast.error("Missing booking or user information");
       return;
     }
-    
+
     const b = booking as FlattenedBooking;
-    
+
     // More detailed validation with specific error messages
     const bookingId = b.$id || b.id;
     const clientId = b.clientId || b.client;
     const workerId = b.workerId || user.$id; // Fallback to current user
-    
-   
-    
+
+
+
     if (!bookingId) {
       console.error('Missing booking ID:', { booking: b });
       toast.error("Invalid booking: Missing booking ID");
@@ -454,7 +461,7 @@ export function BookingDetailModal({
 
       // Use the new BookingActionService
       const { BookingActionService } = await import('@/lib/booking-action-service');
-      
+
       const result = await BookingActionService.markCompleted({
         bookingId,
         userId: user.$id,
@@ -470,7 +477,7 @@ export function BookingDetailModal({
           workerCompletedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }));
-        
+
         toast.success(result.message);
         onRefresh?.(); // Update parent component data
         // Don't close modal - let user see the immediate change
@@ -481,6 +488,101 @@ export function BookingDetailModal({
     } catch (error) {
       console.error('Error marking completed:', error);
       toast.error("Failed to mark as completed. Please try again.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCancelJob = async () => {
+    if (!booking || !user) {
+      toast.error("Missing booking or user information");
+      return;
+    }
+
+    const b = booking as FlattenedBooking;
+    const workerId = b.workerId || user.$id;
+
+    if (!workerId) {
+      toast.error("Worker ID not found");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+
+      // Get worker profile to find jobId
+      const workerProfile = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        workerId
+      );
+
+      // Find the job associated with this booking
+      const jobs = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.JOBS,
+        [
+          // Query by bookingId field if it exists
+        ]
+      );
+
+      // Find job that has this booking ID
+      let jobId = null;
+      if (b.$id || b.id) {
+        const bookingIdToFind = b.$id || b.id;
+        // Try to find job with this bookingId
+        const jobsResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.JOBS,
+          []
+        );
+
+        const matchingJob = jobsResponse.documents.find(
+          (job: any) => job.bookingId === bookingIdToFind
+        );
+
+        if (matchingJob) {
+          jobId = matchingJob.$id;
+        }
+      }
+
+      if (!jobId) {
+        toast.error("Could not find associated job for this booking");
+        return;
+      }
+
+      // Call worker cancellation API
+      const response = await fetch(`/api/jobs/worker-cancel?jobId=${jobId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workerId,
+          workerUserId: user.$id,
+          reason: 'Worker cancelled the job'
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(result.message);
+        setShowCancelConfirm(false);
+        onRefresh?.();
+        onClose();
+      } else {
+        // Handle 24-hour policy violation
+        if (result.hoursRemaining !== undefined) {
+          toast.error(
+            `Cannot cancel: You must wait ${result.hoursRemaining} more hours (${result.hoursElapsed}h elapsed since assignment)`
+          );
+        } else {
+          toast.error(result.message);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      toast.error("Failed to cancel job. Please try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -556,6 +658,7 @@ export function BookingDetailModal({
   const canStart = currentBooking?.status === 'accepted';
   const canComplete = currentBooking?.status === 'in_progress';
   const isCompleted = currentBooking?.status === 'completed' || currentBooking?.status === 'worker_completed';
+  const canCancel = currentBooking?.status === 'confirmed' || currentBooking?.status === 'accepted' || currentBooking?.status === 'in_progress';
 
   if (!booking) return null;
 
@@ -582,17 +685,68 @@ export function BookingDetailModal({
                   {(currentBooking?.urgency || 'Normal').charAt(0).toUpperCase() + (currentBooking?.urgency || 'normal').slice(1)} Priority
                 </Badge>
             </div>
-            <Button
-              onClick={handleMessageClient}
-              disabled={loading || !clientInfo}
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto"
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Message Client
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button
+                onClick={handleMessageClient}
+                disabled={loading || !clientInfo}
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-initial"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Message Client
+              </Button>
+              {canCancel && (
+                <Button
+                  onClick={() => setShowCancelConfirm(true)}
+                  disabled={isUpdating}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 sm:flex-initial border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel Job
+                </Button>
+              )}
+            </div>
           </div>
+
+          {/* Cancel Confirmation Dialog */}
+          {showCancelConfirm && (
+            <Alert className="border-red-200 bg-red-50">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertDescription>
+                <div className="space-y-3">
+                  <p className="text-red-800 font-medium">
+                    Are you sure you want to cancel this job?
+                  </p>
+                  <p className="text-sm text-red-700">
+                    Note: You can only cancel if more than 24 hours have passed since the client selected you.
+                    The client will be refunded and the job will become available again.
+                  </p>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowCancelConfirm(false)}
+                      disabled={isUpdating}
+                      className="flex-1 sm:flex-initial"
+                    >
+                      Keep Job
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleCancelJob}
+                      disabled={isUpdating}
+                      className="flex-1 sm:flex-initial bg-red-600 hover:bg-red-700"
+                    >
+                      {isUpdating ? 'Cancelling...' : 'Confirm Cancel'}
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Status-based Action Buttons */}
           {(canAccept || canStart || canComplete) && (

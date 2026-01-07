@@ -12,7 +12,7 @@ export interface BookingNotification {
   bookingId: string;
   workerId: string;
   clientId: string;
-  type: 'booking_accepted' | 'work_started' | 'work_completed' | 'booking_confirmed' | 'payment_released';
+  type: 'booking_accepted' | 'work_started' | 'work_completed' | 'booking_confirmed' | 'payment_released' | 'worker_cancelled';
   title: string;
   message: string;
   status: 'unread' | 'read';
@@ -229,6 +229,41 @@ export class BookingNotificationService {
   }
 
   /**
+   * Send notification when worker cancels a job
+   */
+  static async notifyWorkerCancellation(
+    job: any,
+    booking: any,
+    worker: any,
+    client: any
+  ): Promise<void> {
+    try {
+      const workerName = worker.displayName || worker.name || 'The worker';
+      const jobTitle = job.title || 'your job';
+      const refundAmount = booking.totalAmount || booking.budgetAmount || 0;
+
+      // Send email notification to client
+      await this.sendEmailNotification({
+        type: 'worker_cancelled',
+        to: client.email,
+        clientName: client.name || client.displayName || 'Client',
+        workerName,
+        bookingTitle: jobTitle,
+        bookingId: booking.$id,
+        status: 'cancelled',
+        amount: refundAmount,
+        actionUrl: `${process.env.NEXT_PUBLIC_APP_URL}/client/jobs/${job.$id}`
+      });
+
+      console.log('📧 Worker cancellation email sent to client');
+
+    } catch (error) {
+      console.error('❌ Failed to send worker cancellation notification:', error);
+      // Don't throw - notification failure shouldn't break main flow
+    }
+  }
+
+  /**
    * Create in-app notification
    */
   private static async createInAppNotification(data: Omit<BookingNotification, '$id' | 'status' | 'createdAt'>): Promise<void> {
@@ -370,6 +405,26 @@ export class BookingNotificationService {
             </div>
           `,
           text: `Hi ${data.workerName}, ${data.clientName} confirmed completion of "${data.bookingTitle}". Your payment of ₦${data.amount?.toLocaleString()} has been released. View earnings: ${baseUrl}/worker/earnings`
+        };
+
+      case 'worker_cancelled':
+        return {
+          subject: `Job Cancelled - ${data.workerName} cancelled "${data.bookingTitle}"`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #f59e0b;">Job Cancelled ⚠️</h1>
+              <p>Hi ${data.clientName},</p>
+              <p><strong>${data.workerName}</strong> has cancelled your job "<strong>${data.bookingTitle}</strong>".</p>
+              <p>Your payment of <strong>₦${data.amount?.toLocaleString()}</strong> has been refunded to your wallet.</p>
+              <p><strong>Good news:</strong> Your job is now open for applications again and other workers can apply.</p>
+              <div style="margin: 30px 0;">
+                <a href="${data.actionUrl}" style="background-color: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View Job & Find Another Worker</a>
+              </div>
+              <p>We apologize for the inconvenience. Feel free to review new applications and select another qualified worker.</p>
+              <p>Thanks for using our platform!</p>
+            </div>
+          `,
+          text: `Hi ${data.clientName}, ${data.workerName} has cancelled "${data.bookingTitle}". Your payment of ₦${data.amount?.toLocaleString()} has been refunded. The job is now open for new applications. View job: ${data.actionUrl}`
         };
 
       default:
