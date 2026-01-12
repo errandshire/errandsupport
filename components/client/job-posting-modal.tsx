@@ -17,6 +17,7 @@ import { JobPostingService } from "@/lib/job-posting.service";
 import { WalletService } from "@/lib/wallet.service";
 import { JobNotificationService } from "@/lib/job-notification.service";
 import { SERVICE_CATEGORIES, JOB_DURATION_OPTIONS, MAX_JOB_ATTACHMENTS } from "@/lib/constants";
+import { trackJobPost } from "@/lib/meta-pixel-events";
 
 interface JobPostingModalProps {
   isOpen: boolean;
@@ -211,6 +212,10 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
     try {
       // Create job
       const job = await JobPostingService.createJob(clientId, formData as JobFormData);
+
+      // Track job posting event
+      const budget = formData.budgetType === 'fixed' ? formData.budgetMax! : (formData.budgetMax! + formData.budgetMin!) / 2;
+      trackJobPost(job.$id!, formData.title!, budget);
 
       // Send notifications to workers
       await JobNotificationService.notifyNewJobPosted(job);

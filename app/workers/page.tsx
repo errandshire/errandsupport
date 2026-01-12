@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import type { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
+import { trackBookingInitiated, trackPurchase } from "@/lib/meta-pixel-events";
 
 const fadeIn: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -158,6 +159,13 @@ function WorkersPageContent() {
         return;
       }
 
+      // Track booking initiation
+      trackBookingInitiated(
+        bookingId,
+        bookingData.title || `${bookingModal.selectedWorker.displayName} Service`,
+        amount
+      );
+
       // STEP 1: Hold funds in escrow (wallet payment)
       const paymentResult = await WalletService.holdFundsForBooking({
         clientId: user.$id,
@@ -169,6 +177,9 @@ function WorkersPageContent() {
         toast.error(paymentResult.message);
         return;
       }
+
+      // Track successful purchase/payment
+      trackPurchase(bookingId, amount, bookingData.title || `${bookingModal.selectedWorker.displayName} Service`);
 
       // STEP 2: Create booking
       const flattenedBookingRequest = {

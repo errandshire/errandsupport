@@ -4,6 +4,7 @@ import "./globals.css";
 // import { Header } from "@/components/layout/header";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -109,12 +110,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${cormorantGaramond.variable}`}>
+      <head>
+        <MetaPixel />
+      </head>
       <body className="min-h-screen bg-white font-sans antialiased">
         <Providers>
           {children}
-          <Toaster 
-            position="top-right" 
-            richColors 
+          <Toaster
+            position="top-right"
+            richColors
             closeButton
             toastOptions={{
               duration: 4000,

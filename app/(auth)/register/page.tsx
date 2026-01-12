@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { trackRegistration } from "@/lib/meta-pixel-events";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -73,8 +74,11 @@ export default function RegisterPage() {
       }
 
       const result = await registerUser(data);
-      
+
       if (result.success) {
+        // Track successful registration
+        trackRegistration(data.role);
+
         // Redirect workers to onboarding, clients to login
         if (data.role === "worker") {
           router.push("/onboarding");
