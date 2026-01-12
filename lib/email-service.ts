@@ -540,6 +540,27 @@ class EmailTemplateBuilder {
     `;
     return this.getBaseTemplate(content, 'Complete Your Profile - Upload Documents');
   }
+
+  static jobPostedNotification(data: { workerName: string; job: { id: string; title: string; budget: number; location: string; scheduledDate: string } }): string {
+    const content = `
+      <h2>🎯 New Job Available!</h2>
+      <p>Hello ${data.workerName},</p>
+      <p>A new job has been posted that might interest you!</p>
+
+      <div class="highlight">
+        <h3>${data.job.title}</h3>
+        <p><strong>Budget:</strong> <span class="amount">₦${data.job.budget.toLocaleString()}</span></p>
+        <p><strong>Location:</strong> ${data.job.location}</p>
+        <p><strong>Scheduled:</strong> ${new Date(data.job.scheduledDate).toLocaleDateString()}</p>
+      </div>
+
+      <a href="${EMAIL_CONFIG.baseUrl}/worker/jobs/${data.job.id}" class="button">View Job Details & Apply</a>
+
+      <p><strong>Act fast!</strong> Jobs are assigned on a first-come, first-served basis. Apply now to increase your chances of getting selected.</p>
+      <p>Make sure your profile is complete and up-to-date to stand out to clients.</p>
+    `;
+    return this.getBaseTemplate(content, 'New Job Available');
+  }
 }
 
 // Email service class
@@ -683,6 +704,20 @@ class EmailService {
     const subject = `Complete Your Profile - Upload Verification Documents`;
     const html = EmailTemplateBuilder.documentReminder(data);
     return this.sendEmail(data.email, subject, html, 'document_reminder');
+  }
+
+  // Job posting notification email
+  async sendJobPostingNotification(data: {
+    to: string;
+    workerName: string;
+    job: { id: string; title: string; budget: number; location: string; scheduledDate: string }
+  }): Promise<boolean> {
+    const subject = `New Job Available: ${data.job.title}`;
+    const html = EmailTemplateBuilder.jobPostedNotification({
+      workerName: data.workerName,
+      job: data.job
+    });
+    return this.sendEmail(data.to, subject, html, 'job_posted');
   }
 
   // Bulk email sending for notifications

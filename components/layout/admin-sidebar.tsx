@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
+import {
   Home,
   Users,
   UserCircle,
@@ -22,7 +22,8 @@ import {
   Banknote,
   CreditCard,
   Calendar,
-  MessageCircle
+  MessageCircle,
+  Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,12 @@ const sidebarItems = [
     title: "Messages",
     href: "/admin/messages",
     icon: MessageCircle,
+    badge: null,
+  },
+  {
+    title: "Broadcast",
+    href: "/admin/broadcast",
+    icon: Send,
     badge: null,
   },
   {

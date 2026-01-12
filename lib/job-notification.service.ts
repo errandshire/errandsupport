@@ -14,6 +14,7 @@ export class JobNotificationService {
   /**
    * Notify workers when a new job is posted
    * Notifies ALL verified and active workers (no category filtering)
+   * Sends via 3 channels: In-app + Email + SMS
    * Processes in batches to avoid overwhelming the system
    */
   static async notifyNewJobPosted(job: Job): Promise<void> {
@@ -23,6 +24,10 @@ export class JobNotificationService {
       const batchSize = 100;
       let offset = 0;
       let totalNotified = 0;
+      let emailsSent = 0;
+      let smsSent = 0;
+
+      console.log(`📢 Starting notifications for job ${job.$id}: "${job.title}"`);
 
       while (true) {
         const workers = await databases.listDocuments(
@@ -40,19 +45,68 @@ export class JobNotificationService {
           break; // No more workers to notify
         }
 
-        console.log(`Notifying batch of ${workers.documents.length} workers (offset: ${offset})`);
+        console.log(`📤 Processing batch of ${workers.documents.length} workers (offset: ${offset})`);
 
-        // Send in-app notifications to all workers in this batch
+        // Process each worker in this batch
         const notificationPromises = workers.documents.map(async (worker) => {
-          await notificationService.createNotification({
-            userId: worker.userId,
-            title: 'New Job Available!',
-            message: `New job posted: "${job.title}" - Budget: ₦${job.budgetMax.toLocaleString()}`,
-            type: 'info',
-            bookingId: job.$id,
-            actionUrl: `/worker/jobs?jobId=${job.$id}`,
-            idempotencyKey: `job_posted_${job.$id}_${worker.userId}`,
-          });
+          try {
+            // 1. Fetch user data for email and phone
+            const user = await databases.getDocument(
+              DATABASE_ID,
+              COLLECTIONS.USERS,
+              worker.userId
+            );
+
+            // 2. Send in-app notification
+            await notificationService.createNotification({
+              userId: worker.userId,
+              title: 'New Job Available!',
+              message: `New job posted: "${job.title}" - Budget: ₦${job.budgetMax.toLocaleString()}`,
+              type: 'info',
+              bookingId: job.$id,
+              actionUrl: `/worker/jobs?jobId=${job.$id}`,
+              idempotencyKey: `job_posted_${job.$id}_${worker.userId}`,
+            });
+
+            // 3. Send email notification
+            if (user.email) {
+              try {
+                await emailService.sendJobPostingNotification({
+                  to: user.email,
+                  workerName: user.name || worker.displayName || 'Worker',
+                  job: {
+                    id: job.$id!,
+                    title: job.title,
+                    budget: job.budgetMax,
+                    location: job.locationAddress,
+                    scheduledDate: job.scheduledDate,
+                  }
+                });
+                emailsSent++;
+              } catch (emailError) {
+                console.error(`❌ Email failed for worker ${worker.userId}:`, emailError);
+              }
+            }
+
+            // 4. Send SMS notification
+            if (user.phone) {
+              try {
+                const smsMessage = `ErrandWork: New job "${job.title}" posted. Budget: ₦${job.budgetMax.toLocaleString()}. View: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/jobs/${job.$id}`;
+
+                await TermiiSMSService.sendSMS({
+                  to: user.phone,
+                  message: smsMessage,
+                });
+                smsSent++;
+              } catch (smsError) {
+                console.error(`❌ SMS failed for worker ${worker.userId}:`, smsError);
+              }
+            }
+
+          } catch (workerError) {
+            console.error(`❌ Failed to notify worker ${worker.userId}:`, workerError);
+            // Continue processing other workers even if one fails
+          }
         });
 
         await Promise.all(notificationPromises);
@@ -66,7 +120,10 @@ export class JobNotificationService {
         offset += batchSize;
       }
 
-      console.log(`✅ Notified ${totalNotified} workers about job ${job.$id}`);
+      console.log(`✅ Job notification complete for ${job.$id}:`);
+      console.log(`   📱 In-app: ${totalNotified} workers`);
+      console.log(`   📧 Email: ${emailsSent} sent`);
+      console.log(`   💬 SMS: ${smsSent} sent`);
     } catch (error) {
       console.error('Error notifying workers about new job:', error);
       // Don't throw - notification failures shouldn't block job creation

@@ -36,7 +36,10 @@ export const COLLECTIONS = {
   BANK_ACCOUNTS: process.env.NEXT_PUBLIC_APPWRITE_BANK_ACCOUNTS_COLLECTION_ID!,
   WITHDRAWALS: process.env.NEXT_PUBLIC_APPWRITE_WITHDRAWALS_COLLECTION_ID!,
   // Platform Settings
-  SETTINGS: process.env.NEXT_PUBLIC_APPWRITE_SETTINGS_COLLECTION_ID!
+  SETTINGS: process.env.NEXT_PUBLIC_APPWRITE_SETTINGS_COLLECTION_ID!,
+  // Broadcast Collections
+  BROADCAST_MESSAGES: 'broadcast_messages',
+  BROADCAST_TEMPLATES: 'broadcast_templates',
 } as const;
 
 // Initialize Appwrite client
