@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import Script from 'next/script';
 import { usePathname, useSearchParams } from 'next/navigation';
 
@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export function MetaPixel() {
+function MetaPixelTracking() {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -25,6 +25,12 @@ export function MetaPixel() {
 
     console.log('Meta Pixel: PageView tracked for', pathname);
   }, [pathname, searchParams, pixelId]);
+
+  return null;
+}
+
+export function MetaPixel() {
+  const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
   // Don't render if no pixel ID is configured
   if (!pixelId) {
@@ -53,6 +59,11 @@ export function MetaPixel() {
           `,
         }}
       />
+
+      {/* Page view tracking with Suspense */}
+      <Suspense fallback={null}>
+        <MetaPixelTracking />
+      </Suspense>
 
       {/* Noscript fallback */}
       <noscript>
