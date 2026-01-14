@@ -228,29 +228,49 @@ export class WorkerSelectionService {
         }
       );
 
-      // 13. Update selected application
-      await JobApplicationService.updateApplicationStatus(
+      // 13. Update selected application and link to booking
+      await db.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.JOB_APPLICATIONS,
         applicationId,
-        'selected',
-        new Date().toISOString(),
-        db
+        {
+          status: 'selected',
+          selectedAt: new Date().toISOString(),
+          bookingId: booking.$id // Link booking to application for unified acceptance
+        }
       );
 
       // 14. Reject all other pending applications
       await JobApplicationService.rejectPendingApplications(jobId, applicationId, db);
 
-      // 15. Send notification to selected worker
+      // 15. Send notification to selected worker (in-app + SMS)
       try {
         const workerName = worker.displayName || worker.name || 'Worker';
+
+        // In-app notification
         await notificationService.createNotification({
           userId: worker.userId,
           title: '🎉 You were selected!',
-          message: `Great news! The client selected you for "${job.title}". Payment is secured in escrow.`,
+          message: `Great news! The client selected you for "${job.title}". Payment is secured in escrow. Please accept within 1 hour.`,
           type: 'success',
           bookingId: booking.$id,
           actionUrl: `/worker/bookings?id=${booking.$id}`,
           idempotencyKey: `worker_selected_${jobId}_${worker.userId}`,
         });
+
+        // SMS notification
+        if (workerUser.phone) {
+          try {
+            const { TermiiSMSService } = await import('@/lib/termii-sms.service');
+            await TermiiSMSService.sendSMS({
+              to: workerUser.phone,
+              message: `ErrandWork: You were selected for "${job.title}"! Budget: ₦${job.budgetMax.toLocaleString()}. Accept within 1 hour: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/bookings/${booking.$id}`
+            });
+            console.log(`✅ SMS sent to worker ${worker.userId}`);
+          } catch (smsError) {
+            console.error('Failed to send SMS to selected worker:', smsError);
+          }
+        }
       } catch (notifError) {
         console.error('Failed to notify selected worker:', notifError);
       }

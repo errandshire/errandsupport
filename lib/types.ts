@@ -228,9 +228,13 @@ export interface JobApplication extends Models.Document {
   clientId: string;
   status: JobApplicationStatus;
   message?: string; // Worker's pitch/message to client
+  bookingId?: string; // Link to created booking (when client selects worker)
   appliedAt: string;
   selectedAt?: string;
   rejectedAt?: string;
+  acceptedAt?: string; // When worker accepted the selection
+  declinedAt?: string; // When worker declined the selection
+  unpickedAt?: string; // When client unpicked the worker
   createdAt: string;
   updatedAt: string;
 }
@@ -239,7 +243,8 @@ export type JobApplicationStatus =
   | 'pending'    // Waiting for client to review
   | 'selected'   // Client chose this worker
   | 'rejected'   // Client chose another worker
-  | 'withdrawn'; // Worker withdrew application
+  | 'withdrawn'  // Worker withdrew application
+  | 'unpicked';  // Client unpicked the selected worker
 
 export interface JobApplicationWithDetails extends JobApplication {
   workerName: string;

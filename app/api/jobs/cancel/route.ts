@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { JobPostingService } from '@/lib/job-posting.service';
-const { serverDatabases } = require('@/lib/appwrite-server');
+import { ClientCancellationService } from '@/lib/client-cancellation.service';
 
 /**
  * DELETE /api/jobs/cancel
@@ -42,17 +41,23 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Cancel job with server-side database client
-    await JobPostingService.cancelJob(
+    // Cancel job using ClientCancellationService
+    const result = await ClientCancellationService.cancelJob({
       jobId,
-      tempClientId,
-      reason,
-      serverDatabases
-    );
+      clientId: tempClientId,
+      reason
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, message: result.message },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Job cancelled successfully. All applicants have been notified.'
+      message: result.message
     });
   } catch (error: any) {
     console.error('Error cancelling job:', error);

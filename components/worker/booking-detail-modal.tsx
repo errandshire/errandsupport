@@ -13,6 +13,8 @@ import { databases, COLLECTIONS } from "@/lib/appwrite";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { BookingNotificationService } from "@/lib/booking-notification-service";
+import { CountdownTimer } from "@/components/shared/countdown-timer";
+import { Query } from "appwrite";
 
 // Updated interface to handle both old and new booking structures
 interface FlattenedBooking {
@@ -85,6 +87,9 @@ export function BookingDetailModal({
     reason?: string;
   } | null>(null);
 
+  // Related application (for job applications)
+  const [relatedApplication, setRelatedApplication] = React.useState<any>(null);
+
   // Local booking state for immediate UI updates
   const [localBooking, setLocalBooking] = React.useState<any>(null);
 
@@ -136,6 +141,32 @@ export function BookingDetailModal({
       console.warn('No client ID available in booking:', booking);
     }
   }, [booking?.clientId]);
+
+  // Fetch related application for job applications
+  React.useEffect(() => {
+    const fetchRelatedApplication = async () => {
+      if (!booking?.$id) return;
+
+      try {
+        const applications = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.JOB_APPLICATIONS,
+          [Query.equal('bookingId', booking.$id), Query.limit(1)]
+        );
+
+        if (applications.documents.length > 0) {
+          setRelatedApplication(applications.documents[0]);
+        } else {
+          setRelatedApplication(null);
+        }
+      } catch (error) {
+        console.error('Error fetching related application:', error);
+        setRelatedApplication(null);
+      }
+    };
+
+    fetchRelatedApplication();
+  }, [booking?.$id]);
 
   // Helper functions for data access with fallbacks
   const getBookingTitle = () => (booking as FlattenedBooking)?.title || (booking as FlattenedBooking)?.service || 'Untitled Booking';
@@ -743,6 +774,33 @@ export function BookingDetailModal({
                       {isUpdating ? 'Cancelling...' : 'Confirm Cancel'}
                     </Button>
                   </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Countdown Timer for Job Applications */}
+          {canAccept && relatedApplication && relatedApplication.selectedAt && (
+            <Alert className="border-blue-200 bg-blue-50">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <AlertDescription>
+                <div className="flex flex-col gap-2">
+                  <span className="font-medium text-blue-900">
+                    Time remaining to accept this job:
+                  </span>
+                  <CountdownTimer
+                    targetTime={new Date(
+                      new Date(relatedApplication.selectedAt).getTime() + 60 * 60 * 1000
+                    )}
+                    onExpire={() => {
+                      toast.error('The 1-hour acceptance window has expired');
+                      onRefresh?.();
+                    }}
+                    className="text-lg"
+                  />
+                  <span className="text-sm text-blue-700">
+                    You must accept or decline within 1 hour of being selected
+                  </span>
                 </div>
               </AlertDescription>
             </Alert>

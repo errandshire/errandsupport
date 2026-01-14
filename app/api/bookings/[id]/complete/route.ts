@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
+import { ClientCancellationService } from '@/lib/client-cancellation.service';
 import { databases, COLLECTIONS } from '@/lib/appwrite';
 
 /**
@@ -59,6 +60,7 @@ export async function POST(
 
 /**
  * Cancel booking and refund to client
+ * Uses ClientCancellationService for unified cancellation logic
  */
 export async function DELETE(
   request: NextRequest,
@@ -76,7 +78,7 @@ export async function DELETE(
       );
     }
 
-    const result = await BookingCompletionService.cancelBooking({
+    const result = await ClientCancellationService.cancelBooking({
       bookingId,
       clientId,
       reason

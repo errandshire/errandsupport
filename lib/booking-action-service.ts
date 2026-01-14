@@ -2,6 +2,7 @@ import { databases, COLLECTIONS } from './appwrite';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 import { TermiiSMSService } from './termii-sms.service';
+import { Query } from 'appwrite';
 
 /**
  * BOOKING ACTION SERVICE
@@ -21,7 +22,39 @@ interface BookingActionParams {
 export class BookingActionService {
 
   /**
-   * Accept a booking
+   * Check if booking is from a job application
+   */
+  static async getRelatedApplication(bookingId: string) {
+    try {
+      const applications = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.JOB_APPLICATIONS,
+        [
+          Query.equal('bookingId', bookingId),
+          Query.limit(1)
+        ]
+      );
+
+      return applications.documents.length > 0 ? applications.documents[0] : null;
+    } catch (error) {
+      console.error('Error fetching related application:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if worker can still accept job application (within 1-hour window)
+   */
+  static canAcceptJobApplication(selectedAt: string): boolean {
+    const selectionTime = new Date(selectedAt).getTime();
+    const now = Date.now();
+    const oneHourInMs = 60 * 60 * 1000;
+
+    return (now - selectionTime) < oneHourInMs;
+  }
+
+  /**
+   * Accept a booking (UNIFIED: handles both direct bookings and job applications)
    */
   static async acceptBooking(params: BookingActionParams) {
     try {
@@ -33,6 +66,45 @@ export class BookingActionService {
         bookingId
       );
 
+      // Check if this booking is from a job application
+      const application = await this.getRelatedApplication(bookingId);
+
+      // If from job application, validate 1-hour acceptance window
+      if (application) {
+        // Check if already accepted
+        if (application.acceptedAt) {
+          return {
+            success: false,
+            message: 'You have already accepted this job'
+          };
+        }
+
+        // Check if declined
+        if (application.declinedAt) {
+          return {
+            success: false,
+            message: 'You declined this job'
+          };
+        }
+
+        // Check if unpicked by client
+        if (application.unpickedAt) {
+          return {
+            success: false,
+            message: 'Client has cancelled this job selection'
+          };
+        }
+
+        // Validate 1-hour window
+        if (!this.canAcceptJobApplication(application.selectedAt)) {
+          return {
+            success: false,
+            message: 'The 1-hour acceptance window has expired. Please contact the client.'
+          };
+        }
+      }
+
+      // Update booking status to 'accepted'
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
@@ -44,6 +116,18 @@ export class BookingActionService {
         }
       );
 
+      // If from job application, also update application.acceptedAt
+      if (application) {
+        await databases.updateDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.JOB_APPLICATIONS,
+          application.$id,
+          {
+            acceptedAt: new Date().toISOString()
+          }
+        );
+      }
+
       // Send notifications to client
       try {
         const [worker, client] = await Promise.all([
@@ -54,8 +138,8 @@ export class BookingActionService {
         // In-app notification
         await notificationService.createNotification({
           userId: booking.clientId,
-          title: 'Booking Accepted',
-          message: `${worker.name} accepted your booking for "${booking.title}"`,
+          title: 'Booking Accepted! 🎉',
+          message: `${worker.name} accepted your booking for "${booking.title}". Work will begin as scheduled.`,
           type: 'success',
           bookingId,
           idempotencyKey: `booking_accepted_${bookingId}`
@@ -80,13 +164,151 @@ export class BookingActionService {
 
       return {
         success: true,
-        message: 'Booking accepted successfully!'
+        message: application
+          ? 'Job accepted successfully! The client has been notified.'
+          : 'Booking accepted successfully!'
       };
     } catch (error) {
       console.error('Error accepting booking:', error);
       return {
         success: false,
         message: 'Failed to accept booking'
+      };
+    }
+  }
+
+  /**
+   * Worker declines a job application selection (within 1-hour window)
+   * Refunds client, reopens job for new applications
+   */
+  static async declineJobApplication(params: BookingActionParams) {
+    try {
+      const { bookingId, reason } = params;
+
+      const booking = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        bookingId
+      );
+
+      // Get related application
+      const application = await this.getRelatedApplication(bookingId);
+
+      if (!application) {
+        return {
+          success: false,
+          message: 'This booking is not from a job application'
+        };
+      }
+
+      // Check if already accepted
+      if (application.acceptedAt) {
+        return {
+          success: false,
+          message: 'You have already accepted this job'
+        };
+      }
+
+      // Check if already declined
+      if (application.declinedAt) {
+        return {
+          success: false,
+          message: 'You have already declined this job'
+        };
+      }
+
+      // Check if unpicked by client
+      if (application.unpickedAt) {
+        return {
+          success: false,
+          message: 'Client has already cancelled this job selection'
+        };
+      }
+
+      // Validate 1-hour window
+      if (!this.canAcceptJobApplication(application.selectedAt)) {
+        return {
+          success: false,
+          message: 'The 1-hour decision window has expired. Please contact the client.'
+        };
+      }
+
+      // Update application status to declined
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.JOB_APPLICATIONS,
+        application.$id,
+        {
+          status: 'rejected',
+          declinedAt: new Date().toISOString()
+        }
+      );
+
+      // Get job to reopen it
+      const job = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.JOBS,
+        application.jobId
+      );
+
+      // Reopen job for applications
+      await databases.updateDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.JOBS,
+        application.jobId,
+        {
+          status: 'open',
+          assignedWorkerId: null,
+          assignedAt: null,
+          bookingId: null
+        }
+      );
+
+      // Refund client wallet using BookingCompletionService
+      await BookingCompletionService.cancelBooking({
+        bookingId,
+        clientId: booking.clientId,
+        reason: reason || 'Worker declined the job'
+      });
+
+      // Notify client
+      try {
+        const [worker, client] = await Promise.all([
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+        ]);
+
+        await notificationService.createNotification({
+          userId: booking.clientId,
+          title: 'Worker Declined Job',
+          message: `${worker.name} declined your job "${job.title}". Your payment has been refunded. The job is now open for new applications.`,
+          type: 'warning',
+          bookingId: application.jobId,
+          actionUrl: `/client/jobs?id=${application.jobId}`,
+          idempotencyKey: `worker_declined_${bookingId}`
+        });
+
+        // SMS notification
+        if (client.phone) {
+          const { TermiiSMSService } = await import('./termii-sms.service');
+          await TermiiSMSService.sendSMS({
+            to: client.phone,
+            message: `ErrandWork: ${worker.name} declined your job "${job.title}". Full refund processed. Job reopened for applications.`
+          });
+        }
+      } catch (notifError) {
+        console.error('Notification error:', notifError);
+      }
+
+      return {
+        success: true,
+        message: 'Job declined. Client has been notified and refunded.'
+      };
+    } catch (error) {
+      console.error('Error declining job application:', error);
+      return {
+        success: false,
+        message: 'Failed to decline job application'
       };
     }
   }
