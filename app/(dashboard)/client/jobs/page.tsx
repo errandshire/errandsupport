@@ -12,7 +12,7 @@ import { JobDetailsModal } from "@/components/client/job-details-modal";
 import { JobCard } from "@/components/client/job-card";
 import { JobPostingService } from "@/lib/job-posting.service";
 import { useAuth } from "@/hooks/use-auth";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CancellationModal } from "@/components/client/cancellation-modal";
 
 export default function ClientJobsPage() {
   const { user } = useAuth();
@@ -23,7 +23,7 @@ export default function ClientJobsPage() {
   const [applicantCounts, setApplicantCounts] = React.useState<Record<string, number>>({});
   const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
-  const [confirmDialogOpen, setConfirmDialogOpen] = React.useState(false);
+  const [cancellationModalOpen, setCancellationModalOpen] = React.useState(false);
   const [jobToCancel, setJobToCancel] = React.useState<Job | null>(null);
 
   const fetchJobs = React.useCallback(async () => {
@@ -81,38 +81,14 @@ export default function ClientJobsPage() {
 
   const handleCancelJob = (job: Job) => {
     setJobToCancel(job);
-    setConfirmDialogOpen(true);
+    setCancellationModalOpen(true);
   };
 
-  const confirmCancelJob = async () => {
-    if (!jobToCancel) return;
-
-    try {
-      const response = await fetch(`/api/jobs/cancel?jobId=${jobToCancel.$id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: user?.$id,
-          reason: '', // Could add a reason input dialog
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        toast.error(data.message || 'Failed to cancel job');
-        return;
-      }
-
-      toast.success('Job cancelled successfully. All applicants have been notified.');
-      fetchJobs(); // Refresh the job list
-    } catch (error) {
-      console.error('Failed to cancel job:', error);
-      toast.error('Failed to cancel job. Please try again.');
-    } finally {
-      setConfirmDialogOpen(false);
-      setJobToCancel(null);
-    }
+  const handleCancellationConfirm = () => {
+    // Modal handles the API call internally
+    // Just refresh jobs list after successful cancellation
+    fetchJobs();
+    setJobToCancel(null);
   };
 
   const stats = React.useMemo(() => ({
@@ -221,23 +197,20 @@ export default function ClientJobsPage() {
         onJobUpdated={fetchJobs}
       />
 
-      {/* Cancel Job Confirmation Dialog */}
-      <ConfirmDialog
-        open={confirmDialogOpen}
-        onOpenChange={setConfirmDialogOpen}
-        title="Cancel Job?"
-        description={
-          jobToCancel
-            ? jobToCancel.status === 'assigned'
-              ? `Are you sure you want to cancel "${jobToCancel.title}"? This will refund the escrow payment and notify the assigned worker.`
-              : `Are you sure you want to cancel "${jobToCancel.title}"? All applicants will be notified.`
-            : ''
-        }
-        confirmText="Yes, Cancel Job"
-        cancelText="No, Keep Job"
-        onConfirm={confirmCancelJob}
-        variant="destructive"
-      />
+      {/* Cancel Job Confirmation Modal */}
+      {jobToCancel && (
+        <CancellationModal
+          isOpen={cancellationModalOpen}
+          onClose={() => {
+            setCancellationModalOpen(false);
+            setJobToCancel(null);
+          }}
+          onConfirm={handleCancellationConfirm}
+          type="job"
+          itemId={jobToCancel.$id}
+          itemTitle={jobToCancel.title}
+        />
+      )}
     </div>
   );
 }

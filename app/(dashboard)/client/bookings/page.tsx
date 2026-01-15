@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
 import { MessageModal } from "@/components/marketplace/message-modal";
+import { CancellationModal } from "@/components/client/cancellation-modal";
 
 interface ProcessedBooking {
   $id: string;
@@ -775,100 +776,22 @@ function ClientBookingsContent() {
       />
 
       {/* Cancel Booking Modal */}
-      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              Cancel Booking
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-gray-600">
-              Are you sure you want to cancel this booking?
-            </p>
-
-            {bookingToCancel && (
-              <Card className="bg-gray-50">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <Calendar className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{bookingToCancel.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(bookingToCancel.scheduledDate).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    <p className="text-sm">
-                      ₦{bookingToCancel.budgetAmount.toLocaleString()}
-                    </p>
-                  </div>
-
-                  {bookingToCancel.worker && (
-                    <div className="flex items-center gap-3">
-                      <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                      <p className="text-sm">{bookingToCancel.worker.name}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex gap-2">
-                <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-blue-800">
-                  Your payment will be refunded to your wallet immediately.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowCancelModal(false);
-                setBookingToCancel(null);
-              }}
-              disabled={isCancelling}
-              className="w-full sm:flex-1"
-            >
-              Keep Booking
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmCancelBooking}
-              disabled={isCancelling}
-              className="w-full sm:flex-1"
-            >
-              {isCancelling ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelling...
-                </>
-              ) : (
-                <>
-                  <Ban className="h-4 w-4 mr-2" />
-                  Yes, Cancel Booking
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {bookingToCancel && (
+        <CancellationModal
+          isOpen={showCancelModal}
+          onClose={() => {
+            setShowCancelModal(false);
+            setBookingToCancel(null);
+          }}
+          onConfirm={() => {
+            fetchBookings();
+            setBookingToCancel(null);
+          }}
+          type="booking"
+          itemId={bookingToCancel.$id}
+          itemTitle={bookingToCancel.title}
+        />
+      )}
     </div>
   );
 }
