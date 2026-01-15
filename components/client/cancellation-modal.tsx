@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { trackMetaEvent } from "@/lib/meta-pixel-events";
+import { useAuth } from "@/hooks/use-auth";
 
 interface CancellationModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export function CancellationModal({
   itemTitle,
   loading = false
 }: CancellationModalProps) {
+  const { user } = useAuth();
   const [reason, setReason] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -40,6 +42,11 @@ export function CancellationModal({
   }, [isOpen]);
 
   const handleConfirm = async () => {
+    if (!user?.$id) {
+      toast.error('You must be logged in to cancel');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -54,7 +61,7 @@ export function CancellationModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          clientId: localStorage.getItem('userId'), // TODO: Get from auth context
+          clientId: user.$id,
           reason: reason || undefined
         })
       });
