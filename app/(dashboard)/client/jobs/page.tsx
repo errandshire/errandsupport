@@ -79,9 +79,33 @@ export default function ClientJobsPage() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleCancelJob = (job: Job) => {
-    setJobToCancel(job);
-    setCancellationModalOpen(true);
+  const handleCancelJob = async (job: Job) => {
+    // Verify job still exists before opening cancel modal
+    try {
+      const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
+
+      // Validate job exists in database
+      await databases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, job.$id);
+
+      // Job exists, proceed with cancellation
+      setJobToCancel(job);
+      setCancellationModalOpen(true);
+    } catch (error: any) {
+      console.error('Job validation error:', error);
+
+      // Ensure modal doesn't open on error
+      setJobToCancel(null);
+      setCancellationModalOpen(false);
+
+      if (error.code === 404 || error.message?.includes('not found')) {
+        toast.error('This job no longer exists. Refreshing the list...');
+      } else {
+        toast.error('Failed to validate job. Please try again.');
+      }
+
+      // Refresh the job list to show current state
+      fetchJobs();
+    }
   };
 
   const handleCancellationConfirm = () => {
@@ -198,7 +222,7 @@ export default function ClientJobsPage() {
       />
 
       {/* Cancel Job Confirmation Modal */}
-      {jobToCancel && (
+      {jobToCancel && cancellationModalOpen && (
         <CancellationModal
           isOpen={cancellationModalOpen}
           onClose={() => {

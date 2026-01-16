@@ -1,7 +1,8 @@
-import { databases, COLLECTIONS } from './appwrite';
+import { COLLECTIONS } from './appwrite';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 import { Query } from 'appwrite';
+const { serverDatabases } = require('./appwrite-server');
 
 /**
  * CLIENT CANCELLATION SERVICE
@@ -74,7 +75,7 @@ export class ClientCancellationService {
       const { bookingId, clientId, reason } = params;
 
       // Get booking details
-      const booking = await databases.getDocument(
+      const booking = await serverDatabases.getDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
@@ -100,7 +101,7 @@ export class ClientCancellationService {
       }
 
       // Check if this is from a job application
-      const applications = await databases.listDocuments(
+      const applications = await serverDatabases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.JOB_APPLICATIONS,
         [Query.equal('bookingId', bookingId), Query.limit(1)]
@@ -122,7 +123,7 @@ export class ClientCancellationService {
 
       // If from job application, update application status
       if (application) {
-        await databases.updateDocument(
+        await serverDatabases.updateDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.JOB_APPLICATIONS,
           application.$id,
@@ -134,7 +135,7 @@ export class ClientCancellationService {
 
         // Reopen the job if it was assigned
         if (booking.jobId) {
-          await databases.updateDocument(
+          await serverDatabases.updateDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             COLLECTIONS.JOBS,
             booking.jobId,
@@ -152,12 +153,12 @@ export class ClientCancellationService {
       if (requiresWorkerNotification && booking.workerId) {
         try {
           const [worker, client] = await Promise.all([
-            databases.getDocument(
+            serverDatabases.getDocument(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
               COLLECTIONS.USERS,
               booking.workerId
             ),
-            databases.getDocument(
+            serverDatabases.getDocument(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
               COLLECTIONS.USERS,
               clientId
@@ -222,12 +223,31 @@ export class ClientCancellationService {
     try {
       const { jobId, clientId, reason } = params;
 
-      // Get job details
-      const job = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.JOBS,
-        jobId
-      );
+      // Get job details with better error handling
+      let job;
+      try {
+        job = await serverDatabases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.JOBS,
+          jobId
+        );
+      } catch (error: any) {
+        console.error('Failed to fetch job for cancellation:', {
+          jobId,
+          clientId,
+          errorCode: error.code,
+          errorMessage: error.message
+        });
+
+        if (error.code === 404 || error.message?.includes('not found')) {
+          return {
+            success: false,
+            message: 'Job not found. It may have already been cancelled or deleted.'
+          };
+        }
+
+        throw error;
+      }
 
       // Security check
       if (job.clientId !== clientId) {
@@ -266,7 +286,7 @@ export class ClientCancellationService {
       }
 
       // Update job status to cancelled
-      await databases.updateDocument(
+      await serverDatabases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.JOBS,
         jobId,
@@ -277,7 +297,7 @@ export class ClientCancellationService {
       );
 
       // Reject all pending applications
-      const applications = await databases.listDocuments(
+      const applications = await serverDatabases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.JOB_APPLICATIONS,
         [Query.equal('jobId', jobId), Query.equal('status', 'pending'), Query.limit(100)]
@@ -287,7 +307,7 @@ export class ClientCancellationService {
       for (const app of applications.documents) {
         try {
           // Update application status
-          await databases.updateDocument(
+          await serverDatabases.updateDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             COLLECTIONS.JOB_APPLICATIONS,
             app.$id,
@@ -298,7 +318,7 @@ export class ClientCancellationService {
           );
 
           // Get worker details
-          const worker = await databases.getDocument(
+          const worker = await serverDatabases.getDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             COLLECTIONS.WORKERS,
             app.workerId

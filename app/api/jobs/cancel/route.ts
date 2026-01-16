@@ -63,6 +63,13 @@ export async function DELETE(request: NextRequest) {
     console.error('Error cancelling job:', error);
 
     // Handle specific errors
+    if (error.code === 404 || error.message?.includes('not found')) {
+      return NextResponse.json(
+        { success: false, message: 'Job not found. It may have already been cancelled or deleted.' },
+        { status: 404 }
+      );
+    }
+
     if (error.message.includes('Unauthorized')) {
       return NextResponse.json(
         { success: false, message: 'You are not authorized to cancel this job' },

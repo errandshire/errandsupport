@@ -47,6 +47,12 @@ export function CancellationModal({
       return;
     }
 
+    // Validate itemId
+    if (!itemId || itemId.length < 10) {
+      toast.error(`Invalid ${type} ID. Please refresh the page and try again.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -69,6 +75,10 @@ export function CancellationModal({
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        // Handle specific error cases
+        if (response.status === 404 || data.message?.includes('not found')) {
+          throw new Error(`This ${type} no longer exists. It may have already been cancelled.`);
+        }
         throw new Error(data.message || `Failed to cancel ${type}`);
       }
 
