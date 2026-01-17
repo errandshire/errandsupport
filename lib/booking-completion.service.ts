@@ -212,6 +212,16 @@ export class BookingCompletionService {
         };
       }
 
+      // Calculate refund amount - use totalAmount (standard field) or budgetAmount (legacy field)
+      const refundAmount = booking.totalAmount || booking.budgetAmount || 0;
+
+      if (refundAmount <= 0) {
+        return {
+          success: false,
+          message: 'Cannot process refund: booking amount not found or is zero'
+        };
+      }
+
       // Get client wallet
       const wallet = await WalletService.getOrCreateWallet(clientId);
 
@@ -225,7 +235,7 @@ export class BookingCompletionService {
           {
             userId: clientId,
             type: 'booking_refund',
-            amount: booking.budgetAmount,
+            amount: refundAmount,
             bookingId,
             reference: transactionId,
             status: 'completed',
@@ -249,8 +259,8 @@ export class BookingCompletionService {
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {
-          balance: wallet.balance + booking.budgetAmount,
-          escrow: wallet.escrow - booking.budgetAmount,
+          balance: wallet.balance + refundAmount,
+          escrow: wallet.escrow - refundAmount,
           updatedAt: new Date().toISOString()
         }
       );
