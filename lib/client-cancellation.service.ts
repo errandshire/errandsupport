@@ -24,8 +24,9 @@ export class ClientCancellationService {
     reason?: string;
     requiresWorkerNotification: boolean;
   } {
-    // Already cancelled
-    if (booking.status === 'cancelled') {
+    // Already cancelled - BUT we should allow retry if the related job/application needs cleanup
+    // This handles partial cancellation failures where booking was cancelled but job wasn't
+    if (booking.status === 'cancelled' && booking.paymentStatus === 'refunded') {
       return {
         canCancel: false,
         reason: 'Booking is already cancelled',
@@ -121,8 +122,8 @@ export class ClientCancellationService {
         return cancelResult;
       }
 
-      // If from job application, update application status
-      if (application) {
+      // If from job application, update application status (skip if already unpicked)
+      if (application && application.status !== 'unpicked') {
         await serverDatabases.updateDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.JOB_APPLICATIONS,
@@ -133,19 +134,33 @@ export class ClientCancellationService {
           }
         );
 
-        // Reopen the job if it was assigned
+        // Reopen the job if it was assigned (skip if already open/cancelled to handle retries)
         if (booking.jobId) {
-          await serverDatabases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            COLLECTIONS.JOBS,
-            booking.jobId,
-            {
-              status: 'open',
-              assignedWorkerId: null,
-              assignedAt: null,
-              bookingId: null
+          try {
+            const job = await serverDatabases.getDocument(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              COLLECTIONS.JOBS,
+              booking.jobId
+            );
+
+            // Only update if job is still in 'assigned' status
+            if (job.status === 'assigned') {
+              await serverDatabases.updateDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                COLLECTIONS.JOBS,
+                booking.jobId,
+                {
+                  status: 'open',
+                  assignedWorkerId: null,
+                  assignedAt: null,
+                  bookingId: null
+                }
+              );
             }
-          );
+          } catch (error) {
+            console.error('Failed to reopen job:', error);
+            // Don't fail the whole cancellation if job update fails
+          }
         }
       }
 
