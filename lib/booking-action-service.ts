@@ -510,13 +510,23 @@ export class BookingActionService {
         };
       }
 
-      // Release payment from escrow to worker (with automatic rollback on failure)
-      const paymentResult = await BookingCompletionService.completeBooking({
-        bookingId,
-        clientId: booking.clientId,
-        workerId: booking.workerId,
-        amount: booking.budgetAmount
+      // Release payment from escrow to worker via API route (uses server SDK)
+      const amount = booking.totalAmount || booking.budgetAmount;
+
+      const response = await fetch('/api/bookings/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bookingId,
+          clientId: booking.clientId,
+          workerId: booking.workerId,
+          amount
+        }),
       });
+
+      const paymentResult = await response.json();
 
       if (!paymentResult.success) {
         // Payment or booking update failed, rollback already happened

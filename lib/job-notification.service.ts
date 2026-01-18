@@ -234,6 +234,12 @@ export class JobNotificationService {
    */
   static async notifyJobFilled(job: Job, excludeWorkerId: string): Promise<void> {
     try {
+      // Skip notification if job has no category
+      if (!job.categoryId) {
+        console.warn(`⚠️ Cannot notify workers: Job ${job.$id} has no categoryId`);
+        return;
+      }
+
       // Find workers who might have viewed this job (same category)
       const workers = await databases.listDocuments(
         DATABASE_ID,

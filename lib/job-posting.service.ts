@@ -32,8 +32,11 @@ export class JobPostingService {
 
   /**
    * Create a new job posting
+   * @param clientId - The client creating the job
+   * @param formData - The job form data
+   * @param db - Optional database instance (use serverDatabases for API routes)
    */
-  static async createJob(clientId: string, formData: JobFormData): Promise<Job> {
+  static async createJob(clientId: string, formData: JobFormData, db = databases): Promise<Job> {
     try {
       // Upload attachments if any
       let attachmentUrls: string[] = [];
@@ -74,7 +77,7 @@ export class JobPostingService {
         updatedAt: new Date().toISOString(),
       };
 
-      const response = await databases.createDocument(
+      const response = await db.createDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
         ID.unique(),

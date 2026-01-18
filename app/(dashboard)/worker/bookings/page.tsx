@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  DollarSign, 
-  Eye, 
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  DollarSign,
+  Eye,
   MessageCircle,
   Search,
   Filter,
@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 export default function WorkerJobsPage() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -109,12 +110,12 @@ export default function WorkerJobsPage() {
 
   React.useEffect(() => {
     if (loading) return;
-    
+
     if (!isAuthenticated || !user) {
       router.replace("/login?callbackUrl=/worker/jobs");
       return;
     }
-    
+
     if (user.role !== "worker") {
       router.replace(`/${user.role}`);
       return;
@@ -122,6 +123,29 @@ export default function WorkerJobsPage() {
 
     fetchBookings();
   }, [loading, isAuthenticated, user, router, fetchBookings]);
+
+  // Auto-open booking from notification
+  React.useEffect(() => {
+    const bookingId = searchParams.get('id');
+
+    if (bookingId && bookings.length > 0 && !selectedBooking) {
+      // Find the booking with the matching ID
+      const targetBooking = bookings.find(b => b.$id === bookingId);
+
+      if (targetBooking) {
+        // Auto-open the booking modal
+        setSelectedBooking(targetBooking);
+        toast.success('Opening your booking from notification');
+
+        // Clean up URL to remove the query parameter
+        router.replace('/worker/bookings', { scroll: false });
+      } else {
+        // Booking not found, maybe still loading or doesn't exist
+        toast.error('Booking not found');
+        router.replace('/worker/bookings', { scroll: false });
+      }
+    }
+  }, [searchParams, bookings, selectedBooking, router]);
 
   const filteredBookings = React.useMemo(() => {
     return bookings.filter(booking => {

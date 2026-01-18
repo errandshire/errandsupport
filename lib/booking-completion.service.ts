@@ -114,7 +114,7 @@ export class BookingCompletionService {
           idempotencyKey: `payment_received_${bookingId}_${workerId}`
         });
 
-        // SMS notification - show NET amount (use API endpoint for server-side execution)
+        // SMS notification - show NET amount
         try {
           const workerUser = await serverDatabases.getDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -122,23 +122,17 @@ export class BookingCompletionService {
             workerId
           );
           if (workerUser.phone) {
-            // Call server-side API to send SMS (keeps API key secure)
+            // Use TermiiSMSService to send SMS (handles API key securely)
             try {
-              const response = await fetch('/api/sms/send', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  to: workerUser.phone,
-                  message: `ErandWork: Payment received! ₦${workerAmount.toLocaleString()} has been credited to your wallet for booking #${bookingId}.`
-                })
+              const { TermiiSMSService } = await import('./termii-sms.service');
+              await TermiiSMSService.sendSMS({
+                to: workerUser.phone,
+                message: `ErrandWork: Payment received! ₦${workerAmount.toLocaleString()} has been credited to your wallet for booking #${bookingId}.`
               });
-
-              const smsResult = await response.json();
-              console.log('📱 SMS result:', smsResult);
+              console.log('📱 SMS sent successfully to worker');
             } catch (smsError) {
               console.error('📱 SMS error:', smsError);
+              // SMS failure shouldn't block payment release
             }
           }
 

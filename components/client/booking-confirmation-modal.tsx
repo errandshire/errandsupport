@@ -237,7 +237,7 @@ export function BookingConfirmationModal({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Service Amount</p>
-                  <p className="text-xl font-semibold">₦{booking.budgetAmount?.toLocaleString()}</p>
+                  <p className="text-xl font-semibold">₦{(booking.totalAmount || booking.budgetAmount)?.toLocaleString()}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Status</p>
@@ -312,7 +312,7 @@ export function BookingConfirmationModal({
                 <Alert className="border-green-200 bg-green-50">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
-                    <strong>Payment Release:</strong> Confirming will immediately release ₦{booking.budgetAmount?.toLocaleString()} to the worker.
+                    <strong>Payment Release:</strong> Confirming will immediately release ₦{(booking.totalAmount || booking.budgetAmount)?.toLocaleString()} to the worker.
                   </AlertDescription>
                 </Alert>
 

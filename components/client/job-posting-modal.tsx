@@ -210,8 +210,25 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
 
     setIsSubmitting(true);
     try {
-      // Create job
-      const job = await JobPostingService.createJob(clientId, formData as JobFormData);
+      // Create job via API route (uses server SDK for proper permissions)
+      const response = await fetch('/api/jobs/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientId,
+          jobData: formData
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to post job');
+      }
+
+      const job = result.job;
 
       // Track job posting event
       const budget = formData.budgetType === 'fixed' ? formData.budgetMax! : (formData.budgetMax! + formData.budgetMin!) / 2;

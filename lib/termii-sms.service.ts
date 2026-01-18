@@ -53,7 +53,7 @@ export class TermiiSMSService {
     try {
       // Validate API key
       if (!this.API_KEY) {
-        console.error('Termii API key not configured');
+        console.warn('⚠️ Termii SMS: API key not configured - SMS notifications disabled');
         return { success: false, error: 'SMS service not configured' };
       }
 

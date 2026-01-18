@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { RefreshCw, Briefcase, MapPin, DollarSign, Calendar, Clock, ChevronDown, ChevronUp, User, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +16,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 export default function WorkerJobsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedCategory, setSelectedCategory] = React.useState<string>('all');
@@ -24,6 +27,7 @@ export default function WorkerJobsPage() {
   const [jobDetails, setJobDetails] = React.useState<Record<string, JobWithDetails>>({});
   const [appliedJobs, setAppliedJobs] = React.useState<Set<string>>(new Set()); // Track jobs worker has applied to
   const [applyingToJob, setApplyingToJob] = React.useState<string | null>(null); // Track current application in progress
+  const highlightedJobRef = React.useRef<HTMLDivElement>(null);
 
   // Fetch worker data
   React.useEffect(() => {
@@ -151,6 +155,37 @@ export default function WorkerJobsPage() {
     checkApplications();
   }, [workerId]); // Depend on workerId instead of user.$id
 
+  // Auto-expand and scroll to job from notification
+  React.useEffect(() => {
+    const jobId = searchParams.get('jobId');
+
+    if (jobId && jobs.length > 0 && !expandedJobId) {
+      // Find the job with the matching ID
+      const targetJob = jobs.find(j => j.$id === jobId);
+
+      if (targetJob) {
+        // Auto-expand the job
+        handleJobClick(targetJob);
+        toast.success('Opening job from notification');
+
+        // Scroll to the job card after a short delay
+        setTimeout(() => {
+          highlightedJobRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }, 300);
+
+        // Clean up URL
+        router.replace('/worker/jobs', { scroll: false });
+      } else {
+        // Job not found
+        toast.error('Job not found or no longer available');
+        router.replace('/worker/jobs', { scroll: false });
+      }
+    }
+  }, [searchParams, jobs, expandedJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleApplyToJob = async (job: Job) => {
     if (!user || !workerId) {
       toast.error('Worker profile not found. Please refresh the page.');
@@ -261,7 +296,12 @@ export default function WorkerJobsPage() {
 
             return (
               <Collapsible key={job.$id} open={isExpanded} onOpenChange={() => handleToggleJob(job)}>
-                <Card className="overflow-hidden hover:shadow-md transition-shadow">
+                <Card
+                  ref={isExpanded ? highlightedJobRef : null}
+                  className={`overflow-hidden transition-all ${
+                    isExpanded ? 'shadow-lg ring-2 ring-emerald-500' : 'hover:shadow-md'
+                  }`}
+                >
                   <CollapsibleTrigger className="w-full text-left p-3 sm:p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">

@@ -130,14 +130,14 @@ export class WorkerSelectionService {
       // 10. Create booking
       const bookingData = {
         clientId: job.clientId,
-        workerId: worker.$id,
+        workerId: worker.userId, // Fixed: Use worker.userId to match dashboard query
         serviceId: job.categoryId,
         categoryId: job.categoryId,
-        workerUserId: worker.userId,
         scheduledDate: job.scheduledDate,
         scheduledTime: job.scheduledTime,
         duration: job.duration,
         totalAmount: job.budgetMax,
+        budgetAmount: job.budgetMax, // Add for consistency with direct bookings
         status: 'confirmed' as const,
         paymentStatus: 'held' as const,
         jobId: job.$id,
@@ -258,18 +258,24 @@ export class WorkerSelectionService {
           idempotencyKey: `worker_selected_${jobId}_${worker.userId}`,
         });
 
-        // SMS notification
-        if (workerUser.phone) {
-          try {
+        // SMS notification - fetch user document to get phone number
+        try {
+          const workerUser = await db.getDocument(
+            DATABASE_ID,
+            COLLECTIONS.USERS,
+            worker.userId
+          );
+
+          if (workerUser.phone) {
             const { TermiiSMSService } = await import('@/lib/termii-sms.service');
             await TermiiSMSService.sendSMS({
               to: workerUser.phone,
               message: `ErrandWork: You were selected for "${job.title}"! Budget: ₦${job.budgetMax.toLocaleString()}. Accept within 1 hour: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/bookings/${booking.$id}`
             });
             console.log(`✅ SMS sent to worker ${worker.userId}`);
-          } catch (smsError) {
-            console.error('Failed to send SMS to selected worker:', smsError);
           }
+        } catch (smsError) {
+          console.error('Failed to send SMS to selected worker:', smsError);
         }
       } catch (notifError) {
         console.error('Failed to notify selected worker:', notifError);

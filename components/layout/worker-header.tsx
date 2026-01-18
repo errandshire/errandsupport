@@ -137,18 +137,20 @@ export const WorkerHeader: React.FC<WorkerHeaderProps> = ({ sidebarOpen, onSideb
                     <div className="text-sm text-neutral-500">No notifications</div>
                   </DropdownMenuItem>
                 ) : (
-                  notifications.map((notif) => (
-                    <DropdownMenuItem 
-                      key={notif.id}
-                      onClick={() => handleNotificationClick(notif)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium">{notif.title}</p>
-                        <p className="text-xs text-neutral-500">{notif.message}</p>
-                      </div>
-                    </DropdownMenuItem>
-                  ))
+                  <>
+                    {notifications.map((notif) => (
+                      <DropdownMenuItem
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium">{notif.title}</p>
+                          <p className="text-xs text-neutral-500">{notif.message}</p>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
