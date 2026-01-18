@@ -133,6 +133,11 @@ export class WorkerSelectionService {
         workerId: worker.userId, // Fixed: Use worker.userId to match dashboard query
         serviceId: job.categoryId,
         categoryId: job.categoryId,
+        title: job.title, // Add title so booking shows in dashboard
+        description: job.description, // Add description for context
+        locationAddress: job.locationAddress, // Add location
+        locationLat: job.locationLat,
+        locationLng: job.locationLng,
         scheduledDate: job.scheduledDate,
         scheduledTime: job.scheduledTime,
         duration: job.duration,
