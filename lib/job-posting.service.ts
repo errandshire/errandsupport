@@ -95,8 +95,8 @@ export class JobPostingService {
           Permission.read(Role.user(clientId)),
           Permission.update(Role.user(clientId)),
           Permission.delete(Role.user(clientId)),
-          // Any authenticated user can read (to browse jobs)
-          Permission.read(Role.users()),
+          // Anyone can read (public jobs for SEO and sharing)
+          Permission.read(Role.any()),
           // Any authenticated user can update (to increment applicant count)
           Permission.update(Role.users()),
         ]
