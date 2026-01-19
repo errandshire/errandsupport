@@ -30,6 +30,7 @@ import { JobAcceptanceService } from "@/lib/job-acceptance.service";
 import { useAuth } from "@/hooks/use-auth";
 import { SERVICE_CATEGORIES } from "@/lib/constants";
 import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
+import { extractJobIdFromSlug, findJobBySlug } from "@/lib/slug-utils";
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -50,12 +51,34 @@ export default function JobDetailPage() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch job from database
-        const jobDoc = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTIONS.JOBS,
-          jobId
-        );
+        let jobDoc;
+
+        // Check if jobId is a slug (contains hyphens) or a direct ID
+        if (jobId.includes('-')) {
+          // It's a slug, need to find the job by slug
+          try {
+            jobDoc = await findJobBySlug(jobId, databases, DATABASE_ID, COLLECTIONS.JOBS);
+          } catch (slugError) {
+            console.error('Failed to find job by slug:', slugError);
+            // Fallback: try as direct ID
+            try {
+              jobDoc = await databases.getDocument(
+                DATABASE_ID,
+                COLLECTIONS.JOBS,
+                jobId
+              );
+            } catch (idError) {
+              throw new Error('Job not found');
+            }
+          }
+        } else {
+          // It's a direct ID
+          jobDoc = await databases.getDocument(
+            DATABASE_ID,
+            COLLECTIONS.JOBS,
+            jobId
+          );
+        }
 
         // Fetch client details
         const client = await databases.getDocument(
@@ -110,7 +133,9 @@ export default function JobDetailPage() {
   }, [jobId]);
 
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}/jobs/${jobId}`;
+    // Use slug if available, otherwise fallback to job ID
+    const urlSlug = job?.slug || jobId;
+    const url = `${window.location.origin}/jobs/${urlSlug}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -449,7 +474,7 @@ export default function JobDetailPage() {
                 <input
                   type="text"
                   readOnly
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/jobs/${jobId}`}
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/jobs/${job?.slug || jobId}`}
                   className="flex-1 px-3 py-2 bg-muted rounded-md text-sm"
                 />
                 <Button onClick={handleCopyLink} variant="outline">

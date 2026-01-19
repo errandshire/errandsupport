@@ -184,6 +184,7 @@ export interface Job extends Models.Document {
   viewCount: number;
   requiresFunding?: boolean; // Whether client needs to fund wallet to view applicants
   applicantCount?: number; // Cached count of interested workers
+  slug?: string; // SEO-friendly URL slug (e.g., "house-cleaning-in-lagos-abc123")
   createdAt: string;
   updatedAt: string;
 }

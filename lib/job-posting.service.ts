@@ -2,6 +2,7 @@ import { databases, storage, COLLECTIONS, DATABASE_ID, STORAGE_BUCKET_ID } from 
 import { ID, Query, Permission, Role } from 'appwrite';
 import { Job, JobFormData, JobWithDetails } from './types';
 import { JOB_EXPIRY_HOURS, JOB_STATUS } from './constants';
+import { generateUniqueSlug } from './slug-utils';
 
 /**
  * Job Posting Service
@@ -48,6 +49,12 @@ export class JobPostingService {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + JOB_EXPIRY_HOURS);
 
+      // Generate unique job ID first (needed for slug)
+      const jobId = ID.unique();
+
+      // Generate SEO-friendly slug from title
+      const slug = generateUniqueSlug(formData.title, jobId);
+
       // Create job document
       const jobData = {
         clientId,
@@ -73,6 +80,7 @@ export class JobPostingService {
         viewCount: 0,
         requiresFunding: false, // Will be set to true when first worker applies
         applicantCount: 0, // Incremented when workers apply
+        slug, // SEO-friendly URL slug
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -80,7 +88,7 @@ export class JobPostingService {
       const response = await db.createDocument(
         DATABASE_ID,
         COLLECTIONS.JOBS,
-        ID.unique(),
+        jobId,
         jobData,
         [
           // Client (owner) has full access

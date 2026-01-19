@@ -31,7 +31,9 @@ export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: Job
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}/jobs/${job.$id}`;
+    // Use slug if available, otherwise fallback to job ID
+    const urlSlug = job.slug || job.$id;
+    const url = `${window.location.origin}/jobs/${urlSlug}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success('Job link copied to clipboard!');
@@ -43,7 +45,9 @@ export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: Job
 
   const handleOpenInNewTab = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.open(`/jobs/${job.$id}`, '_blank');
+    // Use slug if available, otherwise fallback to job ID
+    const urlSlug = job.slug || job.$id;
+    window.open(`/jobs/${urlSlug}`, '_blank');
   };
 
   return (
