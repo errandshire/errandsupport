@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { RefreshCw, Briefcase, MapPin, DollarSign, Calendar, Clock, ChevronDown, ChevronUp, User, Star } from "lucide-react";
+import { RefreshCw, Briefcase, MapPin, DollarSign, Calendar, Clock, ChevronDown, ChevronUp, User, Star, Share2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -408,6 +408,34 @@ export default function WorkerJobsPage() {
                               <span>₦{workerEarnings.toLocaleString()}</span>
                             </div>
                           </div>
+                        </div>
+
+                        {/* Share Buttons */}
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = `${window.location.origin}/jobs/${job.$id}`;
+                              navigator.clipboard.writeText(url);
+                              toast.success('Job link copied!');
+                            }}
+                            title="Copy shareable link"
+                          >
+                            <Share2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/jobs/${job.$id}`, '_blank');
+                            }}
+                            title="Open in new tab"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
                         </div>
 
                         {/* Apply/Interest Button */}

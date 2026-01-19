@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Calendar, Clock, DollarSign, Eye, Users, X } from "lucide-react";
+import { MapPin, Calendar, Clock, DollarSign, Eye, Users, X, Share2, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Job } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface JobCardProps {
   job: Job;
@@ -27,6 +28,23 @@ const statusConfig = {
 export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: JobCardProps) {
   const status = statusConfig[job.status];
   const canCancel = job.status === 'open' || job.status === 'assigned';
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/jobs/${job.$id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Job link copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      toast.error('Failed to copy link');
+    }
+  };
+
+  const handleOpenInNewTab = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.open(`/jobs/${job.$id}`, '_blank');
+  };
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => onViewDetails(job)}>
@@ -85,26 +103,46 @@ export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: Job
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t flex justify-end gap-2">
-        {canCancel && onCancelJob && (
+      <div className="mt-3 pt-3 border-t flex justify-between gap-2">
+        <div className="flex gap-2">
           <Button
             size="sm"
-            variant="destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCancelJob(job);
-            }}
+            variant="ghost"
+            onClick={handleShare}
+            title="Copy shareable link"
           >
-            <X className="h-4 w-4 mr-1" />
-            Cancel Job
+            <Share2 className="h-4 w-4" />
           </Button>
-        )}
-        <Button size="sm" variant="outline" onClick={(e) => {
-          e.stopPropagation();
-          onViewDetails(job);
-        }}>
-          View Details
-        </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleOpenInNewTab}
+            title="Open in new tab"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          {canCancel && onCancelJob && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancelJob(job);
+              }}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Cancel Job
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={(e) => {
+            e.stopPropagation();
+            onViewDetails(job);
+          }}>
+            View Details
+          </Button>
+        </div>
       </div>
     </Card>
   );
