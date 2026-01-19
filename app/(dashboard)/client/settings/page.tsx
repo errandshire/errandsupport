@@ -6,45 +6,33 @@ import {
   Settings,
   User,
   Lock,
-  Bell,
-  CreditCard,
   Shield,
-  Smartphone,
   Mail,
   Save,
   Eye,
   EyeOff,
   Trash2,
-  Plus,
-  Check,
-  X,
-  Wallet,
   AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
+import { ClientSidebar } from "@/components/layout/client-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { PasswordService } from "@/lib/password-service";
 import { PasswordStrengthIndicator } from "@/components/forms/password-strength-indicator";
 import { DeleteAccountModal } from "@/components/settings/delete-account-modal";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export default function WorkerSettingsPage() {
+export default function ClientSettingsPage() {
   const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
@@ -65,8 +53,6 @@ export default function WorkerSettingsPage() {
     lastName: user?.name?.split(' ')[1] || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    bio: '',
-    location: ''
   });
 
   // Handle profile save
@@ -106,7 +92,7 @@ export default function WorkerSettingsPage() {
     try {
       setIsChangingPassword(true);
       const result = await PasswordService.changePassword(passwordData);
-      
+
       if (result.success) {
         toast.success(result.message);
         setPasswordData({
@@ -125,17 +111,15 @@ export default function WorkerSettingsPage() {
     }
   };
 
-  // Handle payment method actions
-
   React.useEffect(() => {
     if (loading) return;
-    
+
     if (!isAuthenticated || !user) {
-      router.replace("/login?callbackUrl=/worker/settings");
+      router.replace("/login?callbackUrl=/client/settings");
       return;
     }
-    
-    if (user.role !== "worker") {
+
+    if (user.role !== "client") {
       router.replace(`/${user.role}`);
       return;
     }
@@ -151,11 +135,11 @@ export default function WorkerSettingsPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
-       
+      <ClientSidebar />
 
       <div className="flex-1 flex flex-col lg:ml-0">
-         
-        
+        <Header />
+
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto">
             <div className="mb-8">
@@ -269,7 +253,7 @@ export default function WorkerSettingsPage() {
                           </Button>
                         </div>
                       </div>
-                      
+
                       <div>
                         <Label htmlFor="new-password">New Password</Label>
                         <div className="relative">
@@ -291,13 +275,13 @@ export default function WorkerSettingsPage() {
                           </Button>
                         </div>
                         {passwordData.newPassword && (
-                          <PasswordStrengthIndicator 
-                            password={passwordData.newPassword} 
+                          <PasswordStrengthIndicator
+                            password={passwordData.newPassword}
                             className="mt-2"
                           />
                         )}
                       </div>
-                      
+
                       <div>
                         <Label htmlFor="confirm-password">Confirm New Password</Label>
                         <div className="relative">
@@ -322,8 +306,8 @@ export default function WorkerSettingsPage() {
                           <p className="text-sm text-red-500 mt-1">Passwords do not match</p>
                         )}
                       </div>
-                      
-                      <Button 
+
+                      <Button
                         onClick={handlePasswordChange}
                         disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword || passwordData.newPassword !== passwordData.confirmPassword}
                       >
@@ -338,29 +322,8 @@ export default function WorkerSettingsPage() {
                       </Button>
                     </CardContent>
                   </Card>
-{/* 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Two-Factor Authentication</CardTitle>
-                      <CardDescription>Add an extra layer of security</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">Enable 2FA</p>
-                          <p className="text-sm text-neutral-600">
-                            Secure your account with SMS or authenticator app
-                          </p>
-                        </div>
-                        <Switch />
-                      </div>
-                    </CardContent>
-                  </Card> */}
                 </div>
               </TabsContent>
-
-              
-
 
               <TabsContent value="privacy" className="mt-6">
                 <div className="space-y-6">
@@ -372,20 +335,12 @@ export default function WorkerSettingsPage() {
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <Label>Profile Visibility</Label>
-                          <p className="text-sm text-neutral-600">Make your profile visible to clients</p>
-                        </div>
-                        <Switch defaultChecked />
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
                           <Label>Show Contact Info</Label>
-                          <p className="text-sm text-neutral-600">Display your contact information</p>
+                          <p className="text-sm text-neutral-600">Display your contact information to workers</p>
                         </div>
                         <Switch defaultChecked />
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
                         <div>
                           <Label>Activity Status</Label>
@@ -393,7 +348,7 @@ export default function WorkerSettingsPage() {
                         </div>
                         <Switch defaultChecked />
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
                         <div>
                           <Label>Data Analytics</Label>
@@ -411,7 +366,7 @@ export default function WorkerSettingsPage() {
                   <Card className="border-destructive">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-destructive">
-                        <Shield className="h-5 w-5" />
+                        <AlertTriangle className="h-5 w-5" />
                         Danger Zone
                       </CardTitle>
                       <CardDescription>
@@ -458,6 +413,7 @@ export default function WorkerSettingsPage() {
           </div>
         </main>
 
+        <Footer />
       </div>
 
       <DeleteAccountModal
@@ -467,4 +423,4 @@ export default function WorkerSettingsPage() {
       />
     </div>
   );
-} 
+}
