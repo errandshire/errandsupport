@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { SERVICE_CATEGORIES } from "@/lib/constants";
 import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
 import { extractJobIdFromSlug, findJobBySlug } from "@/lib/slug-utils";
+import { WorkerSignupModal } from "@/components/jobs/worker-signup-modal";
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -43,6 +44,7 @@ export default function JobDetailPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [applying, setApplying] = React.useState(false);
+  const [showSignupModal, setShowSignupModal] = React.useState(false);
 
   // Fetch job details
   React.useEffect(() => {
@@ -149,8 +151,8 @@ export default function JobDetailPage() {
 
   const handleApply = async () => {
     if (!isAuthenticated || !user) {
-      toast.error('Please log in to apply for this job');
-      router.push(`/login?callbackUrl=/jobs/${jobId}`);
+      // Show signup modal instead of immediate redirect
+      setShowSignupModal(true);
       return;
     }
 
@@ -427,36 +429,24 @@ export default function JobDetailPage() {
 
               {/* Action Buttons */}
               {isJobAvailable && !isExpired && (
-                <div className="flex gap-3">
-                  <Button
-                    onClick={handleApply}
-                    disabled={applying || !isAuthenticated || user?.role !== 'worker'}
-                    className="flex-1"
-                  >
-                    {applying ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Applying...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Apply for this Job
-                      </>
-                    )}
-                  </Button>
-
-                  {(!isAuthenticated || user?.role !== 'worker') && (
-                    <Button
-                      variant="outline"
-                      onClick={() => router.push(`/login?callbackUrl=/jobs/${jobId}`)}
-                      className="flex-1"
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      Login to Apply
-                    </Button>
+                <Button
+                  onClick={handleApply}
+                  disabled={applying || (isAuthenticated && user?.role !== 'worker')}
+                  className="w-full"
+                  size="lg"
+                >
+                  {applying ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Applying...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Apply for this Job
+                    </>
                   )}
-                </div>
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -487,6 +477,17 @@ export default function JobDetailPage() {
       </main>
 
       <Footer />
+
+      {/* Worker Signup Modal */}
+      {job && (
+        <WorkerSignupModal
+          isOpen={showSignupModal}
+          onClose={() => setShowSignupModal(false)}
+          jobId={job.$id}
+          jobTitle={job.title}
+          jobSlug={job.slug}
+        />
+      )}
     </div>
   );
 }

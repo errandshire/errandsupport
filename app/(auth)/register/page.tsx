@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight } from "lucide-react";
@@ -19,12 +19,20 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { trackRegistration } from "@/lib/meta-pixel-events";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register: registerUser, loading } = useAuth();
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
-  const [selectedRole, setSelectedRole] = React.useState<"client" | "worker">("client");
+
+  // Get callback URL and role from query parameters
+  const callbackUrl = searchParams.get('callbackUrl');
+  const roleParam = searchParams.get('role') as "client" | "worker" | null;
+
+  const [selectedRole, setSelectedRole] = React.useState<"client" | "worker">(
+    roleParam === 'worker' ? 'worker' : 'client'
+  );
 
   const {
     register,
@@ -49,6 +57,13 @@ export default function RegisterPage() {
   React.useEffect(() => {
     setValue("role", selectedRole);
   }, [selectedRole, setValue]);
+
+  // Store callback URL in localStorage if present
+  React.useEffect(() => {
+    if (callbackUrl) {
+      localStorage.setItem('signup_callback_url', callbackUrl);
+    }
+  }, [callbackUrl]);
 
   // Handle role selection with toast notification
   const handleRoleChange = (role: "client" | "worker") => {
@@ -295,5 +310,17 @@ export default function RegisterPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <React.Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+      </div>
+    }>
+      <RegisterForm />
+    </React.Suspense>
   );
 } 

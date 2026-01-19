@@ -838,6 +838,15 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile, professiona
 // Completion Step
 function CompletionStep({ user, router, updateProfile }: any) {
   const isWorker = user.role === "worker";
+  const [callbackUrl, setCallbackUrl] = React.useState<string | null>(null);
+
+  // Check for callback URL on mount
+  React.useEffect(() => {
+    const storedCallbackUrl = localStorage.getItem('signup_callback_url');
+    if (storedCallbackUrl) {
+      setCallbackUrl(storedCallbackUrl);
+    }
+  }, []);
 
   // Mark user as active when reaching completion step
   React.useEffect(() => {
@@ -848,6 +857,15 @@ function CompletionStep({ user, router, updateProfile }: any) {
     };
     markUserActive();
   }, [user.isActive, updateProfile]);
+
+  const handleReturnToJob = () => {
+    if (callbackUrl) {
+      // Clear the callback URL from localStorage
+      localStorage.removeItem('signup_callback_url');
+      // Navigate to the job
+      router.push(callbackUrl);
+    }
+  };
 
   return (
     <div className="text-center space-y-6">
@@ -885,19 +903,42 @@ function CompletionStep({ user, router, updateProfile }: any) {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
-        <Button
-          size="lg"
-          onClick={() => router.push(`/${user.role}`)}
-        >
-          Go to Dashboard
-        </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => router.push("/workers")}
-        >
-          {isWorker ? "View Worker Profiles" : "Find Workers"}
-        </Button>
+        {callbackUrl ? (
+          <>
+            <Button
+              size="lg"
+              onClick={handleReturnToJob}
+            >
+              Return to Job & Apply
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => {
+                localStorage.removeItem('signup_callback_url');
+                router.push(`/${user.role}`);
+              }}
+            >
+              Go to Dashboard
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              size="lg"
+              onClick={() => router.push(`/${user.role}`)}
+            >
+              Go to Dashboard
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => router.push("/workers")}
+            >
+              {isWorker ? "View Worker Profiles" : "Find Workers"}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
