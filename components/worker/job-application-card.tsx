@@ -252,8 +252,8 @@ export function JobApplicationCard({ application, onClick }: JobApplicationCardP
 
           {/* Footer: Urgency and Applicants */}
           <div className="flex items-center justify-between pt-2 border-t">
-            <Badge className={cn("text-xs", getUrgencyColor(job.urgency))}>
-              {job.urgency.charAt(0).toUpperCase() + job.urgency.slice(1)} Priority
+            <Badge className={cn("text-xs", getUrgencyColor(job.urgency || 'medium'))}>
+              {(job.urgency || 'medium').charAt(0).toUpperCase() + (job.urgency || 'medium').slice(1)} Priority
             </Badge>
 
             <div className="flex items-center gap-1 text-xs text-gray-500">

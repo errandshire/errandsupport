@@ -332,11 +332,11 @@ export function JobApplicationDetailModal({
               <CardTitle className="flex items-center justify-between">
                 <span>{job.title}</span>
                 <Badge className={cn(
-                  job.urgency === 'high' ? 'bg-red-100 text-red-800' :
-                  job.urgency === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                  (job.urgency || 'medium') === 'high' ? 'bg-red-100 text-red-800' :
+                  (job.urgency || 'medium') === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-green-100 text-green-800'
                 )}>
-                  {job.urgency.charAt(0).toUpperCase() + job.urgency.slice(1)} Priority
+                  {(job.urgency || 'medium').charAt(0).toUpperCase() + (job.urgency || 'medium').slice(1)} Priority
                 </Badge>
               </CardTitle>
             </CardHeader>
