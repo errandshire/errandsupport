@@ -531,9 +531,9 @@ export function BookingDetailModal({
     }
 
     const b = booking as FlattenedBooking;
-    const workerId = b.workerId || user.$id;
+    const workerUserId = b.workerId || user.$id;
 
-    if (!workerId) {
+    if (!workerUserId) {
       toast.error("Worker ID not found");
       return;
     }
@@ -541,39 +541,34 @@ export function BookingDetailModal({
     try {
       setIsUpdating(true);
 
-      // Get worker profile to find jobId
-      const workerProfile = await databases.getDocument(
+      // Get worker document ID from user ID
+      const workerQuery = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.WORKERS,
-        workerId
+        [Query.equal('userId', workerUserId), Query.limit(1)]
       );
 
-      // Find the job associated with this booking
-      const jobs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        COLLECTIONS.JOBS,
-        [
-          // Query by bookingId field if it exists
-        ]
-      );
+      if (workerQuery.documents.length === 0) {
+        toast.error("Worker profile not found");
+        return;
+      }
 
-      // Find job that has this booking ID
+      const workerDocId = workerQuery.documents[0].$id;
+
+      // Find the job associated with this booking using Query
       let jobId = null;
       if (b.$id || b.id) {
         const bookingIdToFind = b.$id || b.id;
-        // Try to find job with this bookingId
+
+        // Query jobs by bookingId field
         const jobsResponse = await databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           COLLECTIONS.JOBS,
-          []
+          [Query.equal('bookingId', bookingIdToFind), Query.limit(1)]
         );
 
-        const matchingJob = jobsResponse.documents.find(
-          (job: any) => job.bookingId === bookingIdToFind
-        );
-
-        if (matchingJob) {
-          jobId = matchingJob.$id;
+        if (jobsResponse.documents.length > 0) {
+          jobId = jobsResponse.documents[0].$id;
         }
       }
 
@@ -587,8 +582,8 @@ export function BookingDetailModal({
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          workerId,
-          workerUserId: user.$id,
+          workerId: workerDocId,
+          workerUserId: workerUserId,
           reason: 'Worker cancelled the job'
         })
       });
