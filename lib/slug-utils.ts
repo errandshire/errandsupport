@@ -74,36 +74,48 @@ export function extractJobIdFromSlug(slug: string): string | null {
 }
 
 /**
- * Find job by slug (searches by the ID extracted from slug)
+ * Find job by slug
  *
- * This is a helper that can be used in the job detail page
+ * This queries the database for a job with the matching slug field
  */
 export async function findJobBySlug(slug: string, databases: any, databaseId: string, jobsCollectionId: string) {
-  const shortId = extractJobIdFromSlug(slug);
-
-  if (!shortId) {
-    throw new Error('Invalid job slug format');
-  }
-
-  // Search for jobs where ID ends with this short ID
+  // Search for jobs with this exact slug
   const { Query } = await import('appwrite');
 
   const jobs = await databases.listDocuments(
     databaseId,
     jobsCollectionId,
     [
-      Query.limit(100)
+      Query.equal('slug', slug),
+      Query.limit(1)
     ]
   );
 
-  // Find the job whose ID ends with our short ID
-  const job = jobs.documents.find((j: any) => j.$id.endsWith(shortId));
+  if (jobs.documents.length === 0) {
+    // Fallback: Try to extract ID from slug and find by ID ending
+    const shortId = extractJobIdFromSlug(slug);
 
-  if (!job) {
-    throw new Error('Job not found');
+    if (!shortId) {
+      throw new Error('Invalid job slug format');
+    }
+
+    // Query more jobs and search for matching ID
+    const allJobs = await databases.listDocuments(
+      databaseId,
+      jobsCollectionId,
+      [Query.limit(100)]
+    );
+
+    const job = allJobs.documents.find((j: any) => j.$id.endsWith(shortId));
+
+    if (!job) {
+      throw new Error('Job not found');
+    }
+
+    return job;
   }
 
-  return job;
+  return jobs.documents[0];
 }
 
 /**

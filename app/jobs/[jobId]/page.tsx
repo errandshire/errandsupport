@@ -90,24 +90,24 @@ export default function JobDetailPage() {
         );
 
         // Get category name
-        const category = SERVICE_CATEGORIES.find(c => c.value === jobDoc.categoryId);
+        const category = SERVICE_CATEGORIES.find(c => c.id === jobDoc.categoryId);
 
         const jobWithDetails: JobWithDetails = {
           ...jobDoc,
           clientName: client.name || 'Anonymous',
           clientEmail: client.email || '',
           clientRating: 0, // TODO: Calculate from reviews
-          categoryName: category?.label || jobDoc.categoryId,
+          categoryName: category?.name || jobDoc.categoryId,
         } as JobWithDetails;
 
         setJob(jobWithDetails);
 
-        // Increment view count
+        // Increment view count using the actual document ID
         try {
           await databases.updateDocument(
             DATABASE_ID,
             COLLECTIONS.JOBS,
-            jobId,
+            jobDoc.$id, // Use actual document ID, not the slug
             {
               viewCount: (jobDoc.viewCount || 0) + 1
             }
@@ -183,8 +183,8 @@ export default function JobDetailPage() {
 
       const workerId = workers.documents[0].$id;
 
-      // Apply to job
-      await JobApplicationService.applyToJob(jobId, workerId);
+      // Apply to job using the actual document ID, not the slug
+      await JobApplicationService.applyToJob(job.$id, workerId);
 
       toast.success('Application submitted successfully!');
       router.push('/worker/jobs');
