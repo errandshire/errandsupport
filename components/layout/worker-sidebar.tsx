@@ -44,6 +44,12 @@ const sidebarItems = [
     badge: null,
   },
   {
+    title: "Bookings",
+    href: "/worker/bookings",
+    icon: Calendar,
+    badge: null,
+  },
+  {
     title: "Messages",
     href: "/worker/messages",
     icon: MessageCircle,

@@ -28,12 +28,15 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
 import { BookingDetailModal } from "@/components/worker/booking-detail-modal";
+import { JobApplicationsList } from "@/components/worker/job-applications-list";
+import { JobApplicationDetailModal } from "@/components/worker/job-application-detail-modal";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { useAuth } from "@/hooks/use-auth";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
 import { Query } from "appwrite";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ApplicationWithJob, WorkerApplicationsService } from "@/lib/worker-applications.service";
 
 export default function WorkerJobsPage() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -48,11 +51,18 @@ export default function WorkerJobsPage() {
 
   // Modal states
   const [selectedBooking, setSelectedBooking] = React.useState<any>(null);
+  const [selectedApplication, setSelectedApplication] = React.useState<ApplicationWithJob | null>(null);
   const [messageModal, setMessageModal] = React.useState({
     isOpen: false,
     clientId: '',
     clientName: ''
   });
+
+  // Tab state
+  const [activeTab, setActiveTab] = React.useState<'bookings' | 'applications'>('bookings');
+
+  // Worker ID (from WORKERS collection)
+  const [workerDocId, setWorkerDocId] = React.useState<string>('');
 
   // Fetch worker's bookings
   const fetchBookings = React.useCallback(async () => {
@@ -106,6 +116,29 @@ export default function WorkerJobsPage() {
     } finally {
       setIsLoading(false);
     }
+  }, [user]);
+
+  // Fetch worker document ID
+  React.useEffect(() => {
+    const fetchWorkerDoc = async () => {
+      if (!user?.$id) return;
+
+      try {
+        const workers = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.WORKERS,
+          [Query.equal('userId', user.$id), Query.limit(1)]
+        );
+
+        if (workers.documents.length > 0) {
+          setWorkerDocId(workers.documents[0].$id);
+        }
+      } catch (error) {
+        console.error('Error fetching worker document:', error);
+      }
+    };
+
+    fetchWorkerDoc();
   }, [user]);
 
   React.useEffect(() => {
@@ -255,10 +288,10 @@ export default function WorkerJobsPage() {
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2">
-                  My Bookings
+                  My Jobs & Applications
                 </h1>
                 <p className="text-neutral-600">
-                  Manage your bookings and track your progress
+                  Manage your bookings, applications, and track your progress
                 </p>
               </div>
               <Button onClick={fetchBookings}>
@@ -267,8 +300,20 @@ export default function WorkerJobsPage() {
               </Button>
             </div>
 
-            {/* Search and Filter */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            {/* Tabs for Bookings and Applications */}
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'bookings' | 'applications')} className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsTrigger value="bookings">
+                  My Bookings ({bookingCounts.all})
+                </TabsTrigger>
+                <TabsTrigger value="applications">
+                  Job Applications
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="bookings" className="space-y-6">
+                {/* Search and Filter */}
+                <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
                 <Input
@@ -415,6 +460,24 @@ export default function WorkerJobsPage() {
                 ))}
               </div>
             )}
+              </TabsContent>
+
+              {/* Applications Tab */}
+              <TabsContent value="applications">
+                {workerDocId ? (
+                  <JobApplicationsList
+                    workerId={workerDocId}
+                    onApplicationClick={setSelectedApplication}
+                    onRefresh={fetchBookings}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto" />
+                    <p className="mt-4 text-gray-600">Loading applications...</p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </main>
 
@@ -424,6 +487,15 @@ export default function WorkerJobsPage() {
         onClose={handleCloseBookingModal}
         booking={selectedBooking}
         onOpenMessage={handleMessageClient}
+        onRefresh={fetchBookings}
+      />
+
+      {/* Application Detail Modal */}
+      <JobApplicationDetailModal
+        isOpen={!!selectedApplication}
+        onClose={() => setSelectedApplication(null)}
+        application={selectedApplication}
+        workerId={workerDocId}
         onRefresh={fetchBookings}
       />
 

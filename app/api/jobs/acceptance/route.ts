@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingActionService } from '@/lib/booking-action-service';
-import { databases, COLLECTIONS } from '@/lib/appwrite';
+const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
 import { trackMetaEvent } from '@/lib/meta-pixel-events';
 
 /**
@@ -28,9 +28,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get application to find linked bookingId
-    const application = await databases.getDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+    // Get application to find linked bookingId (using server SDK)
+    const application = await serverDatabases.getDocument(
+      DATABASE_ID,
       COLLECTIONS.JOB_APPLICATIONS,
       applicationId
     );
