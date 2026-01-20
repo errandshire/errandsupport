@@ -12,7 +12,8 @@ import {
   XCircle,
   MinusCircle,
   Briefcase,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,14 +21,49 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ApplicationWithJob, WorkerApplicationsService } from "@/lib/worker-applications.service";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
+import { toast } from "sonner";
 
 interface JobApplicationCardProps {
   application: ApplicationWithJob;
   onClick?: () => void;
+  workerId?: string;
+  onWithdraw?: () => void;
 }
 
-export function JobApplicationCard({ application, onClick }: JobApplicationCardProps) {
+export function JobApplicationCard({ application, onClick, workerId, onWithdraw }: JobApplicationCardProps) {
+  const [isWithdrawing, setIsWithdrawing] = React.useState(false);
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = React.useState(false);
   const job = application.job;
+
+  const handleWithdraw = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+
+    if (!workerId) {
+      toast.error("Worker ID not found");
+      return;
+    }
+
+    try {
+      setIsWithdrawing(true);
+      const result = await WorkerApplicationsService.withdrawApplication(
+        application.$id,
+        workerId
+      );
+
+      if (result.success) {
+        toast.success("Application withdrawn successfully");
+        setShowWithdrawConfirm(false);
+        onWithdraw?.(); // Refresh the list
+      } else {
+        toast.error(result.message || "Failed to withdraw application");
+      }
+    } catch (error) {
+      console.error("Error withdrawing application:", error);
+      toast.error("Failed to withdraw application");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   if (!job) {
     return (
@@ -278,6 +314,66 @@ export function JobApplicationCard({ application, onClick }: JobApplicationCardP
               <p className="text-xs text-gray-500 italic line-clamp-1">
                 "{application.message}"
               </p>
+            </div>
+          )}
+
+          {/* Withdraw Button (for pending applications only) */}
+          {application.status === 'pending' && workerId && !showWithdrawConfirm && (
+            <div className="pt-3 border-t mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowWithdrawConfirm(true);
+                }}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Withdraw Application
+              </Button>
+            </div>
+          )}
+
+          {/* Withdraw Confirmation */}
+          {showWithdrawConfirm && (
+            <div className="pt-3 border-t mt-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-900">
+                      Withdraw Application?
+                    </p>
+                    <p className="text-xs text-red-700 mt-1">
+                      This action cannot be undone. You can reapply later if the job is still open.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowWithdrawConfirm(false);
+                    }}
+                    disabled={isWithdrawing}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="flex-1"
+                    onClick={handleWithdraw}
+                    disabled={isWithdrawing}
+                  >
+                    {isWithdrawing ? "Withdrawing..." : "Confirm Withdraw"}
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </div>

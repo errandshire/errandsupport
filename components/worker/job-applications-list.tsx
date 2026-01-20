@@ -347,6 +347,12 @@ export function JobApplicationsList({
             key={application.$id}
             application={application}
             onClick={() => onApplicationClick?.(application)}
+            workerId={workerId}
+            onWithdraw={() => {
+              // Refresh the list after withdrawal
+              onRefresh?.();
+              fetchApplications();
+            }}
           />
         ))}
       </div>
