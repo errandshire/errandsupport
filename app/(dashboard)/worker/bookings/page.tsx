@@ -84,30 +84,37 @@ export default function WorkerJobsPage() {
 
 
       // Map the bookings to match our flattened structure
-      const mappedBookings = response.documents.map(doc => ({
-        $id: doc.$id,
-        clientId: doc.clientId,
-        workerId: doc.workerId,
-        title: doc.title || doc.service, // fallback to service if title not present
-        description: doc.description,
-        locationAddress: doc.locationAddress || doc.location, // fallback to location if locationAddress not present
-        scheduledDate: doc.scheduledDate || doc.date, // fallback to date if scheduledDate not present
-        estimatedDuration: doc.estimatedDuration || (doc.duration ? parseInt(doc.duration) : 1),
-        budgetAmount: doc.budgetAmount || (doc.price ? parseFloat(doc.price.replace('₦', '').replace(',', '')) : 0),
-        budgetCurrency: doc.budgetCurrency || 'NGN',
-        budgetIsHourly: doc.budgetIsHourly || false,
-        urgency: doc.urgency || 'medium',
-        status: doc.status,
-        paymentStatus: doc.paymentStatus || (doc.status === 'confirmed' ? 'paid' : 'pending'),
-        requirements: doc.requirements || [],
-        attachments: doc.attachments || [],
-        createdAt: doc.createdAt || doc.$createdAt,
-        updatedAt: doc.updatedAt || doc.$updatedAt,
-        acceptedAt: doc.acceptedAt,
-        startedAt: doc.startedAt,
-        completedAt: doc.completedAt,
-        clientConfirmedAt: doc.clientConfirmedAt
-      }));
+      const mappedBookings = response.documents.map(doc => {
+        // Log bookings missing clientId for debugging
+        if (!doc.clientId) {
+          console.warn('No client ID available in booking:', doc);
+        }
+
+        return {
+          $id: doc.$id,
+          clientId: doc.clientId || null, // Explicitly set to null if missing
+          workerId: doc.workerId,
+          title: doc.title || doc.service, // fallback to service if title not present
+          description: doc.description,
+          locationAddress: doc.locationAddress || doc.location, // fallback to location if locationAddress not present
+          scheduledDate: doc.scheduledDate || doc.date, // fallback to date if scheduledDate not present
+          estimatedDuration: doc.estimatedDuration || (doc.duration ? parseInt(doc.duration) : 1),
+          budgetAmount: doc.budgetAmount || (doc.price ? parseFloat(doc.price.replace('₦', '').replace(',', '')) : 0),
+          budgetCurrency: doc.budgetCurrency || 'NGN',
+          budgetIsHourly: doc.budgetIsHourly || false,
+          urgency: doc.urgency || 'medium',
+          status: doc.status || 'pending', // Add fallback for status
+          paymentStatus: doc.paymentStatus || (doc.status === 'confirmed' ? 'paid' : 'pending'),
+          requirements: doc.requirements || [],
+          attachments: doc.attachments || [],
+          createdAt: doc.createdAt || doc.$createdAt,
+          updatedAt: doc.updatedAt || doc.$updatedAt,
+          acceptedAt: doc.acceptedAt,
+          startedAt: doc.startedAt,
+          completedAt: doc.completedAt,
+          clientConfirmedAt: doc.clientConfirmedAt
+        };
+      });
 
       setBookings(mappedBookings);
     } catch (err) {
@@ -213,6 +220,8 @@ export default function WorkerJobsPage() {
   };
 
   const getStatusDisplayName = (status: string) => {
+    if (!status) return "Unknown";
+
     switch (status) {
       case "confirmed": return "Payment Confirmed";
       case "accepted": return "Accepted";

@@ -641,6 +641,8 @@ export function BookingDetailModal({
   };
 
   const getStatusDisplayName = (status: string) => {
+    if (!status) return 'Unknown';
+
     switch (status) {
       case 'confirmed': return 'Payment Confirmed';
       case 'accepted': return 'Accepted';
