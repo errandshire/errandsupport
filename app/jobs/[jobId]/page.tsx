@@ -165,7 +165,6 @@ export default function JobDetailPage() {
 
     setApplying(true);
     try {
-      const { JobApplicationService } = await import('@/lib/job-application.service');
       const { Query } = await import('appwrite');
 
       // Get worker ID
@@ -183,8 +182,24 @@ export default function JobDetailPage() {
 
       const workerId = workers.documents[0].$id;
 
-      // Apply to job using the actual document ID, not the slug
-      await JobApplicationService.applyToJob(job.$id, workerId);
+      // Apply to job via API route (uses server databases with elevated permissions)
+      const response = await fetch('/api/jobs/apply', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId: job.$id, // Use actual document ID, not the slug
+          workerId,
+          message: '', // Optional application message
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to apply for job');
+      }
 
       toast.success('Application submitted successfully!');
       router.push('/worker/jobs');
