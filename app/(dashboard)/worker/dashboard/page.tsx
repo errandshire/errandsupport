@@ -451,7 +451,7 @@ export default function WorkerDashboard() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Your Bookings</CardTitle>
+              <CardTitle>Your next booked shift</CardTitle>
               <CardDescription>Manage your service bookings</CardDescription>
             </CardHeader>
             <CardContent>
