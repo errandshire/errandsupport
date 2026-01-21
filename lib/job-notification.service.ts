@@ -91,7 +91,7 @@ export class JobNotificationService {
             // 4. Send SMS notification
             if (user.phone) {
               try {
-                const smsMessage = `ErrandWork: New job "${job.title}" posted. Budget: ₦${job.budgetMax.toLocaleString()}. View: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/jobs/${job.$id}`;
+                const smsMessage = `ErrandWork: New job "${job.title}" posted. Budget: ₦${job.budgetMax.toLocaleString()}. View: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/jobs?jobId=${job.$id}`;
 
                 await TermiiSMSService.sendSMS({
                   to: user.phone,

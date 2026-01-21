@@ -275,7 +275,7 @@ export class WorkerSelectionService {
             const { TermiiSMSService } = await import('@/lib/termii-sms.service');
             await TermiiSMSService.sendSMS({
               to: workerUser.phone,
-              message: `ErrandWork: You were selected for "${job.title}"! Budget: ₦${job.budgetMax.toLocaleString()}. Accept within 1 hour: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/bookings/${booking.$id}`
+              message: `ErrandWork: You were selected for "${job.title}"! Budget: ₦${job.budgetMax.toLocaleString()}. Accept within 1 hour: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/dashboard?booking=${booking.$id}`
             });
             console.log(`✅ SMS sent to worker ${worker.userId}`);
           }
