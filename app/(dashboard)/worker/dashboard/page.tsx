@@ -111,66 +111,66 @@ const BookingCard = React.memo(({
   const locationAddress = (booking.location && (booking.location as any).address) || 'Location TBD';
 
   return (
-    <div 
-      className="flex items-center justify-between p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer"
+    <div
+      className="flex items-center justify-between gap-2 p-3 sm:p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer"
       onClick={() => onView(booking)}
     >
-      <div className="flex items-center space-x-4">
-        <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-          <Calendar className="h-6 w-6 text-primary-600" />
+      <div className="flex items-center space-x-3 min-w-0 flex-1">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+          <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600" />
         </div>
-        <div>
-          <h4 className="font-medium text-gray-900">{booking.serviceTitle}</h4>
-          <p className="text-sm text-gray-600">by {booking.clientName}</p>
-          <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+        <div className="min-w-0 flex-1">
+          <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">{booking.serviceTitle}</h4>
+          <p className="text-xs sm:text-sm text-gray-600 truncate">by {booking.clientName}</p>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 mt-1">
             <div className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              <span className="truncate max-w-32">{locationAddress}</span>
+              <MapPin className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate max-w-20 sm:max-w-32">{locationAddress}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <Clock className="h-3 w-3" />
-              <span>{booking.scheduledDate} {booking.scheduledTime}</span>
+              <span className="whitespace-nowrap text-[10px] sm:text-xs">{booking.scheduledDate}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <DollarSign className="h-3 w-3" />
-              <span>₦{booking.totalAmount.toLocaleString()}</span>
+              <span className="whitespace-nowrap">₦{booking.totalAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 sm:gap-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
         <Button
           variant="outline"
-          size="sm"
+          size="icon"
           onClick={() => onMessage(booking)}
-          className="h-8 px-2 sm:px-3"
+          className="h-9 w-9 rounded-full"
+          title="Message client"
         >
-          <MessageCircle className="h-3 w-3 sm:mr-1" />
-          <span className="hidden sm:inline">Message</span>
+          <MessageCircle className="h-4 w-4" />
         </Button>
         {isAvailable ? (
           <Button
-            size="sm"
+            size="icon"
             onClick={() => onAccept?.(booking)}
             disabled={isAccepting}
-            className="h-8 px-2 sm:px-3"
+            className="h-9 w-9 rounded-full"
+            title="Accept booking"
           >
             {isAccepting ? (
-              <Loader2 className="h-3 w-3 animate-spin sm:mr-1" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <CheckCircle className="h-3 w-3 sm:mr-1" />
+              <CheckCircle className="h-4 w-4" />
             )}
-            <span className="hidden sm:inline">Accept</span>
           </Button>
         ) : (
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={() => onView(booking)}
-            className="h-8 px-2 sm:px-3"
+            className="h-9 w-9 rounded-full"
+            title="View details"
           >
-            <Eye className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">View</span>
+            <Eye className="h-4 w-4" />
           </Button>
         )}
       </div>
