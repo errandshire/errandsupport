@@ -148,31 +148,14 @@ const BookingCard = React.memo(({
         >
           <MessageCircle className="h-4 w-4" />
         </Button>
-        {isAvailable ? (
-          <Button
-            size="icon"
-            onClick={() => onAccept?.(booking)}
-            disabled={isAccepting}
-            className="h-9 w-9 rounded-full"
-            title="Accept booking"
-          >
-            {isAccepting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle className="h-4 w-4" />
-            )}
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => onView(booking)}
-            className="h-9 w-9 rounded-full"
-            title="View details"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-        )}
+        <Button
+          size="icon"
+          onClick={() => onView(booking)}
+          className="h-9 w-9 rounded-full bg-emerald-500 hover:bg-emerald-600"
+          title="View booking details"
+        >
+          <CheckCircle className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

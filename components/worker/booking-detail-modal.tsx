@@ -134,18 +134,23 @@ export function BookingDetailModal({
 
   // Fetch client information when booking changes
   React.useEffect(() => {
-    if (booking?.clientId) {
+    if (booking?.clientId && booking.clientId.trim() !== '') {
       fetchClientInfo(booking.clientId);
     } else {
       setClientInfo(null);
-      console.warn('No client ID available in booking:', booking);
+      if (booking) {
+        console.warn('No client ID available in booking:', booking);
+      }
     }
   }, [booking?.clientId]);
 
   // Fetch related application for job applications
   React.useEffect(() => {
     const fetchRelatedApplication = async () => {
-      if (!booking?.$id) return;
+      if (!booking?.$id || booking.$id.trim() === '') {
+        setRelatedApplication(null);
+        return;
+      }
 
       try {
         const applications = await databases.listDocuments(
@@ -533,7 +538,7 @@ export function BookingDetailModal({
     const b = booking as FlattenedBooking;
     const workerUserId = b.workerId || user.$id;
 
-    if (!workerUserId) {
+    if (!workerUserId || workerUserId.trim() === '') {
       toast.error("Worker ID not found");
       return;
     }
@@ -559,7 +564,7 @@ export function BookingDetailModal({
       let jobId = null;
       {
         const bookingIdToFind = b.$id ?? b.id;
-        if (!bookingIdToFind) {
+        if (!bookingIdToFind || bookingIdToFind.trim() === '') {
           toast.error("Booking ID not found");
           return;
         }
@@ -694,11 +699,19 @@ export function BookingDetailModal({
 
   // Use localBooking for immediate UI updates
   const currentBooking = localBooking || booking;
-  const canAccept = currentBooking?.status === 'confirmed' && !isSelectionExpired;
-  const canStart = currentBooking?.status === 'accepted';
-  const canComplete = currentBooking?.status === 'in_progress';
+
+  // Check if current user is assigned to this booking
+  const isAssignedWorker = currentBooking?.workerId === user?.$id;
+
+  // Only show accept/reject if booking is confirmed AND worker is the selected one (from job application)
+  // Accept/Reject is for when client selects worker from applications, status is "confirmed"
+  const canAccept = currentBooking?.status === 'confirmed' && !isSelectionExpired && isAssignedWorker;
+
+  // Can start/complete/cancel only if worker is assigned
+  const canStart = currentBooking?.status === 'accepted' && isAssignedWorker;
+  const canComplete = currentBooking?.status === 'in_progress' && isAssignedWorker;
   const isCompleted = currentBooking?.status === 'completed' || currentBooking?.status === 'worker_completed';
-  const canCancel = currentBooking?.status === 'confirmed' || currentBooking?.status === 'accepted' || currentBooking?.status === 'in_progress';
+  const canCancel = isAssignedWorker && (currentBooking?.status === 'confirmed' || currentBooking?.status === 'accepted' || currentBooking?.status === 'in_progress');
 
   if (!booking) return null;
 
@@ -715,6 +728,21 @@ export function BookingDetailModal({
         </DialogHeader>
 
         <div className="space-y-4 sm:space-y-6">
+          {/* Not Assigned Warning */}
+          {!isAssignedWorker && currentBooking?.status !== 'pending' && (
+            <Alert className="border-red-200 bg-red-50">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertDescription>
+                <p className="text-red-800 font-medium">
+                  You are not assigned to this job
+                </p>
+                <p className="text-sm text-red-700 mt-1">
+                  This booking is assigned to another worker. You can only view the details.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Booking Status and Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex flex-wrap items-center gap-2">
