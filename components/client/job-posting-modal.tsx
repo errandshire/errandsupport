@@ -171,14 +171,16 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
         }
         return true;
       case 'budget':
-        if (formData.budgetType === 'fixed' && (!formData.budgetMax || formData.budgetMax <= 0)) {
+        // Only validate fixed budget (range option removed)
+        if (!formData.budgetMax || formData.budgetMax <= 0) {
           toast.error('Please enter a valid budget');
           return false;
         }
-        if (formData.budgetType === 'range' && (!formData.budgetMin || !formData.budgetMax || formData.budgetMin >= formData.budgetMax)) {
-          toast.error('Please enter a valid budget range');
-          return false;
-        }
+        // Range validation commented out
+        // if (formData.budgetType === 'range' && (!formData.budgetMin || !formData.budgetMax || formData.budgetMin >= formData.budgetMax)) {
+        //   toast.error('Please enter a valid budget range');
+        //   return false;
+        // }
         // Note: Wallet balance check removed - clients can post jobs without funding
         // They'll need to fund to view applicants after workers apply
         return true;
@@ -443,7 +445,8 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
           {/* Step 4: Budget */}
           {currentStep === 'budget' && (
             <div className="space-y-4">
-              <div>
+              {/* Budget Type Radio - RANGE OPTION COMMENTED OUT */}
+              {/* <div>
                 <Label>Budget Type *</Label>
                 <RadioGroup
                   value={formData.budgetType}
@@ -462,24 +465,27 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
                     <Label htmlFor="range">Price Range</Label>
                   </div>
                 </RadioGroup>
+              </div> */}
+
+              {/* Only Fixed Budget - Range option removed */}
+              <div>
+                <Label htmlFor="budget">Budget Amount (₦) *</Label>
+                <Input
+                  id="budget"
+                  type="number"
+                  placeholder="5000"
+                  value={formData.budgetMax || ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    budgetMax: parseInt(e.target.value) || 0,
+                    budgetMin: parseInt(e.target.value) || 0,
+                    budgetType: 'fixed' // Always set to fixed
+                  }))}
+                />
               </div>
 
-              {formData.budgetType === 'fixed' ? (
-                <div>
-                  <Label htmlFor="budget">Budget Amount (₦) *</Label>
-                  <Input
-                    id="budget"
-                    type="number"
-                    placeholder="5000"
-                    value={formData.budgetMax || ''}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      budgetMax: parseInt(e.target.value) || 0,
-                      budgetMin: parseInt(e.target.value) || 0
-                    }))}
-                  />
-                </div>
-              ) : (
+              {/* RANGE BUDGET FIELDS COMMENTED OUT */}
+              {/* {formData.budgetType === 'range' && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="budgetMin">Minimum (₦) *</Label>
@@ -502,7 +508,7 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
                     />
                   </div>
                 </div>
-              )}
+              )} */}
 
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-900">
@@ -549,9 +555,7 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
                 <div>
                   <p className="text-sm text-gray-500">Budget</p>
                   <p className="font-medium text-green-600">
-                    {formData.budgetType === 'fixed'
-                      ? `₦${formData.budgetMax?.toLocaleString()}`
-                      : `₦${formData.budgetMin?.toLocaleString()} - ₦${formData.budgetMax?.toLocaleString()}`}
+                    ₦{formData.budgetMax?.toLocaleString()}
                   </p>
                 </div>
               </div>
