@@ -30,14 +30,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // Lazy load heavy components
-const WorkerDashboardSkeleton = React.lazy(() => 
-  import("@/components/worker/dashboard-skeleton").then(module => ({ 
-    default: module.WorkerDashboardSkeleton 
+const WorkerDashboardSkeleton = React.lazy(() =>
+  import("@/components/worker/dashboard-skeleton").then(module => ({
+    default: module.WorkerDashboardSkeleton
   }))
 );
-const BookingDetailModal = React.lazy(() => 
-  import("@/components/worker/booking-detail-modal").then(module => ({ 
-    default: module.BookingDetailModal 
+const BookingDetailModal = React.lazy(() =>
+  import("@/components/worker/booking-detail-modal").then(module => ({
+    default: module.BookingDetailModal
   }))
 );
 const MessageModal = React.lazy(() =>
@@ -45,9 +45,30 @@ const MessageModal = React.lazy(() =>
     default: module.MessageModal
   }))
 );
+const CountdownTimer = React.lazy(() =>
+  import("@/components/shared/countdown-timer").then(module => ({
+    default: module.CountdownTimer
+  }))
+);
+
+// Acceptance countdown component
+const AcceptanceCountdown = React.memo(({ deadline }: { deadline: Date }) => {
+  return (
+    <div className="flex items-center justify-between px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md">
+      <span className="text-xs text-yellow-800 font-medium">
+        Accept within:
+      </span>
+      <CountdownTimer
+        targetTime={deadline}
+        showIcon={true}
+        className="text-xs"
+      />
+    </div>
+  );
+});
 
 // Memoized components for better performance
-const StatsCard = React.memo(({ 
+const StatsCard = React.memo(({
   icon: Icon,
   label,
   value,
@@ -78,7 +99,7 @@ const StatsCard = React.memo(({
   </Card>
 ));
 
-const BookingCard = React.memo(({ 
+const BookingCard = React.memo(({
   booking,
   isAvailable,
   onView,
@@ -110,53 +131,85 @@ const BookingCard = React.memo(({
 
   const locationAddress = (booking.location && (booking.location as any).address) || 'Location TBD';
 
+  // Calculate if booking has acceptance deadline
+  // Show countdown for 'confirmed' status (before worker accepts/rejects)
+  const hasAcceptanceDeadline = booking.status === 'confirmed' && booking.selectedAt;
+  const acceptanceDeadline = hasAcceptanceDeadline
+    ? new Date(new Date(booking.selectedAt!).getTime() + 60 * 60 * 1000)
+    : null;
+
+  // Check if deadline has passed
+  const deadlineExpired = acceptanceDeadline && Date.now() > acceptanceDeadline.getTime();
+
+  // Debug logging (remove in production)
+  if (booking.status === 'confirmed') {
+    console.log('[BookingCard Debug]', {
+      title: booking.serviceTitle,
+      status: booking.status,
+      hasSelectedAt: !!booking.selectedAt,
+      selectedAt: booking.selectedAt,
+      hasDeadline: hasAcceptanceDeadline,
+      deadline: acceptanceDeadline?.toISOString(),
+      expired: deadlineExpired
+    });
+  }
+
   return (
     <div
-      className="flex items-center justify-between gap-2 p-3 sm:p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer"
+      className="flex flex-col gap-2 p-3 sm:p-4 border rounded-lg hover:border-primary-300 transition-colors cursor-pointer"
       onClick={() => onView(booking)}
     >
-      <div className="flex items-center space-x-3 min-w-0 flex-1">
-        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">{booking.serviceTitle}</h4>
-          <p className="text-xs sm:text-sm text-gray-600 truncate">by {booking.clientName}</p>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 mt-1">
-            <div className="flex items-center gap-1">
-              <MapPin className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate max-w-20 sm:max-w-32">{locationAddress}</span>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <Clock className="h-3 w-3" />
-              <span className="whitespace-nowrap text-[10px] sm:text-xs">{booking.scheduledDate}</span>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <DollarSign className="h-3 w-3" />
-              <span className="whitespace-nowrap">₦{booking.totalAmount.toLocaleString()}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center space-x-3 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-primary-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">{booking.serviceTitle}</h4>
+            <p className="text-xs sm:text-sm text-gray-600 truncate">by {booking.clientName}</p>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 mt-1">
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate max-w-20 sm:max-w-32">{locationAddress}</span>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Clock className="h-3 w-3" />
+                <span className="whitespace-nowrap text-[10px] sm:text-xs">{booking.scheduledDate}</span>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <DollarSign className="h-3 w-3" />
+                <span className="whitespace-nowrap">₦{booking.totalAmount.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         </div>
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onMessage(booking)}
+            className="h-9 w-9 rounded-full"
+            title="Message client"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            onClick={() => onView(booking)}
+            className="h-9 w-9 rounded-full bg-emerald-500 hover:bg-emerald-600"
+            title="View booking details"
+          >
+            <CheckCircle className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
-      <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onMessage(booking)}
-          className="h-9 w-9 rounded-full"
-          title="Message client"
-        >
-          <MessageCircle className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          onClick={() => onView(booking)}
-          className="h-9 w-9 rounded-full bg-emerald-500 hover:bg-emerald-600"
-          title="View booking details"
-        >
-          <CheckCircle className="h-4 w-4" />
-        </Button>
-      </div>
+
+      {/* Acceptance Deadline Countdown */}
+      {hasAcceptanceDeadline && acceptanceDeadline && !deadlineExpired && (
+        <React.Suspense fallback={<div className="text-xs text-gray-500">Loading...</div>}>
+          <AcceptanceCountdown deadline={acceptanceDeadline} />
+        </React.Suspense>
+      )}
     </div>
   );
 });

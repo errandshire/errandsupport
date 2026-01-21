@@ -32,6 +32,8 @@ export interface ProcessedBooking {
   status: string;
   createdAt: string;
   updatedAt: string;
+  selectedAt?: string; // When worker was selected for this booking
+  jobId?: string; // Original job ID for reference
 }
 
 class WorkerDashboardService {
@@ -230,6 +232,30 @@ class WorkerDashboardService {
         ]
       );
 
+      // Get booking IDs to fetch applications
+      const bookingIds = bookingsResponse.documents.map((b: any) => b.$id);
+
+      // Fetch job applications by bookingId to get selectedAt times
+      let applicationsMap = new Map<string, any>();
+      if (bookingIds.length > 0) {
+        try {
+          const applicationsResponse = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.JOB_APPLICATIONS,
+            [
+              Query.equal('bookingId', bookingIds),
+              Query.equal('status', 'selected'),
+              Query.limit(100)
+            ]
+          );
+          applicationsResponse.documents.forEach((app: any) => {
+            applicationsMap.set(app.bookingId, app);
+          });
+        } catch (appError) {
+          console.warn('Could not fetch job applications:', appError);
+        }
+      }
+
       // Extract unique client IDs and category IDs
       const clientIds = [...new Set(bookingsResponse.documents
         .map((b: any) => b.clientId)
@@ -278,6 +304,7 @@ class WorkerDashboardService {
       const processedBookings: ProcessedBooking[] = bookingsResponse.documents.map((booking: any) => {
         const client = clientsMap.get(booking.clientId);
         const category = categoriesMap.get(booking.categoryId);
+        const application = applicationsMap.get(booking.$id); // Map by bookingId
 
         // Format date properly
         let formattedDate = booking.scheduledDate || booking.date || '';
@@ -323,7 +350,9 @@ class WorkerDashboardService {
           totalAmount: Number(booking.totalAmount || booking.budgetAmount || 0),
           status: booking.status || 'pending',
           createdAt: booking.$createdAt,
-          updatedAt: booking.$updatedAt
+          updatedAt: booking.$updatedAt,
+          selectedAt: application?.selectedAt,
+          jobId: booking.jobId
         };
       });
 
