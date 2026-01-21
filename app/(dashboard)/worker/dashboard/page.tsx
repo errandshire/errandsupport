@@ -446,59 +446,6 @@ export default function WorkerDashboard() {
           </Link>
         </Button>
       </div>
-
-      {/* Availability Status */}
-      {isAvailable && (
-        <div className="mb-6">
-          <Card className="border-green-200 bg-green-50">
-            <CardContent className="p-4">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-                <span className="text-green-800 font-medium">
-                  You're available for new bookings
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatsCard
-          icon={DollarSign}
-          label="Total Earnings"
-          value={`₦${stats?.totalEarnings.toLocaleString() || '0'}`}
-          change={`₦${stats?.monthlyEarnings.toLocaleString()} this month`}
-          bgColor="bg-blue-100"
-          color="text-blue-600"
-        />
-        <StatsCard
-          icon={CheckCircle}
-          label="Completed Jobs"
-          value={stats?.completedJobs || 0}
-          change={`${stats?.acceptanceRate}% acceptance rate`}
-          bgColor="bg-green-100"
-          color="text-green-600"
-        />
-        <StatsCard
-          icon={Star}
-          label="Average Rating"
-          value={stats?.avgRating || 'New'}
-          change={`${stats?.totalReviews} reviews`}
-          bgColor="bg-yellow-100"
-          color="text-yellow-600"
-        />
-        <StatsCard
-          icon={Clock}
-          label="Response Time"
-          value={`${stats?.responseTime} min`}
-          change={`${stats?.activeBookings} active bookings`}
-          bgColor="bg-purple-100"
-          color="text-purple-600"
-        />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Bookings Section */}
         <div className="lg:col-span-2">
@@ -620,6 +567,60 @@ export default function WorkerDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Availability Status */}
+      {isAvailable && (
+        <div className="mb-6">
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                <span className="text-green-800 font-medium">
+                  You're available for new bookings
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatsCard
+          icon={DollarSign}
+          label="Total Earnings"
+          value={`₦${stats?.totalEarnings.toLocaleString() || '0'}`}
+          change={`₦${stats?.monthlyEarnings.toLocaleString()} this month`}
+          bgColor="bg-blue-100"
+          color="text-blue-600"
+        />
+        <StatsCard
+          icon={CheckCircle}
+          label="Completed Jobs"
+          value={stats?.completedJobs || 0}
+          change={`${stats?.acceptanceRate}% acceptance rate`}
+          bgColor="bg-green-100"
+          color="text-green-600"
+        />
+        <StatsCard
+          icon={Star}
+          label="Average Rating"
+          value={stats?.avgRating || 'New'}
+          change={`${stats?.totalReviews} reviews`}
+          bgColor="bg-yellow-100"
+          color="text-yellow-600"
+        />
+        <StatsCard
+          icon={Clock}
+          label="Response Time"
+          value={`${stats?.responseTime} min`}
+          change={`${stats?.activeBookings} active bookings`}
+          bgColor="bg-purple-100"
+          color="text-purple-600"
+        />
+      </div>
+
+     
 
       {/* Booking Detail Modal */}
       <React.Suspense fallback={null}>
