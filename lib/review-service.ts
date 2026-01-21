@@ -147,6 +147,16 @@ export class ReviewService {
    */
   static async getWorkerReviewStats(workerId: string): Promise<WorkerReviewStats> {
     try {
+      // Validate workerId
+      if (!workerId || workerId.trim() === '') {
+        console.warn('Invalid workerId provided to getWorkerReviewStats');
+        return {
+          averageRating: 0,
+          totalReviews: 0,
+          ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+        };
+      }
+
       const reviews = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.REVIEWS,
@@ -181,7 +191,17 @@ export class ReviewService {
         totalReviews: reviews.documents.length,
         ratingDistribution
       };
-    } catch (error) {
+    } catch (error: any) {
+      // Handle collection not found error gracefully
+      if (error?.code === 404 || error?.message?.includes('not found') || error?.message?.includes('Collection not found')) {
+        console.warn('REVIEWS collection not found - returning default stats');
+        return {
+          averageRating: 0,
+          totalReviews: 0,
+          ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+        };
+      }
+
       console.error('Error fetching worker review stats:', error);
       return {
         averageRating: 0,

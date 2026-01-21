@@ -5,9 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Star, Briefcase, Calendar, User, CheckCircle2 } from "lucide-react";
+import { Star, Briefcase, Calendar, User, CheckCircle2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { WorkerProfileModal } from "./worker-profile-modal";
 
 interface Applicant {
   $id: string;
@@ -45,6 +46,8 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
   const [applicants, setApplicants] = React.useState<Applicant[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectingWorkerId, setSelectingWorkerId] = React.useState<string | null>(null);
+  const [selectedWorkerForProfile, setSelectedWorkerForProfile] = React.useState<Applicant['worker'] | null>(null);
+  const [showProfileModal, setShowProfileModal] = React.useState(false);
 
   React.useEffect(() => {
     fetchApplicants();
@@ -78,9 +81,57 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
               app.workerId
             );
 
+            // Fetch actual completed jobs count and rating for this worker
+            let actualCompletedJobs = worker.completedJobs || 0;
+            let actualRatingAverage = worker.ratingAverage || 0;
+            let actualTotalReviews = worker.totalReviews || 0;
+
+            try {
+              // Fetch completed bookings
+              const completedBookings = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTIONS.BOOKINGS,
+                [
+                  Query.equal('workerId', worker.userId),
+                  Query.equal('status', 'completed'),
+                  Query.limit(100)
+                ]
+              );
+              actualCompletedJobs = completedBookings.total || completedBookings.documents.length;
+
+              // Fetch reviews to get actual rating
+              try {
+                const reviews = await databases.listDocuments(
+                  DATABASE_ID,
+                  COLLECTIONS.REVIEWS,
+                  [
+                    Query.equal('workerId', worker.userId),
+                    Query.equal('isPublic', true),
+                    Query.limit(100)
+                  ]
+                );
+
+                if (reviews.documents.length > 0) {
+                  const totalRating = reviews.documents.reduce((sum: number, review: any) => sum + review.rating, 0);
+                  actualRatingAverage = Math.round((totalRating / reviews.documents.length) * 10) / 10;
+                  actualTotalReviews = reviews.documents.length;
+                }
+              } catch (reviewError: any) {
+                // If REVIEWS collection doesn't exist or permission error, use worker profile values
+                console.warn('Could not fetch reviews, using worker profile values:', reviewError?.message);
+              }
+            } catch (error) {
+              console.error('Failed to fetch worker stats:', error);
+            }
+
             return {
               ...app,
-              worker,
+              worker: {
+                ...worker,
+                completedJobs: actualCompletedJobs,
+                ratingAverage: actualRatingAverage,
+                totalReviews: actualTotalReviews
+              },
             };
           } catch (error) {
             console.error(`Failed to fetch worker ${app.workerId}:`, error);
@@ -248,8 +299,19 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
                   </div>
                 </div>
 
-                {/* Action Button */}
-                <div className="mt-4">
+                {/* Action Buttons */}
+                <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedWorkerForProfile(worker);
+                      setShowProfileModal(true);
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Profile
+                  </Button>
                   <Button
                     onClick={() => handleSelectWorker(applicant.$id, worker.$id)}
                     disabled={selectingWorkerId !== null}
@@ -263,6 +325,25 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
           </Card>
         );
       })}
+
+      {/* Worker Profile Modal */}
+      <WorkerProfileModal
+        isOpen={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          setSelectedWorkerForProfile(null);
+        }}
+        worker={selectedWorkerForProfile}
+        onSelectWorker={() => {
+          if (selectedWorkerForProfile) {
+            const applicant = applicants.find(a => a.worker.$id === selectedWorkerForProfile.$id);
+            if (applicant) {
+              setShowProfileModal(false);
+              handleSelectWorker(applicant.$id, selectedWorkerForProfile.$id);
+            }
+          }
+        }}
+      />
     </div>
   );
 }
