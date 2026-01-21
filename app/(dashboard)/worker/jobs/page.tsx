@@ -155,6 +155,12 @@ export default function WorkerJobsPage() {
     checkApplications();
   }, [workerId]); // Depend on workerId instead of user.$id
 
+  // Handle job click to expand/collapse
+  const handleJobClick = React.useCallback((job: Job) => {
+    // Toggle expansion
+    setExpandedJobId(prev => prev === job.$id ? null : job.$id);
+  }, []);
+
   // Auto-expand and scroll to job from notification
   React.useEffect(() => {
     const jobId = searchParams.get('jobId');
@@ -184,7 +190,7 @@ export default function WorkerJobsPage() {
         router.replace('/worker/jobs', { scroll: false });
       }
     }
-  }, [searchParams, jobs, expandedJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, jobs, expandedJobId, handleJobClick, router]);
 
   const handleApplyToJob = async (job: Job) => {
     if (!user || !workerId) {

@@ -132,7 +132,9 @@ class WorkerDashboardService {
         }, 0);
 
       // Get reviews and ratings
-      const { rating: avgRating, count: totalReviews } = await ReviewService.getWorkerRating(userId);
+      const reviewStats = await ReviewService.getWorkerReviewStats(userId);
+      const avgRating = reviewStats.averageRating;
+      const totalReviews = reviewStats.totalReviews;
 
       // Calculate acceptance rate from applications
       try {
@@ -277,6 +279,31 @@ class WorkerDashboardService {
         const client = clientsMap.get(booking.clientId);
         const category = categoriesMap.get(booking.categoryId);
 
+        // Format date properly
+        let formattedDate = booking.scheduledDate || booking.date || '';
+        let formattedTime = booking.scheduledTime || booking.time || '';
+
+        // If date contains a full timestamp, extract just the date part
+        if (formattedDate && formattedDate.includes('T')) {
+          const dateObj = new Date(formattedDate);
+          formattedDate = dateObj.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        }
+
+        // If time is in 24-hour format (HH:MM), keep it as is
+        // If it's a timestamp, extract the time
+        if (formattedTime && formattedTime.includes('T')) {
+          const timeObj = new Date(formattedTime);
+          formattedTime = timeObj.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          });
+        }
+
         return {
           $id: booking.$id,
           clientId: booking.clientId || '',
@@ -284,8 +311,8 @@ class WorkerDashboardService {
           clientEmail: client?.email || '',
           serviceTitle: booking.title || booking.service || 'Service',
           categoryName: category?.name || 'General Service',
-          scheduledDate: booking.scheduledDate || booking.date || '',
-          scheduledTime: booking.scheduledTime || booking.time || '',
+          scheduledDate: formattedDate,
+          scheduledTime: formattedTime,
           duration: booking.duration || booking.estimatedDuration || 1,
           location: {
             address: booking.locationAddress || booking.location || '',
@@ -300,10 +327,88 @@ class WorkerDashboardService {
         };
       });
 
-      // Split into available and accepted
-      const availableBookings = processedBookings.filter(b =>
-        ['pending', 'confirmed'].includes(b.status)
-      );
+      // Helper function to check if booking is in the past
+      const isBookingInPast = (bookingData: any, processedBooking: ProcessedBooking): boolean => {
+        try {
+          // First try to use the raw database values for more accurate checking
+          const rawDate = bookingData.scheduledDate || bookingData.date;
+          const rawTime = bookingData.scheduledTime || bookingData.time;
+
+          let scheduledDateTime: Date | null = null;
+
+          // Try to parse raw ISO timestamp first (most accurate)
+          if (rawDate && rawDate.includes('T')) {
+            scheduledDateTime = new Date(rawDate);
+          }
+          // Try to combine date and time if both are available
+          else if (rawDate && rawTime) {
+            // If date is in YYYY-MM-DD format and time is in HH:MM format
+            if (rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              const combinedStr = `${rawDate}T${rawTime}:00`;
+              scheduledDateTime = new Date(combinedStr);
+            }
+          }
+
+          // If we couldn't parse raw data, try the processed/formatted data
+          if (!scheduledDateTime || isNaN(scheduledDateTime.getTime())) {
+            const scheduledDateStr = processedBooking.scheduledDate;
+            const scheduledTimeStr = processedBooking.scheduledTime;
+
+            // Parse formatted date like "Jan 21, 2026"
+            const dateMatch = scheduledDateStr.match(/(\w+)\s+(\d+),?\s+(\d{4})/);
+            if (dateMatch) {
+              const [, month, day, year] = dateMatch;
+              const monthMap: { [key: string]: number } = {
+                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+              };
+              const monthIndex = monthMap[month] ?? 0;
+
+              // Parse time like "09:44" or "9:44 AM"
+              let hours = 0;
+              let minutes = 0;
+
+              if (scheduledTimeStr) {
+                const timeMatch = scheduledTimeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+                if (timeMatch) {
+                  hours = parseInt(timeMatch[1], 10);
+                  minutes = parseInt(timeMatch[2], 10);
+                  const isPM = timeMatch[3]?.toUpperCase() === 'PM';
+
+                  if (isPM && hours !== 12) {
+                    hours += 12;
+                  } else if (!isPM && hours === 12) {
+                    hours = 0;
+                  }
+                }
+              }
+
+              scheduledDateTime = new Date(parseInt(year), monthIndex, parseInt(day), hours, minutes);
+            }
+          }
+
+          // Check if date is valid and in the past
+          if (scheduledDateTime && !isNaN(scheduledDateTime.getTime())) {
+            const now = new Date();
+            // Add 1 hour buffer - only consider it "past" if it's more than 1 hour ago
+            const bufferTime = 60 * 60 * 1000; // 1 hour in milliseconds
+            return (now.getTime() - scheduledDateTime.getTime()) > bufferTime;
+          }
+
+          return false;
+        } catch (error) {
+          console.error('Error checking if booking is in past:', error);
+          return false;
+        }
+      };
+
+      // Split into available and accepted, filtering out past bookings from available
+      const availableBookings = processedBookings.filter((processedBooking, index) => {
+        const isPending = ['pending', 'confirmed'].includes(processedBooking.status);
+        const rawBooking = bookingsResponse.documents[index];
+        const isNotPast = !isBookingInPast(rawBooking, processedBooking);
+        return isPending && isNotPast;
+      });
 
       const acceptedBookings = processedBookings.filter(b =>
         ['accepted', 'in_progress', 'worker_completed'].includes(b.status)

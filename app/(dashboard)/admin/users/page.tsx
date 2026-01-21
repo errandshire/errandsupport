@@ -108,6 +108,7 @@ export default function AdminUsersPage() {
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [selected, setSelected] = React.useState<WorkerDoc | null>(null);
   const [selectedUser, setSelectedUser] = React.useState<any | null>(null);
+  const [virtualWallet, setVirtualWallet] = React.useState<any | null>(null);
   const [rejectionModalOpen, setRejectionModalOpen] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [workerToReject, setWorkerToReject] = React.useState<WorkerDoc | null>(null);
@@ -642,8 +643,26 @@ export default function AdminUsersPage() {
         } catch (e) {
           setSelectedUser(null);
         }
+
+        // Fetch virtual wallet information
+        try {
+          const wallets = await databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.VIRTUAL_WALLETS,
+            [Query.equal('userId', w.userId), Query.limit(1)]
+          );
+          if (wallets.documents.length > 0) {
+            setVirtualWallet(wallets.documents[0]);
+          } else {
+            setVirtualWallet(null);
+          }
+        } catch (e) {
+          console.error("Error fetching virtual wallet:", e);
+          setVirtualWallet(null);
+        }
       } else {
         setSelectedUser(null);
+        setVirtualWallet(null);
       }
     } finally {
       setDetailLoading(false);
@@ -1108,6 +1127,83 @@ export default function AdminUsersPage() {
                       <Detail label="Profile Image" value={selected.profileImage ? "Uploaded" : "Not uploaded"} />
                       <Detail label="Cover Image" value={selected.coverImage ? "Uploaded" : "Not uploaded"} />
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Virtual Wallet Information */}
+                <Card className="col-span-1 lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Virtual Wallet Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {virtualWallet ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                          <Detail
+                            label="User ID"
+                            value={
+                              <code className="font-mono break-all text-xs bg-neutral-100 px-2 py-1 rounded">
+                                {virtualWallet.userId || selected.userId || "—"}
+                              </code>
+                            }
+                          />
+                          <Detail
+                            label="Virtual Account ID"
+                            value={
+                              <code className="font-mono break-all text-xs bg-neutral-100 px-2 py-1 rounded">
+                                {virtualWallet.virtualAccountId || "—"}
+                              </code>
+                            }
+                          />
+                          <Detail label="Account Number" value={virtualWallet.accountNumber || "—"} />
+                          <Detail label="Bank Name" value={virtualWallet.bankName || "—"} />
+                          <Detail label="Account Name" value={virtualWallet.accountName || "—"} />
+                          <Detail
+                            label="Available Balance"
+                            value={
+                              <span className="font-semibold text-green-600">
+                                ₦{(virtualWallet.balance || 0).toLocaleString()}
+                              </span>
+                            }
+                          />
+                          <Detail
+                            label="Escrow Balance"
+                            value={
+                              <span className="font-semibold text-amber-600">
+                                ₦{(virtualWallet.escrow || 0).toLocaleString()}
+                              </span>
+                            }
+                          />
+                          <Detail
+                            label="Total Earned"
+                            value={
+                              <span className="font-semibold text-blue-600">
+                                ₦{(virtualWallet.totalEarned || 0).toLocaleString()}
+                              </span>
+                            }
+                          />
+                          <Detail
+                            label="Total Spent"
+                            value={
+                              <span className="font-semibold text-neutral-600">
+                                ₦{(virtualWallet.totalSpend || 0).toLocaleString()}
+                              </span>
+                            }
+                          />
+                          <Detail label="Status" value={
+                            <Badge variant={virtualWallet.status === 'active' ? 'default' : 'outline'}>
+                              {virtualWallet.status || 'Unknown'}
+                            </Badge>
+                          } />
+                          <Detail label="Created" value={formatReadableDate(virtualWallet.createdAt)} />
+                          <Detail label="Updated" value={formatReadableDate(virtualWallet.updatedAt)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-neutral-500">
+                        No virtual wallet found for this user
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

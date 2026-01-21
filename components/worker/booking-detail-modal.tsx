@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MessageCircle, MapPin, Clock, DollarSign, Calendar, User, Phone, Mail, X, Check, AlertTriangle, CheckCircle } from "lucide-react";
+import { MessageCircle, MapPin, Clock, DollarSign, Calendar, User, Phone, Mail, X, Check, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -557,8 +557,12 @@ export function BookingDetailModal({
 
       // Find the job associated with this booking using Query
       let jobId = null;
-      if (b.$id || b.id) {
-        const bookingIdToFind = b.$id || b.id;
+      {
+        const bookingIdToFind = b.$id ?? b.id;
+        if (!bookingIdToFind) {
+          toast.error("Booking ID not found");
+          return;
+        }
 
         // Query jobs by bookingId field
         const jobsResponse = await databases.listDocuments(
@@ -680,9 +684,17 @@ export function BookingDetailModal({
     }
   };
 
+  // Check if 1-hour acceptance window has expired
+  const isSelectionExpired = React.useMemo(() => {
+    if (!relatedApplication?.selectedAt) return false;
+    const selectedTime = new Date(relatedApplication.selectedAt).getTime();
+    const expiryTime = selectedTime + (60 * 60 * 1000); // 1 hour
+    return Date.now() > expiryTime;
+  }, [relatedApplication?.selectedAt]);
+
   // Use localBooking for immediate UI updates
   const currentBooking = localBooking || booking;
-  const canAccept = currentBooking?.status === 'confirmed';
+  const canAccept = currentBooking?.status === 'confirmed' && !isSelectionExpired;
   const canStart = currentBooking?.status === 'accepted';
   const canComplete = currentBooking?.status === 'in_progress';
   const isCompleted = currentBooking?.status === 'completed' || currentBooking?.status === 'worker_completed';
@@ -776,8 +788,8 @@ export function BookingDetailModal({
             </Alert>
           )}
 
-          {/* Countdown Timer for Job Applications */}
-          {canAccept && relatedApplication && relatedApplication.selectedAt && (
+          {/* Countdown Timer for Job Applications - Only show if not expired */}
+          {canAccept && relatedApplication && relatedApplication.selectedAt && !isSelectionExpired && (
             <Alert className="border-blue-200 bg-blue-50">
               <Clock className="h-4 w-4 text-blue-600" />
               <AlertDescription>
@@ -797,6 +809,23 @@ export function BookingDetailModal({
                   />
                   <span className="text-sm text-blue-700">
                     You must accept or decline within 1 hour of being selected
+                  </span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Show expired message if selection window has passed */}
+          {isSelectionExpired && currentBooking?.status === 'confirmed' && (
+            <Alert className="bg-red-50 border-red-200">
+              <XCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription>
+                <div className="flex flex-col gap-2">
+                  <span className="font-medium text-red-900">
+                    Selection Expired
+                  </span>
+                  <span className="text-sm text-red-700">
+                    The 1-hour acceptance window has expired. This booking will be returned to the job pool for other workers to apply.
                   </span>
                 </div>
               </AlertDescription>

@@ -259,7 +259,7 @@ export class WorkerSelectionService {
           message: `Great news! The client selected you for "${job.title}". Payment is secured in escrow. Please accept within 1 hour.`,
           type: 'success',
           bookingId: booking.$id,
-          actionUrl: `/worker/bookings?id=${booking.$id}`,
+          actionUrl: `/worker/dashboard?booking=${booking.$id}`,
           idempotencyKey: `worker_selected_${jobId}_${worker.userId}`,
         });
 

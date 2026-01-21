@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { 
-  DollarSign, 
-  Calendar, 
-  Star, 
-  Clock, 
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  DollarSign,
+  Calendar,
+  Star,
+  Clock,
   Eye,
   CheckCircle,
   MessageCircle,
@@ -179,7 +180,9 @@ const BookingCard = React.memo(({
 
 export default function WorkerDashboard() {
   const { user } = useAuth();
-  
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // State management
   const [stats, setStats] = React.useState<WorkerStats | null>(null);
   const [availableBookings, setAvailableBookings] = React.useState<ProcessedBooking[]>([]);
@@ -205,9 +208,9 @@ export default function WorkerDashboard() {
   // Load dashboard data
   const loadDashboardData = React.useCallback(async (force = false) => {
     if (!user) return;
-    
+
     try {
-      
+
       if (force) {
         setIsRefreshing(true);
       } else {
@@ -215,6 +218,12 @@ export default function WorkerDashboard() {
       }
 
       const { workerDashboardService } = await import('@/lib/worker-dashboard-service');
+
+      // Clear cache when forcing refresh
+      if (force) {
+        workerDashboardService.clearUserCache(user.$id);
+      }
+
       const { stats, bookings, balance } = await workerDashboardService.getDashboardData(user.$id);
       
      
@@ -238,6 +247,26 @@ export default function WorkerDashboard() {
   React.useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  // Auto-open booking from notification
+  React.useEffect(() => {
+    const bookingId = searchParams.get('booking');
+
+    if (bookingId && (availableBookings.length > 0 || acceptedBookings.length > 0) && !selectedBooking) {
+      // Find the booking in either available or accepted lists
+      const allBookings = [...availableBookings, ...acceptedBookings];
+      const targetBooking = allBookings.find(b => b.$id === bookingId);
+
+      if (targetBooking) {
+        // Convert to flattened format and open modal
+        handleViewBooking(targetBooking);
+        toast.success('Opening your job selection - please accept within 1 hour!');
+
+        // Clean up URL to remove the query parameter
+        router.replace('/worker/dashboard', { scroll: false });
+      }
+    }
+  }, [searchParams, availableBookings, acceptedBookings, selectedBooking, router]);
 
   // Prefetch data on mount
   React.useEffect(() => {

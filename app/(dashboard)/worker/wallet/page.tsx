@@ -43,6 +43,12 @@ export default function WorkerWalletPage() {
   });
   const [isVerifyingAccount, setIsVerifyingAccount] = React.useState(false);
   const [isAddingBank, setIsAddingBank] = React.useState(false);
+  const [isDeletingBank, setIsDeletingBank] = React.useState<string | null>(null);
+  const [isSettingDefault, setIsSettingDefault] = React.useState<string | null>(null);
+
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+  const [bankToDelete, setBankToDelete] = React.useState<BankAccount | null>(null);
 
   React.useEffect(() => {
     if (loading) return;
@@ -104,7 +110,14 @@ export default function WorkerWalletPage() {
   const loadBanks = async () => {
     try {
       const bankList = await PaystackService.getBanks();
-      setBanks(bankList);
+      // Deduplicate banks by code (Paystack API sometimes returns duplicates)
+      const uniqueBanks = bankList.reduce((acc: Array<{ name: string; code: string }>, bank: { name: string; code: string }) => {
+        if (!acc.find(b => b.code === bank.code)) {
+          acc.push(bank);
+        }
+        return acc;
+      }, []);
+      setBanks(uniqueBanks);
     } catch (error) {
       console.error('Error loading banks:', error);
     }
@@ -113,6 +126,12 @@ export default function WorkerWalletPage() {
   const handleVerifyAccount = async () => {
     if (!newBank.accountNumber || !newBank.bankCode) {
       toast.error('Please enter account number and select bank');
+      return;
+    }
+
+    // Validate account number format (should be 10 digits)
+    if (newBank.accountNumber.length !== 10 || !/^\d+$/.test(newBank.accountNumber)) {
+      toast.error('Account number must be exactly 10 digits');
       return;
     }
 
@@ -131,7 +150,16 @@ export default function WorkerWalletPage() {
       toast.success(`Account verified: ${result.accountName}`);
     } catch (error) {
       console.error('Verification error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to verify account');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to verify account';
+
+      // Provide helpful feedback based on error
+      if (errorMessage.includes('Could not resolve')) {
+        toast.error('Account not found. Please check your account number and bank selection.');
+      } else if (errorMessage.includes('parameters')) {
+        toast.error('Invalid account details. Ensure the account number matches the selected bank.');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsVerifyingAccount(false);
     }
@@ -182,6 +210,81 @@ export default function WorkerWalletPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to add bank account');
     } finally {
       setIsAddingBank(false);
+    }
+  };
+
+  const handleSetDefaultBank = async (bankAccountId: string) => {
+    if (!user) return;
+
+    try {
+      setIsSettingDefault(bankAccountId);
+
+      // Update all accounts: set selected as default, others as non-default
+      const updatePromises = bankAccounts.map(account =>
+        databases.updateDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          COLLECTIONS.BANK_ACCOUNTS,
+          account.$id,
+          {
+            isDefault: account.$id === bankAccountId
+          }
+        )
+      );
+
+      await Promise.all(updatePromises);
+
+      toast.success('Default account updated');
+      loadBankAccounts();
+    } catch (error) {
+      console.error('Error setting default bank:', error);
+      toast.error('Failed to update default account');
+    } finally {
+      setIsSettingDefault(null);
+    }
+  };
+
+  const handleDeleteBankClick = (bankAccountId: string) => {
+    const account = bankAccounts.find(b => b.$id === bankAccountId);
+    if (!account) return;
+
+    setBankToDelete(account);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteBank = async () => {
+    if (!user || !bankToDelete) return;
+
+    try {
+      setIsDeletingBank(bankToDelete.$id);
+
+      await databases.deleteDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BANK_ACCOUNTS,
+        bankToDelete.$id
+      );
+
+      // If deleted account was default and there are other accounts, set first one as default
+      if (bankToDelete.isDefault && bankAccounts.length > 1) {
+        const remainingAccounts = bankAccounts.filter(b => b.$id !== bankToDelete.$id);
+        if (remainingAccounts.length > 0) {
+          await databases.updateDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            COLLECTIONS.BANK_ACCOUNTS,
+            remainingAccounts[0].$id,
+            { isDefault: true }
+          );
+        }
+      }
+
+      toast.success('Bank account deleted');
+      setShowDeleteModal(false);
+      setBankToDelete(null);
+      loadBankAccounts();
+    } catch (error) {
+      console.error('Error deleting bank:', error);
+      toast.error('Failed to delete account');
+    } finally {
+      setIsDeletingBank(null);
     }
   };
 
@@ -370,6 +473,7 @@ export default function WorkerWalletPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Saved Bank Accounts</CardTitle>
+                <CardDescription>Manage your withdrawal accounts</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -384,9 +488,32 @@ export default function WorkerWalletPage() {
                           <p className="text-sm text-gray-600">{account.accountNumber} - {account.accountName}</p>
                         </div>
                       </div>
-                      {account.isDefault && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Default</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {account.isDefault ? (
+                          <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">Default</span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSetDefaultBank(account.$id)}
+                            disabled={isSettingDefault === account.$id}
+                          >
+                            {isSettingDefault === account.$id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              'Set as Default'
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteBankClick(account.$id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -595,6 +722,61 @@ export default function WorkerWalletPage() {
                 </>
               ) : (
                 'Add Bank'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Bank Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Bank Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this bank account?
+            </DialogDescription>
+          </DialogHeader>
+
+          {bankToDelete && (
+            <div className="py-4">
+              <div className="p-4 border rounded-lg bg-gray-50">
+                <p className="font-medium text-gray-900">{bankToDelete.bankName}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {bankToDelete.accountNumber} - {bankToDelete.accountName}
+                </p>
+                {bankToDelete.isDefault && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    ⚠️ This is your default account. The first remaining account will be set as default.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setBankToDelete(null);
+              }}
+              disabled={isDeletingBank !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteBank}
+              disabled={isDeletingBank !== null}
+            >
+              {isDeletingBank ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Account'
               )}
             </Button>
           </DialogFooter>

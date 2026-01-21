@@ -680,7 +680,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile, professiona
         selfieWithId: finalSelfieUrl,
         additionalDocuments: joinDocumentUrls(additionalUrls),
         verificationStatus: 'pending',
-        submittedAt: new Date().toISOString(),
+        // submittedAt removed - attribute doesn't exist in WORKERS collection
         updatedAt: new Date().toISOString(),
       };
 

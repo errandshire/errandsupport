@@ -53,7 +53,11 @@ class NotificationService {
         ]
       );
 
-      return response.documents as unknown as Notification[];
+      // Map Appwrite documents to Notification interface (map $id to id)
+      return response.documents.map(doc => ({
+        ...doc,
+        id: doc.$id
+      })) as unknown as Notification[];
     } catch (error) {
       // If collection doesn't exist or other errors, return empty array
       console.error('Error fetching notifications:', error);
