@@ -274,12 +274,12 @@ export default function WorkerDashboard() {
     const flattenedBooking = {
       $id: booking.$id,
       id: booking.$id,
-      clientId: '',
-      client: '',
+      clientId: booking.clientId || '', // Use actual clientId from booking
+      client: booking.clientName || '', // Use client name
       workerId: user?.$id || '',
       title: booking.serviceTitle,
       service: booking.serviceTitle,
-      description: '',
+      description: booking.notes || '', // Use notes as description
       locationAddress,
       location: locationAddress,
       scheduledDate: booking.scheduledDate,
@@ -290,7 +290,7 @@ export default function WorkerDashboard() {
       price: booking.totalAmount,
       budgetCurrency: 'NGN',
       budgetIsHourly: false,
-      urgency: '',
+      urgency: 'medium', // Default urgency
       status: booking.status,
       paymentStatus: 'paid',
       requirements: [],
