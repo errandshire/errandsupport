@@ -56,7 +56,7 @@ const AcceptanceCountdown = React.memo(({ deadline }: { deadline: Date }) => {
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md">
       <span className="text-xs text-yellow-800 font-medium">
-        Accept within:
+        Accept job within:
       </span>
       <CountdownTimer
         targetTime={deadline}
