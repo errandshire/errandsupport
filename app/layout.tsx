@@ -88,7 +88,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Errand Support Platform - Premium Marketplace for Local Services",
     description: "Premium web-based marketplace connecting clients with local errand-support workers.",
-    creator: "@errandsupport",
+    creator: "@erandwork",
   },
   robots: {
     index: true,

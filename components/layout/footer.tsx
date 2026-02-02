@@ -14,10 +14,10 @@ interface FooterProps {
 
 
 const socialLinks = [
-  { name: "Facebook", href: "https://facebook.com", icon: Facebook },
-  { name: "Twitter", href: "https://twitter.com", icon: Twitter },
-  { name: "Instagram", href: "https://instagram.com", icon: Instagram },
-  { name: "LinkedIn", href: "https://linkedin.com", icon: Linkedin },
+  { name: "Facebook", href: "https://facebook.com/erandwork", icon: Facebook },
+  { name: "Twitter", href: "https://x.com/erandwork", icon: Twitter },
+  { name: "Instagram", href: "https://instagram.com/erandwork", icon: Instagram },
+  { name: "TikTok", href: "https://www.tiktok.com/@erandwork", icon: Linkedin }, // Note: Using Linkedin icon temporarily for TikTok
 ];
 
 export function Footer({ className }: FooterProps) {
