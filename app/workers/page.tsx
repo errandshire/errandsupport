@@ -85,7 +85,7 @@ function WorkersPageContent() {
             Query.equal('isVerified', true), // Only show approved workers
             Query.equal('isActive', true), // Only show active workers
             Query.orderDesc('$createdAt'), // Order by creation date instead since ratingAverage might not exist
-            Query.limit(100)
+            Query.limit(500) // Increased to show all workers (currently 178 verified/active)
           ]
         );
 
