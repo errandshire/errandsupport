@@ -175,6 +175,30 @@ export const RATING_OPTIONS = [
 export const COMMISSION_RATE = 0.15; // 15%
 export const PAYMENT_PROCESSING_FEE = 0.029; // 2.9%
 
+// Partner Program
+export const PARTNER_COMMISSION_RATE = 0.05; // 5% (sub-split of platform's 15%)
+export const PARTNER_COMMISSION_WINDOW_DAYS = 90;
+export const PARTNER_CODE_PREFIX = 'EW';
+
+export const PARTNER_STATUS = {
+  PENDING: 'pending',
+  ACTIVE: 'active',
+  SUSPENDED: 'suspended',
+  REMOVED: 'removed',
+} as const;
+
+export const REFERRAL_STATUS = {
+  ACTIVE: 'active',
+  EXPIRED: 'expired',
+  FRAUD: 'fraud',
+} as const;
+
+export const COMMISSION_STATUS = {
+  PENDING: 'pending',
+  PAID: 'paid',
+  CANCELLED: 'cancelled',
+} as const;
+
 // Job Posting Constants
 export const JOB_STATUS = {
   OPEN: 'open',

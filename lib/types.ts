@@ -406,7 +406,7 @@ export interface Wallet extends Models.Document {
 
 export interface WalletTransaction extends Models.Document {
   userId: string;
-  type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw' | 'rollback' | 'rollback_hold';
+  type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw' | 'rollback' | 'rollback_hold' | 'partner_commission';
   amount: number;         // Always in Naira (negative for rollbacks)
   bookingId?: string;     // If related to a booking
   reference: string;      // Paystack reference or unique ID
@@ -436,4 +436,58 @@ export interface Withdrawal extends Models.Document {
   failureReason?: string;
   createdAt: string;
   completedAt?: string;
+}
+
+// Partner Program Types
+export type PartnerStatus = 'pending' | 'active' | 'suspended' | 'removed';
+
+export interface Partner extends Models.Document {
+  name: string;
+  email: string;
+  phone?: string;
+  partnerCode: string;
+  status: PartnerStatus;
+  totalReferrals: number;
+  totalEarnings: number;
+  pendingPayout: number;
+  bankAccountName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  notes?: string;
+  experience?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ReferralStatus = 'active' | 'expired' | 'fraud';
+
+export interface Referral extends Models.Document {
+  partnerCode: string;
+  partnerId: string;
+  clientId: string;
+  clientEmail: string;
+  status: ReferralStatus;
+  firstCompletedJobAt?: string;
+  commissionWindowEndsAt?: string;
+  totalCommissionEarned: number;
+  jobsCompleted: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CommissionStatus = 'pending' | 'paid' | 'cancelled';
+
+export interface PartnerCommission extends Models.Document {
+  referralId: string;
+  partnerId: string;
+  partnerCode: string;
+  clientId: string;
+  bookingId: string;
+  jobAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  status: CommissionStatus;
+  payoutMonth?: string;
+  paidAt?: string;
+  createdAt: string;
 } 

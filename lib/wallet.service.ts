@@ -312,6 +312,22 @@ export class WalletService {
         }
       }
 
+      // Partner commission (non-blocking)
+      // This is a sub-split of the platform's 15% — NOT additional cost
+      try {
+        const { PartnerService } = await import('./partner.service');
+        const partnerResult = await PartnerService.processCommissionForCompletedBooking({
+          bookingId,
+          clientId,
+          jobAmountInNaira: amountInNaira,
+        });
+        if (partnerResult) {
+          console.log(`   Partner commission: ₦${partnerResult.partnerCommissionAmount.toLocaleString()} (5% sub-split of platform fee)`);
+        }
+      } catch (error) {
+        console.error('Partner commission failed (non-blocking):', error);
+      }
+
       // Update client wallet (remove from escrow)
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,

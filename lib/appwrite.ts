@@ -40,6 +40,10 @@ export const COLLECTIONS = {
   // Broadcast Collections
   BROADCAST_MESSAGES: 'broadcast_messages',
   BROADCAST_TEMPLATES: 'broadcast_templates',
+  // Partner Program Collections
+  PARTNERS: process.env.NEXT_PUBLIC_APPWRITE_PARTNERS_COLLECTION_ID!,
+  REFERRALS: process.env.NEXT_PUBLIC_APPWRITE_REFERRALS_COLLECTION_ID!,
+  PARTNER_COMMISSIONS: process.env.NEXT_PUBLIC_APPWRITE_PARTNER_COMMISSIONS_COLLECTION_ID!,
 } as const;
 
 // Initialize Appwrite client

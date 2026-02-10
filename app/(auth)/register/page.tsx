@@ -26,9 +26,33 @@ function RegisterForm() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
-  // Get callback URL and role from query parameters
+  // Get callback URL, role, and referral code from query parameters
   const callbackUrl = searchParams.get('callbackUrl');
   const roleParam = searchParams.get('role') as "client" | "worker" | null;
+  const refCode = searchParams.get('ref');
+
+  // Store referral code in localStorage
+  React.useEffect(() => {
+    if (refCode) {
+      localStorage.setItem('referral_partner_code', refCode);
+    }
+  }, [refCode]);
+
+  // Validate referral code
+  const [referralPartnerName, setReferralPartnerName] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const code = refCode || localStorage.getItem('referral_partner_code');
+    if (code) {
+      fetch(`/api/partners/validate?code=${encodeURIComponent(code)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.valid) {
+            setReferralPartnerName(data.partnerName);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [refCode]);
 
   const [selectedRole, setSelectedRole] = React.useState<"client" | "worker">(
     roleParam === 'worker' ? 'worker' : 'client'
@@ -138,6 +162,13 @@ function RegisterForm() {
           </CardHeader>
           <CardContent>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Referral Banner */}
+              {referralPartnerName && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-700">
+                  You were referred by a community partner!
+                </div>
+              )}
+
               {/* Role Selection */}
                 <div className="space-y-3">
                 {/* <Label className="text-base font-medium">I want to...</Label> */}

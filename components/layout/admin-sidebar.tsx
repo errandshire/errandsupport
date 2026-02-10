@@ -23,7 +23,8 @@ import {
   CreditCard,
   Calendar,
   MessageCircle,
-  Send
+  Send,
+  UserPlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +101,12 @@ const sidebarItems = [
   //   badge: null,
   // },
 
+  {
+    title: "Partners",
+    href: "/admin/partners",
+    icon: UserPlus,
+    badge: null,
+  },
   {
     title: "Withdrawals",
     href: "/admin/withdrawals",

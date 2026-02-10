@@ -178,6 +178,43 @@ export function useAuth() {
         }
       );
 
+      // Partner referral tracking (non-blocking)
+      try {
+        const referralCode = typeof window !== 'undefined'
+          ? localStorage.getItem('referral_partner_code')
+          : null;
+
+        if (referralCode) {
+          // Add referredByPartnerCode to user document
+          try {
+            await databases.updateDocument(
+              DATABASE_ID,
+              COLLECTIONS.USERS,
+              profileData.userId,
+              { referredByPartnerCode: referralCode }
+            );
+          } catch (refUpdateError) {
+            console.error('Failed to set referredByPartnerCode:', refUpdateError);
+          }
+
+          // Create referral record via API
+          fetch('/api/partners/referral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              partnerCode: referralCode,
+              clientId: profileData.userId,
+              clientEmail: profileData.email,
+            }),
+          }).catch((err) => console.error('Referral API error:', err));
+
+          // Clear localStorage after use
+          localStorage.removeItem('referral_partner_code');
+        }
+      } catch (referralError) {
+        console.error('Partner referral error (non-blocking):', referralError);
+      }
+
       // Send welcome communications (non-blocking for auth flow)
       try {
         const tasks: Promise<any>[] = [];

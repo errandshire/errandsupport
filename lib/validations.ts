@@ -192,6 +192,14 @@ export const paymentSchema = z.object({
   amount: z.number().min(5, 'Amount must be at least $5'),
 });
 
+// Partner Program Schemas
+export const partnerSignupSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email address'),
+  phone: z.string().optional(),
+  experience: z.string().max(1000, 'Experience must be less than 1000 characters').optional(),
+});
+
 // Export type inference helpers
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type RegisterFormData = z.infer<typeof registerSchema>;
@@ -209,4 +217,5 @@ export type ServiceFormData = z.infer<typeof serviceSchema>;
 export type CategoryFormData = z.infer<typeof categorySchema>;
 export type SearchFormData = z.infer<typeof searchSchema>;
 export type AvailabilityFormData = z.infer<typeof availabilitySchema>;
-export type PaymentFormData = z.infer<typeof paymentSchema>; 
+export type PaymentFormData = z.infer<typeof paymentSchema>;
+export type PartnerSignupFormData = z.infer<typeof partnerSignupSchema>; 
