@@ -100,6 +100,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebar
                 <div className="p-3 border-b">
                   <h4 className="font-semibold text-sm">Notifications</h4>
                 </div>
+                <div className="max-h-[50vh] overflow-y-auto">
                 {notifications.length === 0 ? (
                   <DropdownMenuItem>
                     <div className="text-sm text-neutral-500">No notifications</div>
@@ -114,6 +115,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebar
                     </DropdownMenuItem>
                   ))
                 )}
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/notifications" className="w-full text-center text-sm">

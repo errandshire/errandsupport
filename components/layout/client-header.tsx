@@ -162,7 +162,7 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
                     <p className="text-xs text-gray-500 mt-1">{unreadCount} unread</p>
                   )}
                 </div>
-                <div className="max-h-64 overflow-y-auto">
+                <div className="max-h-[50vh] overflow-y-auto">
                   {notifications.length === 0 ? (
                     <div className="p-4 text-center text-sm text-gray-500">
                       No notifications

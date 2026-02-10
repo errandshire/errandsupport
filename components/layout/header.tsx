@@ -276,13 +276,14 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                       <div className="p-3 border-b">
                         <h4 className="font-semibold text-sm">Notifications</h4>
                       </div>
+                      <div className="max-h-[50vh] overflow-y-auto">
                       {notifications.length === 0 ? (
                         <DropdownMenuItem>
                           <div className="text-sm text-neutral-500">No notifications</div>
                         </DropdownMenuItem>
                       ) : (
                         notifications.map((notif) => (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             key={notif.$id}
                             onClick={() => handleNotificationClick(notif)}
                             className="cursor-pointer"
@@ -294,6 +295,7 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                           </DropdownMenuItem>
                         ))
                       )}
+                      </div>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem>
                         <Link href="/notifications" className="w-full text-center text-sm">

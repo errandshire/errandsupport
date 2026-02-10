@@ -213,6 +213,15 @@ function RegisterForm() {
                 </div>
               </div>
 
+              {/* Partner Option */}
+              <Link
+                href="/partners"
+                className="block p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 transition-all duration-200"
+              >
+                <p className="text-sm font-medium text-emerald-800">Become a Community Growth Partner</p>
+                <p className="text-xs text-emerald-600 mt-1">Earn 5% commission by referring clients</p>
+              </Link>
+
               {/* Personal Information */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormInput
