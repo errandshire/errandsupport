@@ -40,12 +40,18 @@ import Link from "next/link";
 import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { CancellationModal } from "@/components/client/cancellation-modal";
+import { BookingProgressTracker } from "@/components/shared/booking-progress-tracker";
+import { CountdownTimer } from "@/components/shared/countdown-timer";
+import { AUTO_RELEASE_HOURS } from "@/lib/constants";
 
 interface ProcessedBooking {
   $id: string;
   id: string;
   title: string;
   description: string;
+  workerId: string;
+  clientId: string;
+  totalAmount?: number;
   worker?: {
     id: string;
     name: string;
@@ -152,6 +158,9 @@ function ClientBookingsContent() {
             id: booking.$id,
             title: booking.title || 'Service Booking',
             description: booking.description || 'No description provided',
+            workerId: booking.workerId || '',
+            clientId: booking.clientId || '',
+            totalAmount: booking.totalAmount,
             worker: workerInfo,
             scheduledDate: booking.scheduledDate || booking.$createdAt,
             estimatedDuration: booking.estimatedDuration || 1,
@@ -453,6 +462,69 @@ function ClientBookingsContent() {
         </div>
       </div>
 
+      {/* Action Banners for bookings needing confirmation */}
+      {bookings.filter(b => b.status === 'worker_completed').length > 0 && (
+        <div className="space-y-3">
+          {bookings.filter(b => b.status === 'worker_completed').map((booking) => (
+            <Card key={`action-${booking.id}`} className="border-orange-300 bg-orange-50 border-2">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-5 w-5 text-orange-600 flex-shrink-0" />
+                      <h3 className="font-semibold text-orange-900 text-sm sm:text-base truncate">
+                        {booking.worker?.name || 'Worker'} completed &quot;{booking.title}&quot;
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-2 ml-7">
+                      <span className="text-xs sm:text-sm text-orange-700">
+                        Money held safely by ErandWork
+                      </span>
+                      {booking.completedAt && (
+                        <span className="text-xs text-orange-600 flex items-center gap-1">
+                          &middot; Auto-releases in{' '}
+                          <CountdownTimer
+                            targetTime={new Date(
+                              new Date(booking.completedAt).getTime() + AUTO_RELEASE_HOURS * 60 * 60 * 1000
+                            )}
+                            showIcon={false}
+                            className="inline-flex text-xs text-orange-700 font-semibold"
+                          />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-7 sm:ml-0">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => {
+                        setSelectedBooking(booking);
+                        setShowConfirmationModal(true);
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Confirm & Release Payment
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        setSelectedBooking(booking);
+                        setShowConfirmationModal(true);
+                      }}
+                    >
+                      Report Issue
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Bookings List */}
       <Card>
         <CardContent className="p-3 sm:p-6">
@@ -535,6 +607,18 @@ function ClientBookingsContent() {
                         <span>Created {booking.timeAgo}</span>
                         <span>₦{booking.budgetAmount.toLocaleString()}</span>
                         <span>{booking.estimatedDuration}h duration</span>
+                        {booking.status === 'worker_completed' && booking.completedAt && (
+                          <span className="flex items-center gap-1 text-orange-600 font-medium">
+                            Auto-releases in{' '}
+                            <CountdownTimer
+                              targetTime={new Date(
+                                new Date(booking.completedAt).getTime() + AUTO_RELEASE_HOURS * 60 * 60 * 1000
+                              )}
+                              showIcon={false}
+                              className="inline-flex text-xs text-orange-600 font-semibold"
+                            />
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -625,6 +709,9 @@ function ClientBookingsContent() {
           
           {selectedBooking && (
             <div className="space-y-4 sm:space-y-6">
+              {/* Progress Tracker */}
+              <BookingProgressTracker status={selectedBooking.status} />
+
               {/* Header */}
               <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">

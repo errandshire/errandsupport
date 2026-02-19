@@ -17,7 +17,7 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog";
-import { 
+import {
   Calendar,
   Clock,
   MapPin,
@@ -28,8 +28,10 @@ import {
   CheckCircle,
   AlertCircle,
   Info,
-  Zap
+  Zap,
+  ArrowLeftRight
 } from "lucide-react";
+import { EscrowSteps } from "@/components/shared/escrow-steps";
 import { useAuth } from "@/hooks/use-auth";
 import { VirtualWalletService } from "@/lib/virtual-wallet-service";
 import { paystack } from "@/lib/paystack";
@@ -452,12 +454,31 @@ export function EnhancedBookingModal({
               </CardContent>
             </Card>
 
-            <Alert>
-              <Shield className="h-4 w-4" />
-              <AlertDescription>
-                Your payment is protected by escrow. Funds are only released to the worker when you confirm the job is completed.
-              </AlertDescription>
-            </Alert>
+            {/* Visual Escrow Steps */}
+            <Card className="border-blue-100 bg-blue-50/50">
+              <CardContent className="p-4 space-y-3">
+                <EscrowSteps currentStep={1} />
+                <p className="text-sm font-semibold text-center text-blue-800">
+                  Your money is protected. It is only released after you confirm work is done.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Trust Badges */}
+            <div className="flex items-center justify-center gap-4 sm:gap-6 py-2">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600">
+                <Shield className="h-4 w-4 text-green-600" />
+                <span>Verified ID</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600">
+                <CheckCircle className="h-4 w-4 text-blue-600" />
+                <span>Escrow Protected</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600">
+                <ArrowLeftRight className="h-4 w-4 text-purple-600" />
+                <span>Refund Support</span>
+              </div>
+            </div>
 
             {/* Payment Method Selection */}
             <div>

@@ -16,6 +16,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { ReviewService } from "@/lib/review-service";
 import { cn } from "@/lib/utils";
+import { EscrowSteps } from "@/components/shared/escrow-steps";
+import { BookingProgressTracker } from "@/components/shared/booking-progress-tracker";
+import { CountdownTimer } from "@/components/shared/countdown-timer";
+import { AUTO_RELEASE_HOURS } from "@/lib/constants";
 
 interface BookingConfirmationModalProps {
   isOpen: boolean;
@@ -228,6 +232,33 @@ export function BookingConfirmationModal({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Escrow Steps Visual */}
+          <EscrowSteps currentStep={3} />
+
+          {/* Booking Progress Tracker */}
+          <BookingProgressTracker status="worker_completed" />
+
+          {/* Auto-Release Countdown */}
+          {booking.completedAt && (
+            <Alert className="border-yellow-200 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span className="font-medium">Auto-release in:</span>
+                  <CountdownTimer
+                    targetTime={new Date(
+                      new Date(booking.completedAt).getTime() + AUTO_RELEASE_HOURS * 60 * 60 * 1000
+                    )}
+                    className="text-yellow-800 font-semibold"
+                  />
+                </div>
+                <p className="text-xs mt-1">
+                  If you don&apos;t confirm or dispute, payment will be automatically released to the worker.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Booking Summary */}
           <Card>
             <CardHeader>

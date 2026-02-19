@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { BookingNotificationService } from "@/lib/booking-notification-service";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
+import { BookingProgressTracker } from "@/components/shared/booking-progress-tracker";
 import { Query } from "appwrite";
 
 // Updated interface to handle both old and new booking structures
@@ -328,13 +329,16 @@ export function BookingDetailModal({
 
       if (result.success) {
         // Update local booking state immediately for instant UI feedback
+        // Accept now auto-starts work (in_progress)
+        const now = new Date().toISOString();
         setLocalBooking((prev: any) => ({
           ...prev,
-          status: 'accepted',
-          acceptedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          status: 'in_progress',
+          acceptedAt: now,
+          startedAt: now,
+          updatedAt: now
         }));
-        
+
         toast.success(result.message);
         onRefresh?.(); // Update parent component data
         // Don't close modal - let user see the immediate change
@@ -707,8 +711,8 @@ export function BookingDetailModal({
   // Accept/Reject is for when client selects worker from applications, status is "confirmed"
   const canAccept = currentBooking?.status === 'confirmed' && !isSelectionExpired && isAssignedWorker;
 
-  // Can start/complete/cancel only if worker is assigned
-  const canStart = currentBooking?.status === 'accepted' && isAssignedWorker;
+  // Accept now auto-starts work, so canStart is no longer needed as a separate step
+  const canStart = false; // Disabled: accept auto-transitions to in_progress
   const canComplete = currentBooking?.status === 'in_progress' && isAssignedWorker;
   const isCompleted = currentBooking?.status === 'completed' || currentBooking?.status === 'worker_completed';
   const canCancel = isAssignedWorker && (currentBooking?.status === 'confirmed' || currentBooking?.status === 'accepted' || currentBooking?.status === 'in_progress');
@@ -1030,20 +1034,23 @@ export function BookingDetailModal({
             </CardContent>
           </Card>
 
-          {/* Booking Timeline */}
+          {/* Booking Progress */}
           <Card>
             <CardHeader className="pb-3 sm:pb-4">
-              <CardTitle className="text-base sm:text-lg">Booking Timeline</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Booking Progress</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4">
-              <div className="space-y-2 sm:space-y-3">
+            <CardContent className="space-y-4 sm:space-y-5">
+              <BookingProgressTracker status={currentBooking?.status || ''} />
+
+              {/* Timestamp details */}
+              <div className="space-y-2 sm:space-y-3 pt-2 border-t">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                   <span className="text-gray-600 text-sm sm:text-base">Created</span>
                   <span className="font-medium text-sm sm:text-base">
                     {getFormattedDate(booking.createdAt || '')}
                   </span>
                 </div>
-                
+
                 {booking.acceptedAt && (
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                     <span className="text-gray-600 text-sm sm:text-base">Accepted</span>
@@ -1052,7 +1059,7 @@ export function BookingDetailModal({
                     </span>
                   </div>
                 )}
-                
+
                 {booking.startedAt && (
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                     <span className="text-gray-600 text-sm sm:text-base">Started</span>
@@ -1061,7 +1068,7 @@ export function BookingDetailModal({
                     </span>
                   </div>
                 )}
-                
+
                 {booking.completedAt && (
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                     <span className="text-gray-600 text-sm sm:text-base">Completed</span>
@@ -1070,7 +1077,7 @@ export function BookingDetailModal({
                     </span>
                   </div>
                 )}
-                
+
                 {booking.clientConfirmedAt && (
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
                     <span className="text-gray-600 text-sm sm:text-base">Client Confirmed</span>

@@ -209,6 +209,8 @@ export const JOB_STATUS = {
   EXPIRED: 'expired',
 } as const;
 
+export const AUTO_RELEASE_HOURS = 24; // Auto-release escrow payment 24h after worker marks complete
+
 export const JOB_EXPIRY_HOURS = 72; // Jobs expire after 3 days if not accepted
 export const MAX_JOB_ATTACHMENTS = 5; // Maximum number of photos per job
 export const MAX_JOB_TITLE_LENGTH = 200;

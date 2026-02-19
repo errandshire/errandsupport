@@ -104,15 +104,18 @@ export class BookingActionService {
         }
       }
 
-      // Update booking status to 'accepted'
+      // Update booking status directly to 'in_progress' (skip 'accepted' as paused state)
+      // This reduces friction by eliminating the separate "Start Work" step
+      const now = new Date().toISOString();
       await databases.updateDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
-          status: 'accepted',
-          acceptedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          status: 'in_progress',
+          acceptedAt: now,
+          startedAt: now,
+          updatedAt: now
         }
       );
 

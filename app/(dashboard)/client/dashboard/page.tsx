@@ -21,7 +21,8 @@ import {
   Star,
   ArrowRight,
   BookOpen,
-  Briefcase
+  Briefcase,
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,11 @@ import type { ClientStats, RecentBooking, QuickAction } from "@/lib/client-dashb
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { JobPostingModal } from "@/components/client/job-posting-modal";
+import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { Query } from "appwrite";
+import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
+import { CountdownTimer } from "@/components/shared/countdown-timer";
+import { AUTO_RELEASE_HOURS } from "@/lib/constants";
 
 // Lazy load heavy components
 const ClientDashboardSkeleton = React.lazy(() =>
@@ -197,6 +203,9 @@ function ClientDashboardContent() {
   const [error, setError] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isJobModalOpen, setIsJobModalOpen] = React.useState(false);
+  const [pendingConfirmations, setPendingConfirmations] = React.useState<any[]>([]);
+  const [showConfirmationModal, setShowConfirmationModal] = React.useState(false);
+  const [selectedConfirmationBooking, setSelectedConfirmationBooking] = React.useState<any>(null);
 
   // Handle authentication and loading
   React.useEffect(() => {
@@ -213,10 +222,51 @@ function ClientDashboardContent() {
     }
   }, [loading, isAuthenticated, user, router]);
 
+  // Fetch bookings awaiting client confirmation
+  const fetchPendingConfirmations = React.useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        [
+          Query.equal('clientId', user.$id),
+          Query.equal('status', 'worker_completed'),
+          Query.orderDesc('$createdAt'),
+          Query.limit(10)
+        ]
+      );
+
+      // Fetch worker names for each booking
+      const bookingsWithWorkers = await Promise.all(
+        response.documents.map(async (booking: any) => {
+          let workerName = 'Worker';
+          try {
+            if (booking.workerId) {
+              const worker = await databases.getDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                COLLECTIONS.USERS,
+                booking.workerId
+              );
+              workerName = worker.name || worker.displayName || 'Worker';
+            }
+          } catch {
+            // Ignore worker fetch errors
+          }
+          return { ...booking, workerName };
+        })
+      );
+
+      setPendingConfirmations(bookingsWithWorkers);
+    } catch (error) {
+      console.error('Error fetching pending confirmations:', error);
+    }
+  }, [user]);
+
   // Load dashboard data
   const loadDashboardData = React.useCallback(async (force = false) => {
     if (!user) return;
-    
+
     try {
       if (force) {
         setIsRefreshing(true);
@@ -224,14 +274,17 @@ function ClientDashboardContent() {
       } else {
         setIsLoading(true);
       }
-      
+
       setError(null);
 
-      const { stats, recentBookings, quickActions } = await clientDashboardService.getDashboardData(user.$id);
-      
-      setStats(stats);
-      setRecentBookings(recentBookings);
-      setQuickActions(quickActions);
+      const [dashboardData] = await Promise.all([
+        clientDashboardService.getDashboardData(user.$id),
+        fetchPendingConfirmations()
+      ]);
+
+      setStats(dashboardData.stats);
+      setRecentBookings(dashboardData.recentBookings);
+      setQuickActions(dashboardData.quickActions);
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -241,7 +294,7 @@ function ClientDashboardContent() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user]);
+  }, [user, fetchPendingConfirmations]);
 
   // Initial load
   React.useEffect(() => {
@@ -366,6 +419,74 @@ function ClientDashboardContent() {
         </Button>
       </div>
 
+      {/* Pending Confirmation Action Cards */}
+      {pendingConfirmations.length > 0 && (
+        <div className="space-y-3">
+          {pendingConfirmations.map((booking) => (
+            <Card
+              key={`pending-${booking.$id}`}
+              className="border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-yellow-50 shadow-md"
+            >
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Bell className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
+                        {booking.workerName} completed &quot;{booking.title}&quot;
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-sm text-gray-600">
+                          ₦{(booking.totalAmount || booking.budgetAmount)?.toLocaleString()}
+                        </span>
+                        {booking.completedAt && (
+                          <span className="text-xs text-orange-600 flex items-center gap-1">
+                            &middot; Auto-releases in{' '}
+                            <CountdownTimer
+                              targetTime={new Date(
+                                new Date(booking.completedAt).getTime() + AUTO_RELEASE_HOURS * 60 * 60 * 1000
+                              )}
+                              showIcon={false}
+                              className="inline-flex text-xs text-orange-700 font-semibold"
+                            />
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 sm:flex-shrink-0 ml-13 sm:ml-0">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white h-9"
+                      onClick={() => {
+                        setSelectedConfirmationBooking(booking);
+                        setShowConfirmationModal(true);
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Confirm & Release Payment
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-200 text-red-600 hover:bg-red-50 h-9"
+                      onClick={() => {
+                        setSelectedConfirmationBooking(booking);
+                        setShowConfirmationModal(true);
+                      }}
+                    >
+                      Report Issue
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         <StatsCard
@@ -475,6 +596,17 @@ function ClientDashboardContent() {
         clientId={user.$id}
         onJobCreated={() => {
           setIsJobModalOpen(false);
+          handleRefresh();
+        }}
+      />
+
+      {/* Booking Confirmation Modal */}
+      <BookingConfirmationModal
+        isOpen={showConfirmationModal}
+        onClose={() => setShowConfirmationModal(false)}
+        booking={selectedConfirmationBooking}
+        onRefresh={() => {
+          setShowConfirmationModal(false);
           handleRefresh();
         }}
       />
