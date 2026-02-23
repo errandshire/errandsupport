@@ -128,9 +128,9 @@ export default function PartnerSignupPage() {
             <h2 className="text-2xl font-bold text-center mb-10">What You Could Earn</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { job: "Home Cleaning", amount: 20000, commission: 1000 },
-                { job: "Plumbing Repair", amount: 40000, commission: 2000 },
-                { job: "Full Day Service", amount: 80000, commission: 4000 },
+                { job: "Home Cleaning", amount: 200000, commission: 10000 },
+                { job: "Plumbing Repair", amount: 500000, commission: 25000 },
+                { job: "Full Day Service", amount: 800000, commission: 40000 },
               ].map((example) => (
                 <Card key={example.job} className="text-center">
                   <CardContent className="pt-6">
