@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
+import { GoogleTag } from "@/components/analytics/google-tag";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -112,6 +113,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${cormorantGaramond.variable}`}>
       <head>
         <MetaPixel />
+        <GoogleTag />
       </head>
       <body className="min-h-screen bg-white font-sans antialiased">
         <Providers>
