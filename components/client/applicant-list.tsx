@@ -10,30 +10,30 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkerProfileModal } from "./worker-profile-modal";
 
+interface ApplicantWorker {
+  $id: string;
+  userId: string;
+  displayName?: string;
+  name: string;
+  profileImage?: string;
+  bio?: string;
+  ratingAverage: number;
+  totalReviews: number;
+  experienceYears?: number;
+  completedJobs: number;
+  skills: string[];
+  categories: string[];
+  isVerified: boolean;
+  isActive: boolean;
+}
+
 interface Applicant {
   $id: string;
   workerId: string;
   message: string;
   appliedAt: string;
   status: string;
-  worker: {
-    $id: string;
-    userId: string;
-    displayName?: string;
-    name: string;
-    email: string;
-    phone: string;
-    profileImage?: string;
-    bio?: string;
-    ratingAverage: number;
-    totalReviews: number;
-    experienceYears?: number;
-    completedJobs: number;
-    skills: string[];
-    categories: string[];
-    isVerified: boolean;
-    isActive: boolean;
-  };
+  worker: ApplicantWorker;
 }
 
 interface ApplicantListProps {
@@ -127,10 +127,20 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
             return {
               ...app,
               worker: {
-                ...worker,
+                $id: worker.$id,
+                userId: worker.userId,
+                displayName: worker.displayName,
+                name: worker.name,
+                profileImage: worker.profileImage,
+                bio: worker.bio,
+                skills: worker.skills || [],
+                categories: worker.categories || [],
+                isVerified: worker.isVerified,
+                isActive: worker.isActive,
+                experienceYears: worker.experienceYears,
                 completedJobs: actualCompletedJobs,
                 ratingAverage: actualRatingAverage,
-                totalReviews: actualTotalReviews
+                totalReviews: actualTotalReviews,
               },
             };
           } catch (error) {

@@ -1,108 +1,127 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
 import { BookingModal } from "@/components/marketplace/booking-modal";
-import { motion, Variants } from "framer-motion";
-import { Search, MapPin, Clock, Star, Heart, Filter, MessageCircle, Loader2 } from "lucide-react";
+import { Search, MapPin, Star, Filter, Loader2, ChevronLeft, ChevronRight, X, Shield } from "lucide-react";
 import { databases } from "@/lib/appwrite";
 import { COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import type { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
+import type { BookingRequest } from "@/lib/types/marketplace";
+import type { PublicWorkerProfile } from "@/lib/sanitize-worker";
 import { trackBookingInitiated, trackPurchase } from "@/lib/meta-pixel-events";
 
-const fadeIn: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { duration: 0.5, ease: [0.645, 0.045, 0.355, 1] }
-  }
-};
-
-const staggerContainer: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
+const CATEGORY_OPTIONS = [
+  'Cleaning',
+  'Plumbing',
+  'Electrical',
+  'Painting',
+  'Carpentry',
+  'Moving',
+  'Gardening',
+  'Laundry',
+  'Cooking',
+  'Delivery',
+  'Tutoring',
+  'Driving',
+  'Errand Running',
+  'Pet Care',
+  'Beauty & Grooming',
+  'Tech Support',
+] as const;
 
 function WorkersPageContent() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [locationQuery, setLocationQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [workers, setWorkers] = useState<WorkerProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [workers, setWorkers] = useState<PublicWorkerProfile[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalWorkers, setTotalWorkers] = useState(0);
+  const WORKERS_PER_PAGE = 20;
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Booking modal state
   const [bookingModal, setBookingModal] = useState({
     isOpen: false,
-    selectedWorker: null as WorkerProfile | null
+    selectedWorker: null as PublicWorkerProfile | null
   });
   
-  // Message modal state
   const [messageModal, setMessageModal] = useState({
     isOpen: false,
-    selectedWorker: null as WorkerProfile | null
+    selectedWorker: null as PublicWorkerProfile | null
   });
   
-  // Profile modal state
   const [profileModal, setProfileModal] = useState({
     isOpen: false,
-    selectedWorker: null as WorkerProfile | null
+    selectedWorker: null as PublicWorkerProfile | null
   });
   
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
-  // Fetch workers from Appwrite
+  // Debounce search input — waits 300ms after the user stops typing
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setCurrentPage(1);
+    }, 300);
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
+  }, [searchInput]);
+
+  // Reset to page 1 when category filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory]);
+
+  // Fetch workers from server-side API with search & category params
+  const hasFetchedOnce = useRef(false);
   useEffect(() => {
     async function fetchWorkers() {
       try {
-        setLoading(true);
+        if (!hasFetchedOnce.current) {
+          setInitialLoading(true);
+        }
+        setFetching(true);
         setError(null);
 
-        // Only fetch approved and active workers for public display
-        const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          COLLECTIONS.WORKERS,
-          [
-            Query.equal('isVerified', true), // Only show approved workers
-            Query.equal('isActive', true), // Only show active workers
-            Query.orderDesc('$createdAt'), // Order by creation date instead since ratingAverage might not exist
-            Query.limit(500) // Increased to show all workers (currently 178 verified/active)
-          ]
-        );
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(WORKERS_PER_PAGE),
+        });
+        if (debouncedSearch) params.set('search', debouncedSearch);
+        if (selectedCategory) params.set('category', selectedCategory);
 
-        if (response.documents.length === 0) {
-        }
+        const res = await fetch(`/api/workers?${params}`);
+        if (!res.ok) throw new Error('Failed to fetch workers');
 
-        setWorkers(response.documents as unknown as WorkerProfile[]);
+        const data = await res.json();
+        setTotalWorkers(data.total);
+        setWorkers(data.workers as PublicWorkerProfile[]);
+        hasFetchedOnce.current = true;
       } catch (err) {
         console.error('Error fetching workers:', err);
         setError('Failed to load workers. Please try again later.');
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
+        setFetching(false);
       }
     }
 
     fetchWorkers();
-  }, []);
+  }, [currentPage, debouncedSearch, selectedCategory]);
 
   // Fetch wallet balance for clients
   useEffect(() => {
@@ -126,7 +145,8 @@ function WorkersPageContent() {
 
   // Handle booking submission
   const handleBookingSubmit = async (bookingData: Partial<BookingRequest>) => {
-    if (!user || !bookingModal.selectedWorker) {
+    const selectedWorker = bookingModal.selectedWorker;
+    if (!user || !selectedWorker) {
       toast.error("Please log in to book a service");
       return;
     }
@@ -162,7 +182,7 @@ function WorkersPageContent() {
       // Track booking initiation
       trackBookingInitiated(
         bookingId,
-        bookingData.title || `${bookingModal.selectedWorker.displayName} Service`,
+        bookingData.title || `${selectedWorker.displayName} Service`,
         amount
       );
 
@@ -179,14 +199,14 @@ function WorkersPageContent() {
       }
 
       // Track successful purchase/payment
-      trackPurchase(bookingId, amount, bookingData.title || `${bookingModal.selectedWorker.displayName} Service`);
+      trackPurchase(bookingId, amount, bookingData.title || `${selectedWorker.displayName} Service`);
 
       // STEP 2: Create booking
       const flattenedBookingRequest = {
         id: bookingId,
         clientId: user.$id,
-        workerId: bookingModal.selectedWorker.userId || bookingModal.selectedWorker.$id,
-        categoryId: bookingModal.selectedWorker.categories[0],
+        workerId: selectedWorker.userId || selectedWorker.$id,
+        categoryId: selectedWorker.categories[0],
         title: bookingData.title || '',
         description: bookingData.description || '',
         locationAddress: bookingData.location?.address || '',
@@ -280,7 +300,7 @@ function WorkersPageContent() {
   };
 
   // Handle worker selection for booking
-  const handleBookWorker = (worker: WorkerProfile) => {
+  const handleBookWorker = (worker: PublicWorkerProfile) => {
     if (!isAuthenticated) {
       toast.error("Please log in to book a service");
       router.push('/login?callbackUrl=/workers');
@@ -345,7 +365,7 @@ function WorkersPageContent() {
   };
 
   // Handle worker messaging
-  const handleMessageWorker = (worker: WorkerProfile) => {
+  const handleMessageWorker = (worker: PublicWorkerProfile) => {
     if (!isAuthenticated) {
       toast.error("Please log in to message workers");
       router.push('/login?callbackUrl=/workers');
@@ -364,7 +384,7 @@ function WorkersPageContent() {
   };
 
   // Handle view worker profile (placeholder for now)
-  const handleViewProfile = (worker: WorkerProfile) => {
+  const handleViewProfile = (worker: PublicWorkerProfile) => {
     setProfileModal({
       isOpen: true,
       selectedWorker: worker
@@ -386,42 +406,19 @@ function WorkersPageContent() {
     setProfileModal({ isOpen: false, selectedWorker: null });
   };
 
-  // Filter workers based on search and location
-  const filteredWorkers = useMemo(() => {
-    return workers.filter(worker => {
-      const name = (worker.name || worker.displayName || '').toLowerCase();
-      const bio = (worker.bio || '').toLowerCase();
-      const categories = Array.isArray(worker.categories) ? worker.categories : [];
-      const city = (worker.city || '').toLowerCase();
-      const state = (worker.state || '').toLowerCase();
-      const q = (searchQuery || '').toLowerCase();
-      const lq = (locationQuery || '').toLowerCase();
-
-      const matchesSearch = q === '' || 
-        name.includes(q) ||
-        categories.some(category => (category || '').toLowerCase().includes(q)) ||
-        bio.includes(q);
-
-      const matchesLocation = lq === '' ||
-        city.includes(lq) ||
-        state.includes(lq);
-
-      return matchesSearch && matchesLocation;
-    });
-  }, [workers, searchQuery, locationQuery]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Search is already reactive through the useMemo above
   };
 
-  if (loading) {
+  const totalPages = Math.ceil(totalWorkers / WORKERS_PER_PAGE);
+
+  if (initialLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-white">
         <Header />
-        <main className="container mx-auto px-4 py-6 md:py-10">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
           <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500" />
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>
         </main>
         <Footer />
@@ -431,14 +428,16 @@ function WorkersPageContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-white">
         <Header />
-        <main className="container mx-auto px-4 py-6 md:py-10">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-            <div className="text-red-500 mb-4">⚠️</div>
-            <h2 className="text-xl font-medium text-gray-900 mb-2">Oops! Something went wrong</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
+            <p className="text-4xl mb-4">!</p>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
+            <p className="text-gray-500 mb-6 max-w-md">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-gray-900 hover:bg-gray-800 text-white">
+              Try Again
+            </Button>
           </div>
         </main>
         <Footer />
@@ -447,21 +446,23 @@ function WorkersPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Header />
-      <main className="container mx-auto px-4 py-6 md:py-10">
-        {/* Wallet Balance for Clients */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        {/* Wallet Balance */}
         {user && user.role === 'client' && walletBalance !== null && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md flex items-center justify-between">
+          <div className="mb-8 p-5 sm:p-6 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl flex items-center justify-between">
             <div>
-              <p className="text-sm opacity-90">Wallet Balance</p>
-              <p className="text-2xl font-bold">₦{(walletBalance ?? 0).toLocaleString()}</p>
+              <p className="text-sm font-medium text-white/80">Wallet Balance</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight">
+                ₦{(walletBalance ?? 0).toLocaleString()}
+              </p>
             </div>
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => router.push('/client/wallet')}
-              className="bg-white text-blue-600 hover:bg-blue-50"
+              className="bg-white text-emerald-700 hover:bg-emerald-50 font-semibold h-11 px-5"
             >
               Top Up
             </Button>
@@ -469,196 +470,304 @@ function WorkersPageContent() {
         )}
 
         {/* Search Section */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={staggerContainer}
-          className="max-w-2xl mx-auto space-y-4"
-        >
-          <motion.h1 
-            variants={fadeIn}
-            className="text-2xl md:text-3xl font-bold text-center text-gray-900 mb-2"
-          >
+        <div className="max-w-2xl mx-auto mb-10">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-950 text-center mb-3">
             Find Trusted Workers
-          </motion.h1>
-          <motion.p 
-            variants={fadeIn}
-            className="text-center text-gray-600 mb-6"
-          >
-            {user?.role === 'client' 
+          </h1>
+          <p className="text-center text-gray-500 mb-8 text-base sm:text-lg">
+            {user?.role === 'client'
               ? 'Book services instantly with your wallet balance'
               : 'Connect with verified local professionals for all your daily tasks'
             }
-          </motion.p>
+          </p>
 
-          <motion.form 
-            variants={fadeIn} 
-            className="space-y-3"
-            onSubmit={handleSearch}
-          >
+          <form onSubmit={handleSearch}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input 
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
                 type="text"
-                placeholder="Search for services..."
-                className="pl-10 h-12 bg-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, skill, category, or location..."
+                className="pl-12 pr-10 h-14 sm:h-12 bg-gray-50 border-gray-200 rounded-xl text-base focus:bg-white focus:border-gray-300 transition-colors"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input 
-                type="text"
-                placeholder="Location..."
-                className="pl-10 h-12 bg-white"
-                value={locationQuery}
-                onChange={(e) => setLocationQuery(e.target.value)}
-              />
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white"
+          </form>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              size="sm"
+              className="h-10 rounded-lg font-medium"
+              onClick={() => setShowFilters(!showFilters)}
             >
-              Search
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+              {selectedCategory && (
+                <span className="ml-1.5 bg-white/20 text-xs rounded-full px-1.5 py-0.5">1</span>
+              )}
             </Button>
-          </motion.form>
-        </motion.div>
+            <p className="text-sm text-gray-500">
+              <span className="font-semibold text-gray-900">{totalWorkers}</span> workers
+              {totalPages > 1 && (
+                <span className="hidden sm:inline text-gray-400 ml-1">
+                  &middot; page {currentPage} of {totalPages}
+                </span>
+              )}
+            </p>
+          </div>
+          {(debouncedSearch || selectedCategory) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sm text-gray-500 hover:text-gray-900"
+              onClick={() => { setSearchInput(""); setSelectedCategory(""); }}
+            >
+              Clear all
+            </Button>
+          )}
+        </div>
 
-        {/* Results Section */}
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={staggerContainer}
-          className="mt-8"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="h-9"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
-              </Button>
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">{filteredWorkers.length}</span> Workers Found
-              </p>
+        {/* Category Filters */}
+        {showFilters && (
+          <div className="mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-100">
+            <p className="text-sm font-semibold text-gray-900 mb-3">Category</p>
+            <div className="flex flex-nowrap sm:flex-wrap gap-2 overflow-x-auto pb-1 -mb-1">
+              {CATEGORY_OPTIONS.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(selectedCategory === cat ? "" : cat)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                    selectedCategory === cat
+                      ? 'bg-gray-900 text-white shadow-sm'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:text-gray-900'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-fr">
-            {filteredWorkers.map((worker, index) => (
-              <motion.div
-                key={index}
-                variants={fadeIn}
-                className="bg-white rounded-xl p-4 shadow-soft hover:shadow-medium transition-shadow duration-300 w-full max-w-none"
+        {/* Workers Grid */}
+        <div className="relative min-h-[200px]">
+          {fetching && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-start justify-center pt-24 rounded-2xl">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            </div>
+          )}
+
+          {workers.length === 0 && !fetching ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <Search className="h-7 w-7 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">No workers found</h3>
+              <p className="text-gray-500 mb-5 max-w-sm">
+                Try adjusting your search or filters to find what you're looking for.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => { setSearchInput(""); setSelectedCategory(""); }}
+                className="rounded-lg"
               >
-                <div className="flex flex-col space-y-3">
-                  {/* Header with Avatar and Basic Info */}
-                  <div className="flex items-start gap-3">
-                    <div className="relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-gray-100">
-                      {worker.profileImage ? (
-                        <img 
-                          src={worker.profileImage} 
+                Clear filters
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+              {workers.map((worker) => (
+                <div
+                  key={worker.$id}
+                  className="group bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 flex flex-col gap-4 hover:border-gray-200 hover:shadow-lg transition-all duration-300"
+                >
+                  {/* Header */}
+                  <div className="flex items-start gap-4">
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="h-16 w-16 ring-2 ring-gray-100">
+                        <AvatarImage
+                          src={worker.profileImage || undefined}
                           alt={worker.displayName || 'Worker'}
-                          className="h-full w-full object-cover"
                         />
-                      ) : (
-                        <div className="absolute inset-0 bg-emerald-500 flex items-center justify-center text-white font-medium text-lg">
+                        <AvatarFallback className="bg-emerald-500 text-white text-lg font-semibold">
                           {(worker.displayName || 'W').charAt(0)}
-                        </div>
-                      )}
+                        </AvatarFallback>
+                      </Avatar>
                       {worker.isActive && (
-                        <div className="absolute bottom-0 right-0 h-3 w-3 bg-emerald-500 rounded-full border-2 border-white" />
+                        <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 bg-emerald-500 rounded-full border-[2.5px] border-white" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-medium text-gray-900 truncate">{worker.displayName || 'Worker'}</h3>
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <MapPin className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">{worker.city}, {worker.state}</span>
-                          </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-gray-950 truncate text-base leading-tight">
+                            {worker.displayName || 'Worker'}
+                          </h3>
+                          {(worker.city || worker.state) && (
+                            <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="truncate">
+                                {[worker.city, worker.state].filter(Boolean).join(', ')}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                        <div className="text-right flex-shrink-0 ml-2">
-                          <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
-                            <Star className="h-4 w-4 text-yellow-400 fill-current flex-shrink-0" />
-                            <span className="whitespace-nowrap">{worker.ratingAverage || 'New'}</span>
-                            {worker.totalReviews ? <span className="text-gray-500 whitespace-nowrap">({worker.totalReviews})</span> : null}
-                          </div>
-                          <p className="text-sm font-medium text-emerald-600 whitespace-nowrap">
-                            ₦{worker.hourlyRate}/hr
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-lg font-bold text-gray-950 leading-tight">
+                            ₦{worker.hourlyRate?.toLocaleString()}
                           </p>
+                          <p className="text-xs text-gray-400 font-medium">per hour</p>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-sm text-gray-600 line-clamp-2">{worker.bio}</p>
-                  
-                  {/* Categories */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {worker.categories?.slice(0, 3).map((category, index) => (
-                      <Badge key={index} variant="secondary" className="bg-gray-100 text-xs">
-                        {category}
-                      </Badge>
-                    ))}
-                    {(worker.categories?.length || 0) > 3 && (
-                      <Badge variant="secondary" className="bg-gray-100 text-xs">
-                        +{worker.categories!.length - 3} more
-                      </Badge>
+                  {/* Rating + Verified */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full">
+                      <Star className="h-3.5 w-3.5 fill-current" />
+                      <span className="text-xs font-semibold">
+                        {worker.ratingAverage || 'New'}
+                      </span>
+                      {worker.totalReviews ? (
+                        <span className="text-xs text-amber-500">({worker.totalReviews})</span>
+                      ) : null}
+                    </div>
+                    {worker.isVerified && (
+                      <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full">
+                        <Shield className="h-3 w-3" />
+                        <span className="text-xs font-semibold">Verified</span>
+                      </div>
                     )}
                   </div>
-                  
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-xs text-gray-600">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-                      <span className="truncate">{worker.responseTimeMinutes ? `Responds in ${worker.responseTimeMinutes}m` : 'Response time N/A'}</span>
-                    </div>
-                    <div className="flex-shrink-0 ml-2">{worker.completedJobs || 0} jobs</div>
+
+                  {/* Bio */}
+                  <p className="text-sm text-gray-500 leading-relaxed line-clamp-2">{worker.bio}</p>
+
+                  {/* Categories */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {worker.categories?.slice(0, 3).map((category, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 text-xs font-medium border border-gray-100"
+                      >
+                        {category}
+                      </span>
+                    ))}
+                    {(worker.categories?.length || 0) > 3 && (
+                      <span className="px-2.5 py-1 rounded-md bg-gray-50 text-gray-400 text-xs font-medium border border-gray-100">
+                        +{worker.categories!.length - 3}
+                      </span>
+                    )}
                   </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <Button 
-                      variant="outline" 
-                      className="flex-1 h-9 text-xs"
+
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-400 mb-0.5">Experience</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {worker.experienceYears ? `${worker.experienceYears}yr` : '--'}
+                      </p>
+                    </div>
+                    <div className="text-center border-l border-gray-100">
+                      <p className="text-xs text-gray-400 mb-0.5">Jobs</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {worker.completedJobs || 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-3 mt-auto pt-1">
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-11 rounded-xl font-medium text-sm border-gray-200 hover:bg-gray-50"
                       onClick={() => handleViewProfile(worker)}
                     >
-                      <span className="hidden sm:inline">View Profile</span>
-                      <span className="sm:hidden">Profile</span>
+                      View Profile
                     </Button>
-                    <Button 
-                      variant="outline"
-                      className="flex-1 h-9 text-xs"
-                      onClick={() => handleMessageWorker(worker)}
-                    >
-                      <MessageCircle className="h-3 w-3 sm:mr-1 flex-shrink-0" />
-                      <span className="hidden sm:inline ml-1">Message</span>
-                    </Button>
-                    <Button 
-                      className="flex-1 h-9 bg-emerald-500 hover:bg-emerald-600 text-xs"
+                    <Button
+                      className="flex-1 h-11 rounded-xl font-semibold text-sm bg-emerald-500 hover:bg-emerald-600 text-white"
                       onClick={() => handleBookWorker(worker)}
                     >
-                      <span className="hidden sm:inline">Book Now</span>
-                      <span className="sm:hidden">Book</span>
+                      Book Now
                     </Button>
                   </div>
                 </div>
-              </motion.div>
-            ))}
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1.5 mt-10 pb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={currentPage === 1}
+              className="h-10 px-3 rounded-lg text-gray-600 hover:text-gray-900"
+              onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Prev
+            </Button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let page: number;
+              if (totalPages <= 5) {
+                page = i + 1;
+              } else if (currentPage <= 3) {
+                page = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                page = totalPages - 4 + i;
+              } else {
+                page = currentPage - 2 + i;
+              }
+              return (
+                <Button
+                  key={page}
+                  variant="ghost"
+                  size="sm"
+                  className={`w-10 h-10 rounded-lg font-medium ${
+                    currentPage === page
+                      ? 'bg-gray-900 text-white hover:bg-gray-800 hover:text-white'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  onClick={() => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                >
+                  {page}
+                </Button>
+              );
+            })}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              className="h-10 px-3 rounded-lg text-gray-600 hover:text-gray-900"
+              onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
           </div>
-        </motion.div>
+        )}
       </main>
       <Footer />
 
-      {/* Booking Modal */}
       <BookingModal
         isOpen={bookingModal.isOpen}
         onClose={handleCloseBookingModal}
@@ -666,17 +775,14 @@ function WorkersPageContent() {
         onBookingSubmit={handleBookingSubmit}
       />
 
-      {/* Message Modal */}
       <MessageModal
         isOpen={messageModal.isOpen}
         onClose={handleCloseMessageModal}
         worker={messageModal.selectedWorker}
         recipientId={messageModal.selectedWorker?.userId || messageModal.selectedWorker?.$id}
         recipientName={messageModal.selectedWorker?.name}
-        recipientEmail={messageModal.selectedWorker?.email}
       />
 
-      {/* Worker Profile Modal */}
       <WorkerProfileModal
         isOpen={profileModal.isOpen}
         onClose={handleCloseProfileModal}
@@ -691,16 +797,11 @@ function WorkersPageContent() {
 export default function WorkersPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-white">
         <Header />
-        <main className="container mx-auto px-4 py-6 md:py-10">
-          <div className="flex flex-col items-center justify-center min-h-[60vh]">
-            <Card className="p-6">
-              <div className="flex flex-col items-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-                <p className="mt-2 text-sm text-gray-600">Loading available workers...</p>
-              </div>
-            </Card>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>
         </main>
         <Footer />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobApplicationService } from '@/lib/job-application.service';
 import { JobNotificationService } from '@/lib/job-notification.service';
+import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
 import { Query } from 'appwrite';
 
@@ -18,6 +19,11 @@ import { Query } from 'appwrite';
  */
 export async function POST(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const workerId = auth!.user.$id;
+
     const body = await request.json();
     const { jobId, message } = body;
 
@@ -28,21 +34,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Get authenticated user from session
-    // For now, assuming user is passed in request body
-    // In production, replace with: const session = await getServerSession();
-    const { workerId: tempWorkerId } = body;
-    if (!tempWorkerId) {
-      return NextResponse.json(
-        { success: false, message: 'Worker ID is required' },
-        { status: 400 }
-      );
-    }
-
     // Apply to job (use server databases for elevated permissions)
     const application = await JobApplicationService.applyToJob(
       jobId,
-      tempWorkerId,
+      workerId,
       message,
       serverDatabases
     );
@@ -50,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Get job and worker details for notification
     const [job, worker] = await Promise.all([
       serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId),
-      serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.WORKERS, tempWorkerId)
+      serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.WORKERS, workerId)
     ]);
 
     // Send notification to client about new applicant
@@ -120,6 +115,11 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const workerId = auth!.user.$id;
+
     const { searchParams } = new URL(request.url);
     const applicationId = searchParams.get('applicationId');
 
@@ -130,20 +130,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // TODO: Get authenticated user from session
-    const body = await request.json();
-    const { workerId: tempWorkerId } = body;
-    if (!tempWorkerId) {
-      return NextResponse.json(
-        { success: false, message: 'Worker ID is required' },
-        { status: 400 }
-      );
-    }
-
     // Withdraw application
     await JobApplicationService.withdrawApplication(
       applicationId,
-      tempWorkerId
+      workerId
     );
 
     return NextResponse.json({
@@ -182,21 +172,17 @@ export async function DELETE(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const clientId = auth!.user.$id;
+
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
 
     if (!jobId) {
       return NextResponse.json(
         { success: false, message: 'Job ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // TODO: Get authenticated client from session and verify ownership
-    const clientId = searchParams.get('clientId'); // Temporary
-    if (!clientId) {
-      return NextResponse.json(
-        { success: false, message: 'Client ID is required' },
         { status: 400 }
       );
     }

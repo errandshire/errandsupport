@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BroadcastService } from '@/lib/broadcast-service';
+import { requireAdmin } from '@/lib/auth-guard';
 
 /**
  * Admin Broadcast API
@@ -16,17 +17,13 @@ import { BroadcastService } from '@/lib/broadcast-service';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { adminId, message, channels, filters } = body;
+    const { auth, error } = await requireAdmin(request);
+    if (error) return error;
 
-    // TODO: Verify admin authentication from session
-    // For now, check if adminId is provided
-    if (!adminId) {
-      return NextResponse.json(
-        { success: false, message: 'Admin authentication required' },
-        { status: 401 }
-      );
-    }
+    const adminId = auth!.user.$id;
+
+    const body = await request.json();
+    const { message, channels, filters } = body;
 
     // Validate required fields
     if (!message || !message.title || !message.content) {
@@ -100,11 +97,13 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const { auth, error } = await requireAdmin(request);
+    if (error) return error;
+
+    const adminId = auth!.user.$id;
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const adminId = searchParams.get('adminId');
-
-    // TODO: Verify admin authentication from session
 
     if (!action) {
       return NextResponse.json(
@@ -115,22 +114,10 @@ export async function GET(request: NextRequest) {
 
     switch (action) {
       case 'history':
-        if (!adminId) {
-          return NextResponse.json(
-            { success: false, message: 'Admin ID required' },
-            { status: 400 }
-          );
-        }
         const history = await BroadcastService.getBroadcastHistory(adminId);
         return NextResponse.json({ success: true, history });
 
       case 'templates':
-        if (!adminId) {
-          return NextResponse.json(
-            { success: false, message: 'Admin ID required' },
-            { status: 400 }
-          );
-        }
         const templates = await BroadcastService.getTemplates(adminId);
         return NextResponse.json({ success: true, templates });
 

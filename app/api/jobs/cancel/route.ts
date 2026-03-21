@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ClientCancellationService } from '@/lib/client-cancellation.service';
+import { requireAuth } from '@/lib/auth-guard';
 
 /**
  * DELETE /api/jobs/cancel
@@ -19,6 +20,11 @@ import { ClientCancellationService } from '@/lib/client-cancellation.service';
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const clientId = auth!.user.$id;
+
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
 
@@ -29,22 +35,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get request body for clientId and reason
+    // Get request body for reason
     const body = await request.json().catch(() => ({}));
-    const { clientId: tempClientId, reason } = body;
-
-    // TODO: Get authenticated user from session
-    if (!tempClientId) {
-      return NextResponse.json(
-        { success: false, message: 'Client ID is required' },
-        { status: 400 }
-      );
-    }
+    const { reason } = body;
 
     // Cancel job using ClientCancellationService
     const result = await ClientCancellationService.cancelJob({
       jobId,
-      clientId: tempClientId,
+      clientId,
       reason
     });
 

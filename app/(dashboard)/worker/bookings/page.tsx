@@ -78,7 +78,8 @@ export default function WorkerJobsPage() {
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('workerId', user.$id),
-          Query.orderDesc('$createdAt')
+          Query.orderDesc('$createdAt'),
+          Query.limit(50)
         ]
       );
 

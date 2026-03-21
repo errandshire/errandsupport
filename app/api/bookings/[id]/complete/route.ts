@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
 import { ClientCancellationService } from '@/lib/client-cancellation.service';
 import { databases, COLLECTIONS } from '@/lib/appwrite';
+import { requireAuth } from '@/lib/auth-guard';
 
 /**
  * Complete a booking and release payment to worker
@@ -11,13 +12,18 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const clientId = auth!.user.$id;
+
     const bookingId = params.id;
     const body = await request.json();
-    const { clientId, workerId } = body;
+    const { workerId } = body;
 
-    if (!clientId || !workerId) {
+    if (!workerId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required field: workerId' },
         { status: 400 }
       );
     }
@@ -67,16 +73,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const clientId = auth!.user.$id;
+
     const bookingId = params.id;
     const body = await request.json();
-    const { clientId, reason } = body;
-
-    if (!clientId) {
-      return NextResponse.json(
-        { error: 'Missing clientId' },
-        { status: 400 }
-      );
-    }
+    const { reason } = body;
 
     const result = await ClientCancellationService.cancelBooking({
       bookingId,

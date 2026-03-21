@@ -27,8 +27,6 @@ interface Worker {
   userId: string;
   displayName?: string;
   name: string;
-  email: string;
-  phone: string;
   profileImage?: string;
   bio?: string;
   ratingAverage: number;

@@ -26,8 +26,18 @@ export function useAuth() {
   }, []);
 
   const checkAuthStatus = useCallback(async () => {
-    // Skip if we already have user data and are not loading
     if (user && !isLoading) {
+      return;
+    }
+
+    // Skip the network call when the persisted store already shows no auth.
+    // First-time visitors will have the defaults (null / false), so this
+    // avoids a wasted account.get() round-trip that would 401.
+    // Returning users whose session expired still have isAuthenticated: true
+    // in localStorage, so they'll pass through to the try/catch below.
+    const storeState = useAuthStore.getState();
+    if (!storeState.isAuthenticated && !storeState.user && !storeState.sessionToken) {
+      setLoading(false);
       return;
     }
 
