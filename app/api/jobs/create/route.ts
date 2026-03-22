@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobPostingService } from '@/lib/job-posting.service';
+import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases } = require('@/lib/appwrite-server');
 
 /**
@@ -10,16 +11,13 @@ const { serverDatabases } = require('@/lib/appwrite-server');
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { clientId, jobData } = body;
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
 
-    // Validate required fields
-    if (!clientId) {
-      return NextResponse.json(
-        { success: false, message: 'Client ID is required' },
-        { status: 400 }
-      );
-    }
+    const clientId = auth!.user.$id;
+
+    const body = await request.json();
+    const { jobData } = body;
 
     if (!jobData) {
       return NextResponse.json(

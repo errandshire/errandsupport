@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerSelectionService } from '@/lib/worker-selection.service';
+import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases } = require('@/lib/appwrite-server');
 
 /**
@@ -19,11 +20,14 @@ const { serverDatabases } = require('@/lib/appwrite-server');
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Parse request body
-    const body = await request.json();
-    const { jobId, applicationId, clientId: tempClientId } = body;
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
 
-    // 2. Validate input
+    const clientId = auth!.user.$id;
+
+    const body = await request.json();
+    const { jobId, applicationId } = body;
+
     if (!jobId || !applicationId) {
       return NextResponse.json(
         { success: false, message: 'Missing required fields: jobId and applicationId' },
@@ -31,20 +35,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Get authenticated user from session
-    // For now, using tempClientId from request body
-    if (!tempClientId) {
-      return NextResponse.json(
-        { success: false, message: 'Client ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // 3. Select worker (use server databases for elevated permissions)
     const bookingId = await WorkerSelectionService.selectWorkerForJob(
       jobId,
       applicationId,
-      tempClientId,
+      clientId,
       serverDatabases
     );
 

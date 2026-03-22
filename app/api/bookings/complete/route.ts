@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
+import { requireAuth } from '@/lib/auth-guard';
 
 /**
  * POST /api/bookings/complete
@@ -9,20 +10,17 @@ import { BookingCompletionService } from '@/lib/booking-completion.service';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { bookingId, clientId, workerId, amount, rating, review } = body;
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
 
-    // Validate required fields
+    const clientId = auth!.user.$id;
+
+    const body = await request.json();
+    const { bookingId, workerId, amount, rating, review } = body;
+
     if (!bookingId) {
       return NextResponse.json(
         { success: false, message: 'Booking ID is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!clientId) {
-      return NextResponse.json(
-        { success: false, message: 'Client ID is required' },
         { status: 400 }
       );
     }

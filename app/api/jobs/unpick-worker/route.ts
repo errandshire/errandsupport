@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerUnpickService } from '@/lib/worker-unpick.service';
+import { requireAuth } from '@/lib/auth-guard';
 import { trackCustomEvent } from '@/lib/meta-pixel-events';
 
 /**
@@ -8,18 +9,21 @@ import { trackCustomEvent } from '@/lib/meta-pixel-events';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { jobId, clientId, reason } = body;
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
 
-    // Validate required fields
-    if (!jobId || !clientId) {
+    const clientId = auth!.user.$id;
+
+    const body = await request.json();
+    const { jobId, reason } = body;
+
+    if (!jobId) {
       return NextResponse.json(
-        { success: false, message: 'Missing required fields: jobId, clientId' },
+        { success: false, message: 'Missing required field: jobId' },
         { status: 400 }
       );
     }
 
-    // Execute unpick
     const result = await WorkerUnpickService.unpickWorker(jobId, clientId, reason);
 
     // Track unpick event if successful
@@ -56,13 +60,17 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const clientId = auth!.user.$id;
+
     const searchParams = request.nextUrl.searchParams;
     const jobId = searchParams.get('jobId');
-    const clientId = searchParams.get('clientId');
 
-    if (!jobId || !clientId) {
+    if (!jobId) {
       return NextResponse.json(
-        { success: false, message: 'Missing jobId or clientId parameter' },
+        { success: false, message: 'Missing jobId parameter' },
         { status: 400 }
       );
     }

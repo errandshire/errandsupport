@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingActionService } from '@/lib/booking-action-service';
+import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
 import { trackMetaEvent } from '@/lib/meta-pixel-events';
 
@@ -9,13 +10,17 @@ import { trackMetaEvent } from '@/lib/meta-pixel-events';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { applicationId, workerId, action, reason } = body;
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
 
-    // Validate required fields
-    if (!applicationId || !workerId || !action) {
+    const workerId = auth!.user.$id;
+
+    const body = await request.json();
+    const { applicationId, action, reason } = body;
+
+    if (!applicationId || !action) {
       return NextResponse.json(
-        { success: false, message: 'Missing required fields: applicationId, workerId, action' },
+        { success: false, message: 'Missing required fields: applicationId, action' },
         { status: 400 }
       );
     }
@@ -115,6 +120,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
     const searchParams = request.nextUrl.searchParams;
     const applicationId = searchParams.get('applicationId');
 
@@ -125,9 +133,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get application with acceptance timestamps
-    const application = await databases.getDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+    const application = await serverDatabases.getDocument(
+      DATABASE_ID,
       COLLECTIONS.JOB_APPLICATIONS,
       applicationId
     );

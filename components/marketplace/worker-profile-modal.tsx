@@ -1,36 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { Star, MapPin, Clock, Shield, CheckCircle, Calendar, MessageCircle, X } from "lucide-react";
+import { Star, MapPin, Shield, CheckCircle, Calendar, MessageCircle, Briefcase, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { WorkerProfile } from "@/lib/types/marketplace";
-import { cn } from "@/lib/utils";
+import type { PublicWorkerProfile } from "@/lib/sanitize-worker";
 import { ReviewService, type ReviewWithDetails } from "@/lib/review-service";
 import { useState, useEffect } from "react";
 
 interface WorkerProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  worker: WorkerProfile | null;
-  onBookWorker: (worker: WorkerProfile) => void;
-  onMessageWorker: (worker: WorkerProfile) => void;
+  worker: PublicWorkerProfile | null;
+  onBookWorker: (worker: PublicWorkerProfile) => void;
+  onMessageWorker: (worker: PublicWorkerProfile) => void;
 }
 
-export function WorkerProfileModal({ 
-  isOpen, 
-  onClose, 
-  worker, 
-  onBookWorker, 
-  onMessageWorker 
+export function WorkerProfileModal({
+  isOpen,
+  onClose,
+  worker,
+  onBookWorker,
+  onMessageWorker
 }: WorkerProfileModalProps) {
   const [reviews, setReviews] = useState<ReviewWithDetails[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
 
-  // Fetch reviews when modal opens
   useEffect(() => {
     if (isOpen && worker?.$id) {
       fetchReviews();
@@ -39,10 +35,9 @@ export function WorkerProfileModal({
 
   const fetchReviews = async () => {
     if (!worker?.$id) return;
-    
     try {
       setIsLoadingReviews(true);
-      const reviewsData = await ReviewService.getWorkerReviews(worker.$id, 3); // Show only 3 recent reviews
+      const reviewsData = await ReviewService.getWorkerReviews(worker.$id, 3);
       setReviews(reviewsData);
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -50,277 +45,269 @@ export function WorkerProfileModal({
       setIsLoadingReviews(false);
     }
   };
+
   if (!worker) return null;
 
-  const formatResponseTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-  };
-
-  const formatWorkingHours = (start: string, end: string) => {
+  const formatWorkingHours = (start?: string, end?: string) => {
+    if (!start || !end) return '--';
     return `${start} - ${end}`;
   };
 
-  const formatWorkingDays = (days: string[]) => {
-    const dayMap: { [key: string]: string } = {
-      monday: 'Mon',
-      tuesday: 'Tue',
-      wednesday: 'Wed',
-      thursday: 'Thu',
-      friday: 'Fri',
-      saturday: 'Sat',
-      sunday: 'Sun'
+  const formatWorkingDays = (days?: string[]) => {
+    if (!days || days.length === 0) return '--';
+    const dayMap: Record<string, string> = {
+      monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed',
+      thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun'
     };
     return days.map(day => dayMap[day] || day).join(', ');
   };
 
+  const initials = (worker.displayName || 'W')
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle className="sr-only">Worker Profile</DialogTitle>
+      <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[95vh] overflow-y-auto p-0 gap-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Worker Profile</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6">
-          {/* Header Section */}
-          <div className="flex flex-col sm:flex-row items-start gap-4">
-            <div className="relative mx-auto sm:mx-0">
-              <Avatar className="h-20 w-20 sm:h-24 sm:w-24">
-                <AvatarImage src={worker.profileImage} alt={worker.displayName} />
-                <AvatarFallback className="text-xl">
-                  {worker.displayName.split(' ').map(n => n[0]).join('')}
+        {/* Header */}
+        <div className="px-5 sm:px-8 pt-8 pb-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+            <div className="relative flex-shrink-0">
+              <Avatar className="h-24 w-24 sm:h-28 sm:w-28 ring-4 ring-gray-100">
+                <AvatarImage src={worker.profileImage || undefined} alt={worker.displayName} />
+                <AvatarFallback className="bg-emerald-500 text-white text-2xl sm:text-3xl font-semibold">
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               {worker.isActive && (
-                <div className="absolute -bottom-1 -right-1 h-6 w-6 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
+                <div className="absolute bottom-1 right-1 h-6 w-6 bg-emerald-500 rounded-full border-[3px] border-white flex items-center justify-center">
                   <div className="h-2 w-2 bg-white rounded-full" />
                 </div>
               )}
             </div>
 
-            <div className="flex-1 min-w-0 w-full text-center sm:text-left">
-              <div className="space-y-3">
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{worker.displayName}</h2>
-                  <div className="flex items-center justify-center sm:justify-start gap-1 mb-2">
-                    <MapPin className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-600">{worker.city}, {worker.state}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-center sm:justify-start gap-4">
-                  <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 fill-current" />
-                    <span className="text-base sm:text-lg font-semibold text-gray-900">{worker.ratingAverage}</span>
-                    <span className="text-xs sm:text-sm text-gray-500">({worker.totalReviews} reviews)</span>
-                  </div>
-                  <p className="text-lg sm:text-xl font-bold text-emerald-600">
-                    ₦{worker.hourlyRate.toLocaleString()}/hr
-                  </p>
-                </div>
-
-                {/* Verification Badges */}
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  {worker.isVerified && (
-                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-xs">
-                      <Shield className="h-3 w-3 mr-1" />
-                      Verified
-                    </Badge>
-                  )}
-                  {worker.idVerified && (
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      ID Verified
-                    </Badge>
-                  )}
-                  {worker.backgroundCheckVerified && (
-                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">
-                      <Shield className="h-3 w-3 mr-1" />
-                      Background Check
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* About Section */}
-          <div>
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">About</h3>
-            <p className="text-sm sm:text-base text-gray-600 leading-relaxed">{worker.bio}</p>
-          </div>
-
-          {/* Skills & Categories */}
-          <div>
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Skills & Services</h3>
-            <div className="space-y-3">
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Categories</h4>
-                <div className="flex flex-wrap gap-2">
-                  {worker.categories.map((category, index) => (
-                    <Badge key={index} variant="outline" className="bg-gray-50 text-xs sm:text-sm">
-                      {category}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              {worker.skills && worker.skills.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Skills</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {worker.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs sm:text-sm">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <h2 className="text-2xl font-bold tracking-tight text-gray-950 mb-1">
+                {worker.displayName}
+              </h2>
+              {(worker.city || worker.state) && (
+                <div className="flex items-center justify-center sm:justify-start gap-1.5 text-gray-500 mb-4">
+                  <MapPin className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm">
+                    {[worker.city, worker.state].filter(Boolean).join(', ')}
+                  </span>
                 </div>
               )}
+
+              <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full">
+                  <Star className="h-4 w-4 fill-current" />
+                  <span className="text-sm font-bold">{worker.ratingAverage || 'New'}</span>
+                  {worker.totalReviews ? (
+                    <span className="text-xs text-amber-500">({worker.totalReviews})</span>
+                  ) : null}
+                </div>
+                <span className="text-xl font-bold text-gray-950">
+                  ₦{worker.hourlyRate?.toLocaleString()}<span className="text-sm font-medium text-gray-400">/hr</span>
+                </span>
+              </div>
+
+              {/* Verification Badges */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
+                {worker.isVerified && (
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                    <Shield className="h-3 w-3" /> Verified
+                  </span>
+                )}
+                {worker.idVerified && (
+                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                    <CheckCircle className="h-3 w-3" /> ID Verified
+                  </span>
+                )}
+                {worker.backgroundCheckVerified && (
+                  <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                    <Shield className="h-3 w-3" /> Background Check
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100" />
+
+        {/* Body */}
+        <div className="px-5 sm:px-8 py-6 space-y-6">
+
+          {/* About */}
+          {worker.bio && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-950 uppercase tracking-wider mb-2">About</h3>
+              <p className="text-sm sm:text-base text-gray-600 leading-relaxed">{worker.bio}</p>
+            </div>
+          )}
+
+          {/* Categories + Skills */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-950 uppercase tracking-wider mb-3">Services</h3>
+            <div className="flex flex-wrap gap-2">
+              {worker.categories.map((category, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1.5 rounded-lg bg-gray-50 text-gray-700 text-xs sm:text-sm font-medium border border-gray-100"
+                >
+                  {category}
+                </span>
+              ))}
+              {worker.skills && worker.skills.map((skill, index) => (
+                <span
+                  key={`skill-${index}`}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs sm:text-sm font-medium border border-emerald-100"
+                >
+                  {skill}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* Experience & Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div>
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Experience</h3>
-              <div className="space-y-2 text-sm sm:text-base">
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Years of Experience</span>
-                  <span className="font-medium">{worker.experienceYears} years</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Completed Jobs</span>
-                  <span className="font-medium">{worker.completedJobs}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Response Time</span>
-                  <span className="font-medium">{formatResponseTime(worker.responseTimeMinutes)}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Rehire Rate</span>
-                  <span className="font-medium">{worker.rehireRatePercent}%</span>
-                </div>
-              </div>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-gray-50 rounded-xl p-4 text-center">
+              <Briefcase className="h-5 w-5 text-gray-400 mx-auto mb-1.5" />
+              <p className="text-lg font-bold text-gray-950">{worker.experienceYears || 0}</p>
+              <p className="text-xs text-gray-500">Years exp.</p>
             </div>
+            <div className="bg-gray-50 rounded-xl p-4 text-center">
+              <CheckCircle className="h-5 w-5 text-gray-400 mx-auto mb-1.5" />
+              <p className="text-lg font-bold text-gray-950">{worker.completedJobs || 0}</p>
+              <p className="text-xs text-gray-500">Jobs done</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 text-center">
+              <Star className="h-5 w-5 text-gray-400 mx-auto mb-1.5" />
+              <p className="text-lg font-bold text-gray-950">{worker.rehireRatePercent || 0}%</p>
+              <p className="text-xs text-gray-500">Rehire rate</p>
+            </div>
+          </div>
 
-            <div>
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Availability</h3>
-              <div className="space-y-2 text-sm sm:text-base">
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Working Days</span>
-                  <span className="font-medium text-right">{formatWorkingDays(worker.workingDays)}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Working Hours</span>
-                  <span className="font-medium text-right">{formatWorkingHours(worker.workingHoursStart, worker.workingHoursEnd)}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Service Radius</span>
-                  <span className="font-medium">{worker.maxRadiusKm} km</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Last Minute Jobs</span>
-                  <span className="font-medium">{worker.acceptsLastMinute ? 'Yes' : 'No'}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-gray-600">Weekend Work</span>
-                  <span className="font-medium">{worker.acceptsWeekends ? 'Yes' : 'No'}</span>
-                </div>
+          {/* Availability */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-950 uppercase tracking-wider mb-3">Availability</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5 text-sm">
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Working Days</span>
+                <span className="font-medium text-gray-900 text-right">{formatWorkingDays(worker.workingDays)}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Hours</span>
+                <span className="font-medium text-gray-900 text-right">{formatWorkingHours(worker.workingHoursStart, worker.workingHoursEnd)}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Service Radius</span>
+                <span className="font-medium text-gray-900">{worker.maxRadiusKm ? `${worker.maxRadiusKm} km` : '--'}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Last Minute</span>
+                <span className="font-medium text-gray-900">{worker.acceptsLastMinute ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-gray-500">Weekends</span>
+                <span className="font-medium text-gray-900">{worker.acceptsWeekends ? 'Yes' : 'No'}</span>
               </div>
             </div>
           </div>
 
           {/* Languages */}
-          {worker && worker.languages && worker.languages?.length > 0 && (
+          {worker.languages && worker.languages.length > 0 && (
             <div>
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Languages</h3>
+              <h3 className="text-sm font-semibold text-gray-950 uppercase tracking-wider mb-3">Languages</h3>
               <div className="flex flex-wrap gap-2">
                 {worker.languages.map((language, index) => (
-                  <Badge key={index} variant="outline" className="bg-blue-50 text-blue-700 text-xs sm:text-sm">
+                  <span
+                    key={index}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs sm:text-sm font-medium border border-blue-100"
+                  >
+                    <Globe className="h-3 w-3" />
                     {language}
-                  </Badge>
+                  </span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Recent Reviews */}
-          {worker.totalReviews > 0 && (
+          {/* Reviews */}
+          {worker.totalReviews && worker.totalReviews > 0 && (
             <div>
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Recent Reviews</h3>
+              <h3 className="text-sm font-semibold text-gray-950 uppercase tracking-wider mb-3">Reviews</h3>
               {isLoadingReviews ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="animate-pulse">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-                        <div className="flex-1 space-y-2">
-                          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                          <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                        </div>
+                    <div key={i} className="animate-pulse bg-gray-50 rounded-xl p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full" />
+                        <div className="h-4 bg-gray-200 rounded w-24" />
                       </div>
+                      <div className="h-3 bg-gray-200 rounded w-3/4" />
                     </div>
                   ))}
                 </div>
               ) : reviews.length > 0 ? (
                 <div className="space-y-3">
                   {reviews.map((review) => (
-                    <div key={review.$id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="text-xs">
+                    <div key={review.$id} className="bg-gray-50 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar className="w-7 h-7">
+                            <AvatarFallback className="text-xs bg-gray-200 text-gray-600">
                               {review.clientName?.charAt(0) || 'C'}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-sm font-semibold text-gray-900">
                             {review.clientName || 'Anonymous'}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center gap-0.5">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <Star
                               key={star}
-                              className={`h-3 w-3 ${
+                              className={`h-3.5 w-3.5 ${
                                 star <= review.rating
-                                  ? 'text-yellow-400 fill-current'
-                                  : 'text-gray-300'
+                                  ? 'text-amber-400 fill-current'
+                                  : 'text-gray-200'
                               }`}
                             />
                           ))}
                         </div>
                       </div>
                       {review.comment && (
-                        <p className="text-sm text-gray-600 line-clamp-2">
+                        <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
                           {review.comment}
                         </p>
                       )}
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-500">
-                          {review.jobTitle || 'Service Request'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(review.createdAt).toLocaleDateString()}
-                        </span>
+                      <div className="flex items-center justify-between mt-2.5 text-xs text-gray-400">
+                        <span>{review.jobTitle || 'Service Request'}</span>
+                        <span>{new Date(review.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">No reviews available</p>
+                <p className="text-sm text-gray-400">No reviews yet</p>
               )}
             </div>
           )}
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2 sm:pt-4">
+        {/* Sticky Actions */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 sm:px-8 py-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
-              className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-600"
+              className="flex-1 h-12 rounded-xl font-semibold text-sm bg-emerald-500 hover:bg-emerald-600 text-white"
               onClick={() => onBookWorker(worker)}
             >
               <Calendar className="h-4 w-4 mr-2" />
@@ -328,7 +315,7 @@ export function WorkerProfileModal({
             </Button>
             <Button
               variant="outline"
-              className="flex-1 h-12"
+              className="flex-1 h-12 rounded-xl font-medium text-sm border-gray-200 hover:bg-gray-50"
               onClick={() => onMessageWorker(worker)}
             >
               <MessageCircle className="h-4 w-4 mr-2" />
@@ -339,4 +326,4 @@ export function WorkerProfileModal({
       </DialogContent>
     </Dialog>
   );
-} 
+}

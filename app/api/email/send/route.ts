@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
+import { requireAuth, unauthorizedResponse } from '@/lib/auth-guard';
 
 // Initialize Resend client on server-side
 const resend = new Resend(process.env.RESEND_API_KEY || 'dummy-key-for-build');
@@ -14,7 +15,9 @@ const EMAIL_CONFIG = {
 
 export async function POST(request: NextRequest) {
   try {
-    
+    const { error } = await requireAuth(request);
+    if (error) return error;
+
     const body = await request.json();
     const { to, subject, html, type, data } = body;
 

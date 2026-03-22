@@ -11,7 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { WorkerProfile, BookingRequest } from "@/lib/types/marketplace";
+import { BookingRequest } from "@/lib/types/marketplace";
+import type { PublicWorkerProfile } from "@/lib/sanitize-worker";
 // Wallet-based payment - no need for direct Paystack integration
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -21,7 +22,7 @@ import { SettingsService } from "@/lib/settings.service";
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  worker: WorkerProfile | null;
+  worker: PublicWorkerProfile | null;
   onBookingSubmit: (booking: Partial<BookingRequest>) => Promise<void>;
 }
 
@@ -88,7 +89,7 @@ type BookingFormState = Partial<BookingRequest> & {
 interface BookingDetailsStepProps {
   formData: BookingFormState;
   onFormDataChange: (data: BookingFormState) => void;
-  worker: WorkerProfile;
+  worker: PublicWorkerProfile;
 }
 
 function BookingDetailsStep({ formData, onFormDataChange, worker }: BookingDetailsStepProps) {
@@ -163,7 +164,7 @@ function BookingDetailsStep({ formData, onFormDataChange, worker }: BookingDetai
 interface SchedulingStepProps {
   formData: BookingFormState;
   onFormDataChange: (data: BookingFormState) => void;
-  worker: WorkerProfile;
+  worker: PublicWorkerProfile;
 }
 
 function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepProps) {
@@ -227,7 +228,7 @@ function SchedulingStep({ formData, onFormDataChange, worker }: SchedulingStepPr
 interface PaymentStepProps {
   formData: BookingFormState;
   onFormDataChange: (data: BookingFormState) => void;
-  worker: WorkerProfile;
+  worker: PublicWorkerProfile;
   onBookingSubmit: (booking: Partial<BookingRequest>) => Promise<void>;
 }
 
@@ -498,7 +499,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
 
 interface ConfirmationStepProps {
   formData: BookingFormState;
-  worker: WorkerProfile;
+  worker: PublicWorkerProfile;
   onConfirm: () => void;
   isSubmitting: boolean;
 }

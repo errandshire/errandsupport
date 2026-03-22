@@ -7,23 +7,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
+import { Loader2, Search, ArrowUpRight, ArrowDownRight, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 20;
 
 export default function AdminTransactionsPage() {
   const [transactions, setTransactions] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [totalItems, setTotalItems] = React.useState(0);
 
   const loadTransactions = React.useCallback(async () => {
     try {
       setLoading(true);
 
+      const offset = (currentPage - 1) * PAGE_SIZE;
       const queries: any[] = [
         Query.orderDesc('createdAt'),
-        Query.limit(100)
+        Query.limit(PAGE_SIZE),
+        Query.offset(offset)
       ];
 
       if (typeFilter !== "all") {
@@ -37,17 +43,20 @@ export default function AdminTransactionsPage() {
       );
 
       setTransactions(response.documents);
+      setTotalItems(response.total);
     } catch (error) {
       console.error('Error loading transactions:', error);
       toast.error('Failed to load transactions');
     } finally {
       setLoading(false);
     }
-  }, [typeFilter]);
+  }, [typeFilter, currentPage]);
 
   React.useEffect(() => {
     loadTransactions();
   }, [loadTransactions]);
+
+  const totalPages = Math.ceil(totalItems / PAGE_SIZE);
 
   const filteredTransactions = React.useMemo(() => {
     if (!searchQuery) return transactions;
@@ -220,6 +229,34 @@ export default function AdminTransactionsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <p className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages} ({totalItems} total)
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

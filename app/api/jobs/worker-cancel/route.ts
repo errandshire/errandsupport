@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerCancellationService } from '@/lib/worker-cancellation.service';
+import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases } = require('@/lib/appwrite-server');
 
 /**
@@ -21,6 +22,11 @@ const { serverDatabases } = require('@/lib/appwrite-server');
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
+
+    const workerUserId = auth!.user.$id;
+
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
 
@@ -33,12 +39,11 @@ export async function DELETE(request: NextRequest) {
 
     // Get request body
     const body = await request.json().catch(() => ({}));
-    const { workerId, workerUserId, reason } = body;
+    const { workerId, reason } = body;
 
-    // TODO: Get authenticated user from session
-    if (!workerId || !workerUserId) {
+    if (!workerId) {
       return NextResponse.json(
-        { success: false, message: 'Worker ID and Worker User ID are required' },
+        { success: false, message: 'Worker ID is required' },
         { status: 400 }
       );
     }

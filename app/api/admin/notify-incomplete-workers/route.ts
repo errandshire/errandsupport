@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerNotificationService } from '@/lib/worker-notification.service';
+import { requireAdmin } from '@/lib/auth-guard';
 
 /**
  * POST /api/admin/notify-incomplete-workers
@@ -14,11 +15,10 @@ import { WorkerNotificationService } from '@/lib/worker-notification.service';
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔔 Starting bulk worker notification process...');
+    const { error } = await requireAdmin(request);
+    if (error) return error;
 
-    // TODO: Add admin authentication check here
-    // For now, allowing all requests for testing purposes
-    // In production, verify the user has admin role
+    console.log('🔔 Starting bulk worker notification process...');
 
     // Send notifications to all incomplete workers
     const stats = await WorkerNotificationService.notifyIncompleteWorkers();
@@ -69,7 +69,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Import here to avoid circular dependencies
+    const { error } = await requireAdmin(request);
+    if (error) return error;
+
     const { databases } = await import('@/lib/appwrite');
     const { Query } = await import('appwrite');
     const { COLLECTIONS } = await import('@/lib/appwrite');

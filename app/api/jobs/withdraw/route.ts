@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
 
 /**
@@ -11,12 +12,17 @@ const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-se
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { applicationId, workerId } = body;
+    const { auth, error } = await requireAuth(request);
+    if (error) return error;
 
-    if (!applicationId || !workerId) {
+    const workerId = auth!.user.$id;
+
+    const body = await request.json();
+    const { applicationId } = body;
+
+    if (!applicationId) {
       return NextResponse.json(
-        { success: false, message: 'Application ID and Worker ID are required' },
+        { success: false, message: 'Application ID is required' },
         { status: 400 }
       );
     }

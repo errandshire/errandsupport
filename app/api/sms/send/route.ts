@@ -7,9 +7,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { TermiiSMSService } from '@/lib/termii-sms.service';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(request: NextRequest) {
   try {
+    const { error } = await requireAuth(request);
+    if (error) return error;
+
     const body = await request.json();
     const { to, message } = body;
 
