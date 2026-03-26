@@ -11,6 +11,7 @@ const PUBLIC_WORKER_FIELDS = [
   'name',
   'displayName',
   'profileImage',
+  'avatar',
   'bio',
   'categories',
   'skills',
@@ -49,6 +50,7 @@ export interface PublicWorkerProfile {
   name?: string;
   displayName?: string;
   profileImage?: string | null;
+  avatar?: string | null;
   bio?: string;
   categories: string[];
   skills?: string[];

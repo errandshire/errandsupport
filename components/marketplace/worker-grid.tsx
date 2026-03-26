@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkerProfile, SearchFilters } from "@/lib/types/marketplace";
 import { cn } from "@/lib/utils";
+import { workerProfileImageUrl } from "@/lib/avatar-display";
 
 interface WorkerCardProps {
   worker: WorkerProfile;
@@ -102,7 +103,7 @@ function WorkerCard({ worker, onViewProfile, onBookNow, onMessage }: WorkerCardP
         <div className="flex items-center space-x-3">
           <div className="relative">
             <Avatar className="h-12 w-12">
-              <AvatarImage src={worker.profileImage} alt={worker.displayName} />
+              <AvatarImage src={workerProfileImageUrl(worker)} alt={worker.displayName} />
               <AvatarFallback>
                 {worker.displayName.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>

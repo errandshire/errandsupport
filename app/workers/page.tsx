@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import type { BookingRequest } from "@/lib/types/marketplace";
 import type { PublicWorkerProfile } from "@/lib/sanitize-worker";
 import { trackBookingInitiated, trackPurchase } from "@/lib/meta-pixel-events";
+import { workerProfileImageUrl } from "@/lib/avatar-display";
 
 const CATEGORY_OPTIONS = [
   'Cleaning',
@@ -600,7 +601,7 @@ function WorkersPageContent() {
                     <div className="relative flex-shrink-0">
                       <Avatar className="h-16 w-16 ring-2 ring-gray-100">
                         <AvatarImage
-                          src={worker.profileImage || undefined}
+                          src={workerProfileImageUrl(worker)}
                           alt={worker.displayName || 'Worker'}
                         />
                         <AvatarFallback className="bg-emerald-500 text-white text-lg font-semibold">

@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SettingsService } from "@/lib/settings.service";
+import { workerProfileImageUrl } from "@/lib/avatar-display";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -621,7 +622,7 @@ export function BookingModal({ isOpen, onClose, worker, onBookingSubmit }: Booki
         <DialogHeader className="space-y-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-12 w-12 sm:h-14 sm:w-14">
-              <AvatarImage src={worker.profileImage || undefined} alt={worker.displayName || 'Worker'} />
+              <AvatarImage src={workerProfileImageUrl(worker)} alt={worker.displayName || 'Worker'} />
               <AvatarFallback className="text-lg">
                 {(worker.displayName || '').split(' ').map(n => n[0]).join('')}
               </AvatarFallback>

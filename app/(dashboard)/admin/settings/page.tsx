@@ -8,10 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Save, DollarSign, Percent, Clock, Loader2 } from "lucide-react";
+import { Save, DollarSign, Percent, Clock, Loader2, User } from "lucide-react";
 import { SettingsService } from "@/lib/settings.service";
+import { useAuth } from "@/hooks/use-auth";
+import { ProfilePictureUpload } from "@/components/settings/profile-picture-upload";
 
 export default function AdminSettingsPage() {
+  const { user } = useAuth();
   const [platformFee, setPlatformFee] = React.useState("5");
   const [clientWithdrawalFee, setClientWithdrawalFee] = React.useState("20");
   const [minWithdrawal, setMinWithdrawal] = React.useState("100");
@@ -81,6 +84,25 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {user && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <User className="h-5 w-5 text-primary" />
+                <CardTitle>Your profile</CardTitle>
+              </div>
+              <CardDescription>Profile picture for your admin account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProfilePictureUpload
+                userId={user.$id}
+                role="admin"
+                displayName={user.name || user.email}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Payment Settings */}
         <Card>
           <CardHeader>

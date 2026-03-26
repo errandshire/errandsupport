@@ -28,6 +28,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PasswordService } from "@/lib/password-service";
 import { PasswordStrengthIndicator } from "@/components/forms/password-strength-indicator";
 import { DeleteAccountModal } from "@/components/settings/delete-account-modal";
+import { ProfilePictureUpload } from "@/components/settings/profile-picture-upload";
 import { toast } from "sonner";
 
 export default function ClientSettingsPage() {
@@ -166,6 +167,11 @@ export default function ClientSettingsPage() {
                     <CardDescription>Update your personal details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
+                    <ProfilePictureUpload
+                      userId={user.$id}
+                      role="client"
+                      displayName={`${profileData.firstName} ${profileData.lastName}`.trim() || user.name || user.email}
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="first-name">First Name</Label>

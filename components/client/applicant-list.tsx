@@ -9,6 +9,7 @@ import { Star, Briefcase, Calendar, User, CheckCircle2, Eye } from "lucide-react
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkerProfileModal } from "./worker-profile-modal";
+import { workerProfileImageUrl } from "@/lib/avatar-display";
 
 interface ApplicantWorker {
   $id: string;
@@ -16,6 +17,7 @@ interface ApplicantWorker {
   displayName?: string;
   name: string;
   profileImage?: string;
+  avatar?: string;
   bio?: string;
   ratingAverage: number;
   totalReviews: number;
@@ -132,6 +134,7 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
                 displayName: worker.displayName,
                 name: worker.name,
                 profileImage: worker.profileImage,
+                avatar: worker.avatar,
                 bio: worker.bio,
                 skills: worker.skills || [],
                 categories: worker.categories || [],
@@ -228,7 +231,7 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
             <div className="flex items-start gap-4">
               {/* Worker Avatar */}
               <Avatar className="h-16 w-16">
-                <AvatarImage src={worker.profileImage} alt={workerName} />
+                <AvatarImage src={workerProfileImageUrl(worker)} alt={workerName} />
                 <AvatarFallback className="text-lg">
                   {workerName.charAt(0).toUpperCase()}
                 </AvatarFallback>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PublicWorkerProfile } from "@/lib/sanitize-worker";
+import { workerProfileImageUrl } from "@/lib/avatar-display";
 import { ReviewService, type ReviewWithDetails } from "@/lib/review-service";
 import { useState, useEffect } from "react";
 
@@ -80,7 +81,7 @@ export function WorkerProfileModal({
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
             <div className="relative flex-shrink-0">
               <Avatar className="h-24 w-24 sm:h-28 sm:w-28 ring-4 ring-gray-100">
-                <AvatarImage src={worker.profileImage || undefined} alt={worker.displayName} />
+                <AvatarImage src={workerProfileImageUrl(worker)} alt={worker.displayName} />
                 <AvatarFallback className="bg-emerald-500 text-white text-2xl sm:text-3xl font-semibold">
                   {initials}
                 </AvatarFallback>

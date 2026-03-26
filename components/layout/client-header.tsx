@@ -19,6 +19,7 @@ import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/notification-service';
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { userProfileImageUrl } from "@/lib/avatar-display";
 
 interface ClientHeaderProps {
   sidebarOpen: boolean;
@@ -204,7 +205,7 @@ export const ClientHeader: React.FC<ClientHeaderProps> = ({ sidebarOpen, onSideb
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.avatar || ""} alt={userDisplayName} />
+                    <AvatarImage src={userProfileImageUrl(user ?? undefined)} alt={userDisplayName} />
                     <AvatarFallback className="text-sm">{userInitials}</AvatarFallback>
                   </Avatar>
                 </Button>

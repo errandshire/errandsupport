@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { userProfileImageUrl } from "@/lib/avatar-display";
 
 interface BookingCardProps {
   booking: {
@@ -27,6 +28,7 @@ interface BookingCardProps {
   userProfile: {
     id: string;
     name: string;
+    avatar?: string;
     profileImage?: string;
     rating?: number;
   };
@@ -114,7 +116,7 @@ export function BookingCard({
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={userProfile.profileImage} alt={userProfile.name} />
+              <AvatarImage src={userProfileImageUrl(userProfile)} alt={userProfile.name} />
               <AvatarFallback>
                 {userProfile.name.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>

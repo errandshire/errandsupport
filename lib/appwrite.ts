@@ -1,8 +1,6 @@
 import { Client, Account, Databases, Storage, Functions, Teams } from 'appwrite';
 
-// Environment variables
-const APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!;
-const APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
+// Environment variables (read at call time where needed for lazy client)
 const APPWRITE_DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const APPWRITE_STORAGE_BUCKET_ID = process.env.NEXT_PUBLIC_APPWRITE_STORAGE_BUCKET_ID!;
 
@@ -46,17 +44,69 @@ export const COLLECTIONS = {
   PARTNER_COMMISSIONS: process.env.NEXT_PUBLIC_APPWRITE_PARTNER_COMMISSIONS_COLLECTION_ID!,
 } as const;
 
-// Initialize Appwrite client
-export const client = new Client()
-  .setEndpoint(APPWRITE_ENDPOINT)
-  .setProject(APPWRITE_PROJECT_ID);
+// Lazy client — avoids setEndpoint(undefined) during `next build` / static analysis
+let _client: Client | undefined;
+let _account: Account | undefined;
+let _databases: Databases | undefined;
+let _storage: Storage | undefined;
+let _functions: Functions | undefined;
+let _teams: Teams | undefined;
 
-// Initialize Appwrite services
-export const account = new Account(client);
-export const databases = new Databases(client);
-export const storage = new Storage(client);
-export const functions = new Functions(client);
-export const teams = new Teams(client);
+function ensureClient(): Client {
+  if (!_client) {
+    const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+    if (!endpoint || !projectId) {
+      throw new Error(
+        'Appwrite: NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID are required'
+      );
+    }
+    _client = new Client().setEndpoint(endpoint).setProject(projectId);
+  }
+  return _client;
+}
+
+function getAccount(): Account {
+  if (!_account) _account = new Account(ensureClient());
+  return _account;
+}
+
+function getDatabases(): Databases {
+  if (!_databases) _databases = new Databases(ensureClient());
+  return _databases;
+}
+
+function getStorage(): Storage {
+  if (!_storage) _storage = new Storage(ensureClient());
+  return _storage;
+}
+
+function getFunctions(): Functions {
+  if (!_functions) _functions = new Functions(ensureClient());
+  return _functions;
+}
+
+function getTeams(): Teams {
+  if (!_teams) _teams = new Teams(ensureClient());
+  return _teams;
+}
+
+function lazyService<T extends object>(getter: () => T): T {
+  return new Proxy({} as T, {
+    get(_, prop) {
+      const svc = getter();
+      const v = (svc as Record<string | symbol, unknown>)[prop as string];
+      return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(svc) : v;
+    },
+  });
+}
+
+export const client = lazyService(ensureClient) as Client;
+export const account = lazyService(getAccount) as Account;
+export const databases = lazyService(getDatabases) as Databases;
+export const storage = lazyService(getStorage) as Storage;
+export const functions = lazyService(getFunctions) as Functions;
+export const teams = lazyService(getTeams) as Teams;
 
 // Database and Storage IDs
 export const DATABASE_ID = APPWRITE_DATABASE_ID;
@@ -64,11 +114,15 @@ export const STORAGE_BUCKET_ID = APPWRITE_STORAGE_BUCKET_ID;
 
 // Helper functions
 export const appwriteConfig = {
-  endpoint: APPWRITE_ENDPOINT,
-  projectId: APPWRITE_PROJECT_ID,
+  get endpoint() {
+    return process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!;
+  },
+  get projectId() {
+    return process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
+  },
   databaseId: APPWRITE_DATABASE_ID,
   storageBucketId: APPWRITE_STORAGE_BUCKET_ID,
   collections: COLLECTIONS,
 };
 
-export default client; 
+export default client;

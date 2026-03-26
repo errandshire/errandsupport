@@ -22,6 +22,8 @@ export interface WorkerProfile {
   phone: string;
   role: 'worker';
   profileImage: string | null;
+  /** Same storage URL as profileImage when set via profile upload; some APIs expose both */
+  avatar?: string | null;
   isVerified: boolean;
   isActive: boolean;
   address: string;

@@ -6,6 +6,8 @@ export interface User extends Models.Document {
   email: string;
   phone?: string;
   avatar?: string;
+  /** Same URL as avatar when set via profile settings; used by reviews and admin views */
+  profileImage?: string;
   role: 'client' | 'worker' | 'admin';
   status: 'active' | 'inactive' | 'suspended';
   createdAt: string;

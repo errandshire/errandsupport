@@ -21,6 +21,7 @@ import {
 import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
 import { Query } from "appwrite";
 import { toast } from "sonner";
+import { workerProfileImageUrl } from "@/lib/avatar-display";
 
 interface Worker {
   $id: string;
@@ -28,6 +29,7 @@ interface Worker {
   displayName?: string;
   name: string;
   profileImage?: string;
+  avatar?: string;
   bio?: string;
   ratingAverage: number;
   totalReviews: number;
@@ -182,7 +184,7 @@ export function WorkerProfileModal({
           {/* Worker Header */}
           <div className="flex items-start gap-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src={worker.profileImage} alt={workerName} />
+              <AvatarImage src={workerProfileImageUrl(worker)} alt={workerName} />
               <AvatarFallback className="text-2xl">
                 {workerName.charAt(0).toUpperCase()}
               </AvatarFallback>

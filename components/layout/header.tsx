@@ -21,6 +21,7 @@ import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
 import { useRouter } from "next/navigation";
 import { realtimeNotificationService } from '@/lib/realtime-notification-service';
+import { userProfileImageUrl } from "@/lib/avatar-display";
 
 interface HeaderProps {
   className?: string;
@@ -310,7 +311,7 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.avatar || ""} alt={userDisplayName} />
+                          <AvatarImage src={userProfileImageUrl(user)} alt={userDisplayName} />
                           <AvatarFallback>
                             {userInitials}
                           </AvatarFallback>

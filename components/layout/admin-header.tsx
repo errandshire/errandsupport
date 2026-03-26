@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
 import type { Notification as ServiceNotification } from '@/lib/notification-service';
+import { userProfileImageUrl } from "@/lib/avatar-display";
 
 interface AdminHeaderProps {
   sidebarOpen: boolean;
@@ -129,7 +130,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ sidebarOpen, onSidebar
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.avatar || ""} alt={userDisplayName} />
+                    <AvatarImage src={userProfileImageUrl(user ?? undefined)} alt={userDisplayName} />
                     <AvatarFallback>{userInitials}</AvatarFallback>
                   </Avatar>
                 </Button>
