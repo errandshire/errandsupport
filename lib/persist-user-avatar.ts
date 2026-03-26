@@ -4,8 +4,8 @@ import { Query } from "appwrite";
 export type AvatarRole = "client" | "worker" | "admin";
 
 /**
- * Saves profile picture URL to Appwrite: USERS (avatar + profileImage for downstream features),
- * and WORKERS.profileImage when the user is a worker — same storage bucket as verification files.
+ * Saves profile picture URL to Appwrite: USERS.avatar + USERS.profileImage (same URL),
+ * and WORKERS.profileImage for workers. Workers collection may omit `avatar`; UI uses profileImage there.
  */
 export async function persistUserAvatar(
   userId: string,
@@ -30,7 +30,6 @@ export async function persistUserAvatar(
     if (worker) {
       await databases.updateDocument(DATABASE_ID, COLLECTIONS.WORKERS, worker.$id, {
         profileImage: avatarUrl,
-        avatar: avatarUrl,
         updatedAt,
       });
     }
