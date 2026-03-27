@@ -26,9 +26,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate required job fields
-    const requiredFields = ['title', 'description', 'categoryId', 'locationAddress', 'scheduledDate', 'budgetMax'];
+    // Validate required job fields (use explicit null/undefined check for numeric fields)
+    const requiredFields = ['title', 'description', 'categoryId', 'locationAddress', 'scheduledDate'];
     const missingFields = requiredFields.filter(field => !jobData[field]);
+
+    if (jobData.budgetMax == null || jobData.budgetMax <= 0) {
+      missingFields.push('budgetMax');
+    }
 
     if (missingFields.length > 0) {
       return NextResponse.json(

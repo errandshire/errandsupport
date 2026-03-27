@@ -37,11 +37,11 @@ export class JobPostingService {
    * @param formData - The job form data
    * @param db - Optional database instance (use serverDatabases for API routes)
    */
-  static async createJob(clientId: string, formData: JobFormData, db = databases): Promise<Job> {
+  static async createJob(clientId: string, formData: JobFormData & { attachmentUrls?: string[] }, db = databases): Promise<Job> {
     try {
-      // Upload attachments if any
-      let attachmentUrls: string[] = [];
-      if (formData.attachments && formData.attachments.length > 0) {
+      // Use pre-uploaded URLs if available (client-side upload), otherwise try uploading
+      let attachmentUrls: string[] = formData.attachmentUrls || [];
+      if (attachmentUrls.length === 0 && formData.attachments && formData.attachments.length > 0) {
         attachmentUrls = await this.uploadJobAttachments(formData.attachments);
       }
 
@@ -55,8 +55,15 @@ export class JobPostingService {
       // Generate SEO-friendly slug from title
       const slug = generateUniqueSlug(formData.title, jobId);
 
-      // Create job document
-      const jobData = {
+      // Appwrite datetime attributes require full ISO 8601 strings.
+      // The form sends "YYYY-MM-DD" — convert to a proper datetime.
+      let scheduledDateISO = formData.scheduledDate;
+      if (scheduledDateISO && !scheduledDateISO.includes('T')) {
+        const timePart = formData.scheduledTime || '00:00';
+        scheduledDateISO = new Date(`${scheduledDateISO}T${timePart}:00`).toISOString();
+      }
+
+      const jobData: Record<string, unknown> = {
         clientId,
         title: formData.title,
         description: formData.description,
@@ -65,25 +72,23 @@ export class JobPostingService {
         budgetMin: formData.budgetMin,
         budgetMax: formData.budgetMax,
         locationAddress: formData.locationAddress,
-        locationLat: formData.locationLat,
-        locationLng: formData.locationLng,
-        scheduledDate: formData.scheduledDate,
+        scheduledDate: scheduledDateISO,
         scheduledTime: formData.scheduledTime,
         duration: formData.duration,
         skillsRequired: formData.skillsRequired || [],
         attachments: attachmentUrls,
         status: JOB_STATUS.OPEN,
-        assignedWorkerId: null,
-        assignedAt: null,
-        bookingId: null,
         expiresAt: expiresAt.toISOString(),
         viewCount: 0,
-        requiresFunding: false, // Will be set to true when first worker applies
-        applicantCount: 0, // Incremented when workers apply
-        slug, // SEO-friendly URL slug
+        requiresFunding: false,
+        applicantCount: 0,
+        slug,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      if (formData.locationLat != null) jobData.locationLat = formData.locationLat;
+      if (formData.locationLng != null) jobData.locationLng = formData.locationLng;
 
       const response = await db.createDocument(
         DATABASE_ID,
