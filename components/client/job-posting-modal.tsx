@@ -212,7 +212,21 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
 
     setIsSubmitting(true);
     try {
-      // Create job via API route (uses server SDK for proper permissions)
+      // Upload attachments client-side first (File objects can't be JSON-serialized)
+      let attachmentUrls: string[] = [];
+      if (formData.attachments && formData.attachments.length > 0) {
+        try {
+          attachmentUrls = await JobPostingService.uploadJobAttachments(formData.attachments);
+        } catch (uploadErr) {
+          console.error('Attachment upload failed:', uploadErr);
+          toast.error('Failed to upload photos. Posting job without them.');
+        }
+      }
+
+      // Strip File objects and replace with uploaded URLs for the JSON body
+      const { attachments, ...restFormData } = formData;
+      const jobPayload = { ...restFormData, attachmentUrls };
+
       const response = await fetch('/api/jobs/create', {
         method: 'POST',
         headers: {
@@ -220,7 +234,7 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
         },
         body: JSON.stringify({
           clientId,
-          jobData: formData
+          jobData: jobPayload
         }),
       });
 
