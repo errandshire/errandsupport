@@ -32,10 +32,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Get session from cookies
-    const sessionCookie = request.cookies.get('session');
+    // 2. Get session from cookie or header
+    const sessionSecret =
+      request.cookies.get('session')?.value ||
+      request.headers.get('x-appwrite-session');
 
-    if (!sessionCookie) {
+    if (!sessionSecret) {
       return NextResponse.json(
         { success: false, message: 'Not authenticated. Please log in.' },
         { status: 401 }
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
     const client = new Client()
       .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
       .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-      .setSession(sessionCookie.value);
+      .setSession(sessionSecret);
 
     const account = new Account(client);
 
@@ -214,10 +216,12 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Get session from cookies
-    const sessionCookie = request.cookies.get('session');
+    // 1. Get session from cookie or header
+    const sessionSecret =
+      request.cookies.get('session')?.value ||
+      request.headers.get('x-appwrite-session');
 
-    if (!sessionCookie) {
+    if (!sessionSecret) {
       return NextResponse.json(
         { success: false, message: 'Not authenticated' },
         { status: 401 }
@@ -228,7 +232,7 @@ export async function GET(request: NextRequest) {
     const client = new Client()
       .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
       .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-      .setSession(sessionCookie.value);
+      .setSession(sessionSecret);
 
     const account = new Account(client);
 

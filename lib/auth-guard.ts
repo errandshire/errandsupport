@@ -18,13 +18,20 @@ interface AuthResult {
 export async function getAuthenticatedUser(
   request: NextRequest
 ): Promise<AuthResult | null> {
-  const sessionCookie = request.cookies.get('session');
-  if (!sessionCookie?.value) return null;
+  // 1. Try the httpOnly "session" cookie (set by /api/auth/session)
+  let sessionSecret = request.cookies.get('session')?.value;
+
+  // 2. Fallback: read X-Appwrite-Session header (sent by client fetch calls)
+  if (!sessionSecret) {
+    sessionSecret = request.headers.get('x-appwrite-session') ?? undefined;
+  }
+
+  if (!sessionSecret) return null;
 
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
     .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
-  client.setSession(sessionCookie.value);
+  client.setSession(sessionSecret);
 
   const account = new Account(client);
 
