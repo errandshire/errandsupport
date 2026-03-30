@@ -43,12 +43,26 @@ export function useAuth() {
 
     try {
       setLoading(true);
-      const session = await account.get();
+      const accountData = await account.get();
       
-      if (session) {
-        // Only fetch user profile if we don't already have it or if the userId differs
-        if (!user || user.$id !== session.$id) {
-          const userProfile = await getUserProfile(session.$id);
+      if (accountData) {
+        // Ensure the httpOnly session cookie exists for API route auth.
+        // Existing users who logged in before this change won't have it.
+        try {
+          const currentSession = await account.getSession('current');
+          if (currentSession?.secret) {
+            await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ secret: currentSession.secret }),
+            });
+          }
+        } catch {
+          // Session cookie sync is best-effort
+        }
+
+        if (!user || user.$id !== accountData.$id) {
+          const userProfile = await getUserProfile(accountData.$id);
           setUser(userProfile);
           setAuthenticated(true);
         } else {
@@ -93,6 +107,13 @@ export function useAuth() {
       const session = await account.createEmailPasswordSession(data.email, data.password);
       
       if (session) {
+        // Persist session secret as an httpOnly cookie for API route auth
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret: session.secret }),
+        });
+
         // Fetch user profile
         const userProfile = await getUserProfile(session.userId);
         
@@ -277,6 +298,8 @@ export function useAuth() {
     try {
       setLoadingState(true);
       await account.deleteSession('current');
+      // Clear the httpOnly session cookie used by API routes
+      await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
       storeLogout();
       hasInitialized.current = false; // Reset initialization flag
       toast.success('Logged out successfully');
