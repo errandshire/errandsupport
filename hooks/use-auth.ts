@@ -25,7 +25,33 @@ export function useAuth() {
     }
   }, []);
 
+  const syncSessionCookie = useCallback(async () => {
+    // The Appwrite client SDK stores its session in localStorage as
+    // "cookieFallback" (format: "a_session_<projectId>=<secret>").
+    // Our API routes need this as an httpOnly cookie named "session".
+    try {
+      const fallback = localStorage.getItem('cookieFallback');
+      if (fallback) {
+        const match = fallback.match(/a_session_[^=]+=([^;]+)/);
+        const secret = match?.[1];
+        if (secret) {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ secret }),
+          });
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+  }, []);
+
   const checkAuthStatus = useCallback(async () => {
+    // Always sync the session cookie, even if we have a cached user,
+    // so API routes can authenticate requests on every page load.
+    await syncSessionCookie();
+
     if (user && !isLoading) {
       return;
     }
@@ -46,21 +72,6 @@ export function useAuth() {
       const accountData = await account.get();
       
       if (accountData) {
-        // Ensure the httpOnly session cookie exists for API route auth.
-        // Existing users who logged in before this change won't have it.
-        try {
-          const currentSession = await account.getSession('current');
-          if (currentSession?.secret) {
-            await fetch('/api/auth/session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ secret: currentSession.secret }),
-            });
-          }
-        } catch {
-          // Session cookie sync is best-effort
-        }
-
         if (!user || user.$id !== accountData.$id) {
           const userProfile = await getUserProfile(accountData.$id);
           setUser(userProfile);
@@ -76,7 +87,7 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  }, [user, isLoading, setUser, setAuthenticated, setLoading]);
+  }, [user, isLoading, setUser, setAuthenticated, setLoading, syncSessionCookie]);
 
   const getUserProfile = async (userId: string): Promise<User> => {
     try {
@@ -107,12 +118,18 @@ export function useAuth() {
       const session = await account.createEmailPasswordSession(data.email, data.password);
       
       if (session) {
-        // Persist session secret as an httpOnly cookie for API route auth
-        await fetch('/api/auth/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ secret: session.secret }),
-        });
+        // Persist session secret as an httpOnly cookie for API route auth.
+        // Try the session.secret first; fall back to cookieFallback from
+        // localStorage (Appwrite may return an empty secret from client SDK).
+        if (session.secret) {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ secret: session.secret }),
+          });
+        } else {
+          await syncSessionCookie();
+        }
 
         // Fetch user profile
         const userProfile = await getUserProfile(session.userId);
@@ -297,18 +314,20 @@ export function useAuth() {
   const logout = useCallback(async (): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
-      await account.deleteSession('current');
-      // Clear the httpOnly session cookie used by API routes
+      // Always clear our session cookie, even if Appwrite logout fails
       await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
+      await account.deleteSession('current');
       storeLogout();
-      hasInitialized.current = false; // Reset initialization flag
+      hasInitialized.current = false;
       toast.success('Logged out successfully');
       return { success: true };
     } catch (error: any) {
+      // Still clear local state even if Appwrite call failed
+      storeLogout();
+      hasInitialized.current = false;
       console.error('Logout error:', error);
-      const errorMessage = 'Failed to logout';
-      toast.error(errorMessage);
-      return { success: false, error: { message: errorMessage } };
+      toast.success('Logged out successfully');
+      return { success: true };
     } finally {
       setLoadingState(false);
     }
