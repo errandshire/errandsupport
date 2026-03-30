@@ -27,13 +27,15 @@ export function useAuth() {
 
   const syncSessionCookie = useCallback(async () => {
     // The Appwrite client SDK stores its session in localStorage as
-    // "cookieFallback" (format: "a_session_<projectId>=<secret>").
-    // Our API routes need this as an httpOnly cookie named "session".
+    // "cookieFallback" — a JSON object: { "a_session_<projectId>": "<secret>" }
     try {
-      const fallback = localStorage.getItem('cookieFallback');
-      if (fallback) {
-        const match = fallback.match(/a_session_[^=]+=([^;]+)/);
-        const secret = match?.[1];
+      const raw = localStorage.getItem('cookieFallback');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const key = parsed && typeof parsed === 'object'
+          ? Object.keys(parsed).find(k => k.startsWith('a_session_'))
+          : null;
+        const secret = key ? parsed[key] : null;
         if (secret) {
           await fetch('/api/auth/session', {
             method: 'POST',
