@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobAcceptanceService } from '@/lib/job-acceptance.service';
 import { JobNotificationService } from '@/lib/job-notification.service';
-import { databases, COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
 import { requireAuth } from '@/lib/auth-guard';
 import { Query } from 'appwrite';
-import { Client, Databases } from 'node-appwrite';
-
-// Create admin client for job updates (uses API key)
-function getAdminClient() {
-  const client = new Client()
-    .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-    .setKey(process.env.APPWRITE_API_KEY!);
-
-  return new Databases(client);
-}
+const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
 
 /**
  * POST /api/jobs/accept
@@ -45,8 +34,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch worker data
-    const workers = await databases.listDocuments(
+    // Fetch worker data using server SDK (has API key authority)
+    const workers = await serverDatabases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.WORKERS,
       [Query.equal('userId', workerId)]
@@ -62,7 +51,7 @@ export async function POST(request: NextRequest) {
     const worker = workers.documents[0];
 
     // Fetch user data for worker name/email
-    const user = await databases.getDocument(
+    const user = await serverDatabases.getDocument(
       DATABASE_ID,
       COLLECTIONS.USERS,
       workerId
@@ -85,9 +74,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get admin client for job updates (requires API key permissions)
-    const adminDb = getAdminClient();
-
     // Accept the job (handles race conditions, escrow, booking creation)
     const result = await JobAcceptanceService.acceptJob(
       jobId,
@@ -99,7 +85,7 @@ export async function POST(request: NextRequest) {
         isActive: worker.isActive !== false,
         categories: worker.categories || [],
       },
-      adminDb // Pass admin client for job updates
+      serverDatabases
     );
 
     if (!result.success) {
@@ -110,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get updated job
-    const job = await databases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId);
+    const job = await serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId);
 
     // Send notifications
     try {

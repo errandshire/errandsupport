@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-guard';
+import { Query } from 'appwrite';
 const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
 
 /**
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     const { auth, error } = await requireAuth(request);
     if (error) return error;
 
-    const workerId = auth!.user.$id;
+    const userId = auth!.user.$id;
 
     const body = await request.json();
     const { applicationId } = body;
@@ -27,7 +28,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🔄 Worker ${workerId} attempting to withdraw application ${applicationId}`);
+    // Look up the WORKERS document by userId (application.workerId is the doc ID, not user ID)
+    const workers = await serverDatabases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.WORKERS,
+      [Query.equal('userId', userId), Query.limit(1)]
+    );
+
+    if (workers.documents.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Worker profile not found' },
+        { status: 404 }
+      );
+    }
+
+    const workerDocId = workers.documents[0].$id;
+
+    console.log(`🔄 Worker ${workerDocId} (user ${userId}) attempting to withdraw application ${applicationId}`);
 
     // Get application using server SDK (elevated permissions)
     const application = await serverDatabases.getDocument(
@@ -36,9 +53,9 @@ export async function POST(request: NextRequest) {
       applicationId
     );
 
-    // Verify ownership
-    if (application.workerId !== workerId) {
-      console.log(`❌ Unauthorized: Application belongs to ${application.workerId}, not ${workerId}`);
+    // Verify ownership (application.workerId is the WORKERS doc ID)
+    if (application.workerId !== workerDocId) {
+      console.log(`❌ Unauthorized: Application belongs to ${application.workerId}, not ${workerDocId}`);
       return NextResponse.json(
         { success: false, message: 'You can only withdraw your own applications' },
         { status: 403 }

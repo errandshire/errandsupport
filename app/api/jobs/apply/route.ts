@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const { auth, error } = await requireAuth(request);
     if (error) return error;
 
-    const workerId = auth!.user.$id;
+    const userId = auth!.user.$id;
 
     const body = await request.json();
     const { jobId, message } = body;
@@ -34,25 +34,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Look up the WORKERS document by userId (WORKERS.$id !== user.$id)
+    const workers = await serverDatabases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.WORKERS,
+      [Query.equal('userId', userId), Query.limit(1)]
+    );
+
+    if (workers.documents.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Worker profile not found. Please complete your profile first.' },
+        { status: 404 }
+      );
+    }
+
+    const workerDoc = workers.documents[0];
+    const workerDocId = workerDoc.$id;
+
     // Apply to job (use server databases for elevated permissions)
     const application = await JobApplicationService.applyToJob(
       jobId,
-      workerId,
+      workerDocId,
       message,
       serverDatabases
     );
 
-    // Get job and worker details for notification
-    const [job, worker] = await Promise.all([
-      serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId),
-      serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.WORKERS, workerId)
-    ]);
+    // Get job details for notification (worker doc already fetched above)
+    const job = await serverDatabases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, jobId);
 
     // Send notification to client about new applicant
     try {
       await JobNotificationService.notifyWorkerApplied(
         job as any,
-        worker as any
+        workerDoc as any
       );
     } catch (notificationError) {
       console.error('Error sending notification:', notificationError);
