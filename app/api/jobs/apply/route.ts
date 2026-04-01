@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest) {
     const { auth, error } = await requireAuth(request);
     if (error) return error;
 
-    const workerId = auth!.user.$id;
+    const userId = auth!.user.$id;
 
     const { searchParams } = new URL(request.url);
     const applicationId = searchParams.get('applicationId');
@@ -144,10 +144,26 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Withdraw application
+    // Look up WORKERS doc by userId (application.workerId is the doc ID, not user ID)
+    const workers = await serverDatabases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.WORKERS,
+      [Query.equal('userId', userId), Query.limit(1)]
+    );
+
+    if (workers.documents.length === 0) {
+      return NextResponse.json(
+        { success: false, message: 'Worker profile not found' },
+        { status: 404 }
+      );
+    }
+
+    const workerDocId = workers.documents[0].$id;
+
+    // Withdraw application using the WORKERS document ID
     await JobApplicationService.withdrawApplication(
       applicationId,
-      workerId
+      workerDocId
     );
 
     return NextResponse.json({
