@@ -172,11 +172,11 @@ export const RATING_OPTIONS = [
 ] as const;
 
 // Commission Rates
-export const COMMISSION_RATE = 0.15; // 15%
+export const COMMISSION_RATE = 0.20; // 20%
 export const PAYMENT_PROCESSING_FEE = 0.029; // 2.9%
 
 // Partner Program
-export const PARTNER_COMMISSION_RATE = 0.05; // 5% (sub-split of platform's 15%)
+export const PARTNER_COMMISSION_RATE = 0.10; // 5% (sub-split of platform's 15%)
 export const PARTNER_COMMISSION_WINDOW_DAYS = 90;
 export const PARTNER_CODE_PREFIX = 'EW';
 
