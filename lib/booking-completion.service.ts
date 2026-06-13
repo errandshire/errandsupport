@@ -1,6 +1,6 @@
-import { COLLECTIONS } from './appwrite';
+import { COLLECTIONS } from './api';
 import { WalletService } from './wallet.service';
-const { serverDatabases } = require('./appwrite-server');
+const { serverDatabases } = require('./api-server');
 
 /**
  * BOOKING COMPLETION SERVICE
@@ -28,7 +28,7 @@ export class BookingCompletionService {
 
       // Get booking to verify status
       const booking = await serverDatabases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -72,7 +72,7 @@ export class BookingCompletionService {
       // STEP 2: Update booking status (CRITICAL - if this fails, rollback payment)
       try {
         await serverDatabases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.BOOKINGS,
           bookingId,
           {
@@ -117,7 +117,7 @@ export class BookingCompletionService {
         // SMS notification - show NET amount
         try {
           const workerUser = await serverDatabases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.USERS,
             workerId
           );
@@ -139,7 +139,7 @@ export class BookingCompletionService {
           // Send email notification
           const { BookingNotificationService } = await import('./booking-notification-service');
           const booking = await serverDatabases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.BOOKINGS,
             bookingId
           );
@@ -179,7 +179,7 @@ export class BookingCompletionService {
 
       // Get booking
       const booking = await serverDatabases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -223,7 +223,7 @@ export class BookingCompletionService {
       const transactionId = `refund_${bookingId}`;
       try {
         await serverDatabases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WALLET_TRANSACTIONS,
           transactionId,
           {
@@ -249,7 +249,7 @@ export class BookingCompletionService {
 
       // Move funds from escrow back to balance
       await serverDatabases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {
@@ -261,7 +261,7 @@ export class BookingCompletionService {
 
       // Update booking status
       await serverDatabases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {

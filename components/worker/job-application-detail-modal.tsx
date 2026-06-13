@@ -28,6 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
 import { ApplicationWithJob, WorkerApplicationsService } from "@/lib/worker-applications.service";
 import { toast } from "sonner";
+import { COMMISSION_RATE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -352,7 +353,7 @@ export function JobApplicationDetailModal({
                 <div className="flex items-center gap-2 text-gray-600">
                   <DollarSign className="h-4 w-4 flex-shrink-0" />
                   <span className="text-sm font-medium">
-                    ₦{job.budgetMin.toLocaleString()}-₦{job.budgetMax.toLocaleString()}
+                    ₦{Math.round(job.budgetMin * (1 - COMMISSION_RATE)).toLocaleString()}-₦{Math.round(job.budgetMax * (1 - COMMISSION_RATE)).toLocaleString()}
                   </span>
                 </div>
 

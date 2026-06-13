@@ -33,7 +33,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -121,7 +120,7 @@ function ClientBookingsContent() {
       setIsLoading(true);
 
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', user.$id),
@@ -138,7 +137,7 @@ function ClientBookingsContent() {
           try {
             if (booking.workerId) {
               const worker = await databases.getDocument(
-                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                DATABASE_ID!,
                 COLLECTIONS.USERS,
                 booking.workerId
               );

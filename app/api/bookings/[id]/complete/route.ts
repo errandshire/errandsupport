@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
 import { ClientCancellationService } from '@/lib/client-cancellation.service';
-import { databases, COLLECTIONS } from '@/lib/appwrite';
+import { databases, COLLECTIONS } from '@/lib/api';
 import { requireAuth } from '@/lib/auth-guard';
 
 /**
@@ -30,7 +30,7 @@ export async function POST(
 
     // Get booking details
     const booking = await databases.getDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.BOOKINGS,
       bookingId
     );

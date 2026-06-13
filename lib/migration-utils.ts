@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 
 /**
  * Migration utility to move verification documents from USERS collection to WORKERS collection
@@ -23,7 +23,7 @@ export class MigrationUtils {
 
       // Get all users with verification documents in USERS collection
       const usersWithDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         [
           Query.isNotNull('idDocument'),
@@ -37,7 +37,7 @@ export class MigrationUtils {
         try {
           // Find corresponding worker document
           const workers = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.WORKERS,
             [Query.equal('userId', user.$id)]
           );
@@ -57,7 +57,7 @@ export class MigrationUtils {
 
           // Move verification documents to WORKERS collection
           await databases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.WORKERS,
             worker.$id,
             {
@@ -72,7 +72,7 @@ export class MigrationUtils {
 
           // Remove verification documents from USERS collection
           await databases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.USERS,
             user.$id,
             {
@@ -125,7 +125,7 @@ export class MigrationUtils {
     try {
       // Count users with verification documents
       const usersWithDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         [
           Query.isNotNull('idDocument'),
@@ -135,7 +135,7 @@ export class MigrationUtils {
 
       // Count workers with verification documents
       const workersWithDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [
           Query.isNotNull('idDocument'),
@@ -171,14 +171,14 @@ export class MigrationUtils {
     try {
       // Get user document
       const user = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         userId
       );
 
       // Get worker document
       const workers = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', userId)]
       );
@@ -199,6 +199,103 @@ export class MigrationUtils {
         worker: null,
         hasUserDocs: false,
         hasWorkerDocs: false
+      };
+    }
+  }
+
+  /**
+   * Create missing worker documents for existing worker users
+   * Use this after database restore to fix workers who lost their WORKERS documents
+   */
+  static async createMissingWorkerDocuments(): Promise<{
+    success: boolean;
+    created: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let created = 0;
+
+    try {
+      console.log('Starting missing worker documents creation...');
+      const { ID } = await import('@/lib/db');
+
+      // Get all users with role 'worker'
+      const workerUsers = await databases.listDocuments(
+        DATABASE_ID!,
+        COLLECTIONS.USERS,
+        [
+          Query.equal('role', 'worker'),
+          Query.limit(500)
+        ]
+      );
+
+      console.log(`Found ${workerUsers.documents.length} worker users`);
+
+      for (const user of workerUsers.documents) {
+        try {
+          // Check if worker document already exists
+          const existingWorkers = await databases.listDocuments(
+            DATABASE_ID!,
+            COLLECTIONS.WORKERS,
+            [Query.equal('userId', user.$id), Query.limit(1)]
+          );
+
+          if (existingWorkers.documents.length > 0) {
+            console.log(`Worker document already exists for user ${user.$id}, skipping...`);
+            continue;
+          }
+
+          // Create worker document with basic info
+          await databases.createDocument(
+            DATABASE_ID!,
+            COLLECTIONS.WORKERS,
+            ID.unique(),
+            {
+              userId: user.$id,
+              name: user.name || '',
+              email: user.email || '',
+              phone: user.phone || '',
+              categories: user.categories || [],
+              bio: user.bio || '',
+              hourlyRate: user.hourlyRate || 0,
+              experienceYears: user.experience || 0,
+              maxRadiusKm: user.serviceRadius || 10,
+              isActive: user.isActive || false,
+              isVerified: user.isVerified || false,
+              verificationStatus: user.verificationStatus || 'pending',
+              ratingAverage: 0,
+              totalReviews: 0,
+              completedJobs: 0,
+              createdAt: user.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          );
+
+          created++;
+          console.log(`✅ Created worker document for user ${user.$id} (${user.email})`);
+
+        } catch (error) {
+          const errorMsg = `Failed to create worker for user ${user.$id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          console.error(errorMsg);
+          errors.push(errorMsg);
+        }
+      }
+
+      console.log(`Migration completed. Created ${created} worker documents, ${errors.length} errors`);
+      
+      return {
+        success: errors.length === 0,
+        created,
+        errors
+      };
+
+    } catch (error) {
+      const errorMsg = `Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMsg);
+      return {
+        success: false,
+        created,
+        errors: [errorMsg]
       };
     }
   }

@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { ID, Query } from '@/lib/client-utils';
 import { TermiiSMSService } from './termii-sms.service';
 
 /**
@@ -36,7 +36,7 @@ export class DisputeService {
 
       // Check if dispute already exists for this booking
       const existing = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         [Query.equal('bookingId', bookingId)]
       );
@@ -50,14 +50,14 @@ export class DisputeService {
 
       // Get booking details
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
 
       // Create dispute
       const dispute = await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         ID.unique(),
         {
@@ -79,7 +79,7 @@ export class DisputeService {
 
       // Update booking status
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
@@ -106,7 +106,7 @@ export class DisputeService {
         // SMS notification
         try {
           const workerUser = await databases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.USERS,
             workerId
           );
@@ -171,7 +171,7 @@ export class DisputeService {
   static async addWorkerResponse(disputeId: string, workerId: string, response: string) {
     try {
       const dispute = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         disputeId
       );
@@ -191,7 +191,7 @@ export class DisputeService {
       }
 
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         disputeId,
         {
@@ -242,14 +242,14 @@ export class DisputeService {
       const { disputeId, resolution, adminNotes } = params;
 
       const dispute = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         disputeId
       );
 
       // Update dispute
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         disputeId,
         {
@@ -265,7 +265,7 @@ export class DisputeService {
       if (resolution === 'approve_worker') {
         // Set booking back to worker_completed so payment can be released
         await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.BOOKINGS,
           dispute.bookingId,
           {
@@ -327,8 +327,8 @@ export class DisputeService {
 
         // Send email notifications
         const [clientUser, workerUser] = await Promise.all([
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, dispute.clientId),
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, dispute.workerId)
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, dispute.clientId),
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, dispute.workerId)
         ]);
 
         const { emailService } = await import('./email-service');
@@ -372,7 +372,7 @@ export class DisputeService {
   static async getDispute(disputeId: string) {
     try {
       const dispute = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         disputeId
       );
@@ -398,7 +398,7 @@ export class DisputeService {
       }
 
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.DISPUTES,
         queries
       );

@@ -165,7 +165,7 @@ export default function JobDetailPage() {
 
     setApplying(true);
     try {
-      const { Query } = await import('appwrite');
+      const { Query } = await import('@/lib/db');
 
       // Get worker ID
       const workers = await databases.listDocuments(

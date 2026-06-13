@@ -72,13 +72,11 @@ export async function GET(request: NextRequest) {
     const { error } = await requireAdmin(request);
     if (error) return error;
 
-    const { databases } = await import('@/lib/appwrite');
-    const { Query } = await import('appwrite');
-    const { COLLECTIONS } = await import('@/lib/appwrite');
+    const { databases, DATABASE_ID, COLLECTIONS, Query } = await import('@/lib/db');
 
     // Get all workers
     const response = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.WORKERS,
       [Query.orderDesc('$createdAt'), Query.limit(1000)]
     );

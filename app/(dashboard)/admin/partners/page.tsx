@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,7 +44,7 @@ export default function AdminPartnersPage() {
       }
 
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PARTNERS,
         queries
       );
@@ -88,7 +87,7 @@ export default function AdminPartnersPage() {
   const handleStatusChange = async (partnerId: string, newStatus: string) => {
     try {
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PARTNERS,
         partnerId,
         { status: newStatus, updatedAt: new Date().toISOString() }
@@ -108,12 +107,12 @@ export default function AdminPartnersPage() {
     try {
       const [referralsRes, commissionsRes] = await Promise.all([
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.REFERRALS,
           [Query.equal("partnerId", partner.$id), Query.orderDesc("createdAt"), Query.limit(50)]
         ),
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.PARTNER_COMMISSIONS,
           [Query.equal("partnerId", partner.$id), Query.orderDesc("createdAt"), Query.limit(50)]
         ),

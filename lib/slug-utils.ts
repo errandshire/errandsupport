@@ -80,7 +80,7 @@ export function extractJobIdFromSlug(slug: string): string | null {
  */
 export async function findJobBySlug(slug: string, databases: any, databaseId: string, jobsCollectionId: string) {
   // Search for jobs with this exact slug
-  const { Query } = await import('appwrite');
+  const { Query } = await import('@/lib/api');
 
   const jobs = await databases.listDocuments(
     databaseId,

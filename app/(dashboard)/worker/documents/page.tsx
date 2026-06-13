@@ -36,7 +36,6 @@ import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { parseDocumentUrls } from "@/lib/utils";
 
 interface Document {
@@ -74,7 +73,7 @@ export default function WorkerDocumentsPage() {
       
       // Get worker profile to access verification documents
       const workerResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', user.$id), Query.limit(1)]
       );

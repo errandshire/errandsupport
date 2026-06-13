@@ -374,4 +374,45 @@ export const REGEX_PATTERNS = {
   POSTAL_CODE: /^[0-9]{5}(-[0-9]{4})?$/,
   TIME: /^([01]\d|2[0-3]):([0-5]\d)$/,
   HEX_COLOR: /^#[0-9A-F]{6}$/i,
+} as const;
+
+// Category-Specific Pricing
+export const LAUNDRY_PRICING = [
+  { id: 'shirts', name: 'Shirts', price: 1500, icon: '👔' },
+  { id: 'skirt_trousers', name: 'Skirt/Trousers', price: 1500, icon: '👖' },
+  { id: 'nightgowns', name: 'Nightgowns', price: 2000, icon: '👗' },
+  { id: 'casual_gowns', name: 'Casual Gowns', price: 2500, icon: '👗' },
+  { id: 'gown_dresses', name: 'Gown Dresses', price: 3000, icon: '👗' },
+  { id: 'native_dresses', name: 'Native Dresses', price: 3500, icon: '👘' },
+  { id: 'iru_buba', name: 'Iru & Buba', price: 3500, icon: '👘' },
+  { id: 'iru_buba_gele', name: 'Iru and Buba/Gele', price: 4000, icon: '👘' },
+  { id: 'head_tie_asoke', name: 'Head Tie/Asoke', price: 1500, icon: '🧣' },
+  { id: 'suit_jacket', name: 'Suit Jacket', price: 5000, icon: '🧥' },
+  { id: 'suit_complete', name: 'Suit Complete', price: 7000, icon: '🤵' },
+  { id: 'aso_oke_complete', name: 'Aso Oke Complete', price: 8000, icon: '👔' },
+] as const;
+
+export const HOUSE_CLEANING_PRICING = [
+  { id: 'one_room', name: 'One Room Cleaning', price: 8000, icon: '🛏️' },
+  { id: 'two_rooms', name: '2 Rooms Cleaning', price: 15000, icon: '🏠' },
+  { id: 'three_rooms', name: '3 Rooms Cleaning', price: 22000, icon: '🏠' },
+  { id: 'full_apartment', name: 'Full Apartment (4+ rooms)', price: 30000, icon: '🏢' },
+  { id: 'kitchen_only', name: 'Kitchen Only', price: 5000, icon: '🍳' },
+  { id: 'bathroom_only', name: 'Bathroom Only', price: 4000, icon: '🚿' },
+  { id: 'living_room_only', name: 'Living Room Only', price: 6000, icon: '🛋️' },
+  { id: 'deep_cleaning', name: 'Deep Cleaning (per room)', price: 10000, icon: '✨' },
+] as const;
+
+// Categories that use predefined pricing
+export const CATEGORIES_WITH_PRICING = {
+  laundry: {
+    name: 'Laundry',
+    items: LAUNDRY_PRICING,
+    allowCustom: false,
+  },
+  cleaning: {
+    name: 'House Cleaning',
+    items: HOUSE_CLEANING_PRICING,
+    allowCustom: false,
+  },
 } as const; 

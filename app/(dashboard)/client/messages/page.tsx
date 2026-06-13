@@ -18,7 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { databases, COLLECTIONS, client } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { Message } from "@/lib/types/marketplace";
 import { toast } from "sonner";
 import { MessageModal } from "@/components/marketplace/message-modal";

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { ApplicationWithJob, WorkerApplicationsService } from "@/lib/worker-applications.service";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
 import { toast } from "sonner";
+import { COMMISSION_RATE } from "@/lib/constants";
 
 interface JobApplicationCardProps {
   application: ApplicationWithJob;
@@ -257,7 +258,7 @@ export function JobApplicationCard({ application, onClick, workerId, onWithdraw 
             <div className="flex items-center gap-1.5 text-gray-600">
               <DollarSign className="h-4 w-4 flex-shrink-0" />
               <span className="truncate">
-                ₦{job.budgetMin.toLocaleString()}-₦{job.budgetMax.toLocaleString()}
+                ₦{Math.round(job.budgetMin * (1 - COMMISSION_RATE)).toLocaleString()}-₦{Math.round(job.budgetMax * (1 - COMMISSION_RATE)).toLocaleString()}
               </span>
             </div>
 

@@ -232,7 +232,7 @@ export default function WorkerProfilePage() {
       try {
         setIsLoading(true);
         const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-        const { Query } = await import('appwrite');
+        const { Query } = await import('@/lib/db');
         
         const response = await databases.listDocuments(
           DATABASE_ID,
@@ -370,7 +370,7 @@ export default function WorkerProfilePage() {
   const uploadFileToStorage = async (file: File): Promise<string> => {
     try {
       const { storage, STORAGE_BUCKET_ID } = await import('@/lib/appwrite');
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
 
       const fileId = ID.unique();
       const uploadedFile = await storage.createFile(STORAGE_BUCKET_ID, fileId, file);
@@ -496,7 +496,7 @@ export default function WorkerProfilePage() {
 
       // Notify all admins about the document submission
       try {
-        const { Query } = await import('appwrite');
+        const { Query } = await import('@/lib/db');
         const { notificationService } = await import('@/lib/notification-service');
 
         // Fetch all admin users

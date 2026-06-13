@@ -233,7 +233,7 @@ export default function ClientProfilePage() {
       try {
         setIsLoading(true);
         const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-        const { Query } = await import('appwrite');
+        const { Query } = await import('@/lib/db');
         
         const response = await databases.getDocument(
           DATABASE_ID,

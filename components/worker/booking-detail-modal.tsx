@@ -118,7 +118,7 @@ export function BookingDetailModal({
       setLoading(true);
 
       const response = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         clientId
       );
@@ -155,7 +155,7 @@ export function BookingDetailModal({
 
       try {
         const applications = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.JOB_APPLICATIONS,
           [Query.equal('bookingId', booking.$id), Query.limit(1)]
         );
@@ -552,7 +552,7 @@ export function BookingDetailModal({
 
       // Get worker document ID from user ID
       const workerQuery = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', workerUserId), Query.limit(1)]
       );
@@ -575,7 +575,7 @@ export function BookingDetailModal({
 
         // Query jobs by bookingId field
         const jobsResponse = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.JOBS,
           [Query.equal('bookingId', bookingIdToFind), Query.limit(1)]
         );

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JobApplicationService } from '@/lib/job-application.service';
 import { JobNotificationService } from '@/lib/job-notification.service';
 import { requireAuth } from '@/lib/auth-guard';
-const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
-import { Query } from 'appwrite';
+const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/api-server');
+import { Query } from '@/lib/api';
 
 /**
  * POST /api/jobs/apply

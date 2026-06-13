@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { ID, Query } from '@/lib/client-utils';
 import type { Partner, Referral, PartnerCommission } from './types';
 import {
   PARTNER_COMMISSION_RATE,
@@ -46,7 +46,7 @@ export class PartnerService {
 
     // Check if email already exists
     const existing = await db.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.PARTNERS,
       [Query.equal('email', data.email), Query.limit(1)]
     );
@@ -62,7 +62,7 @@ export class PartnerService {
       partnerCode = this.generatePartnerCode(data.name);
       try {
         const collision = await db.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.PARTNERS,
           [Query.equal('partnerCode', partnerCode), Query.limit(1)]
         );
@@ -74,7 +74,7 @@ export class PartnerService {
     }
 
     const partner = await db.createDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.PARTNERS,
       ID.unique(),
       {
@@ -101,11 +101,14 @@ export class PartnerService {
   static async validatePartnerCode(code: string, dbClient?: any): Promise<{ valid: boolean; partnerName?: string; partnerId?: string }> {
     const db = dbClient || databases;
 
+    const normalizedCode = (code || '').trim().toUpperCase();
+    if (!normalizedCode) return { valid: false };
+
     try {
       const result = await db.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PARTNERS,
-        [Query.equal('partnerCode', code), Query.equal('status', 'active'), Query.limit(1)]
+        [Query.equal('partnerCode', normalizedCode), Query.equal('status', 'active'), Query.limit(1)]
       );
 
       if (result.documents.length > 0) {
@@ -134,7 +137,7 @@ export class PartnerService {
     try {
       // Check if client already has a referral
       const existing = await db.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REFERRALS,
         [Query.equal('clientId', data.clientId), Query.limit(1)]
       );
@@ -144,7 +147,7 @@ export class PartnerService {
       }
 
       const referral = await db.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REFERRALS,
         ID.unique(),
         {
@@ -163,12 +166,12 @@ export class PartnerService {
       // Increment partner's totalReferrals
       try {
         const partner = await db.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.PARTNERS,
           data.partnerId
         );
         await db.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.PARTNERS,
           data.partnerId,
           {
@@ -205,7 +208,7 @@ export class PartnerService {
     let referral: Referral;
     try {
       const referrals = await db.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REFERRALS,
         [Query.equal('clientId', params.clientId), Query.equal('status', 'active'), Query.limit(1)]
       );
@@ -227,7 +230,7 @@ export class PartnerService {
         // Expire the referral
         try {
           await db.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.REFERRALS,
             referral.$id,
             { status: 'expired', updatedAt: now }
@@ -244,7 +247,7 @@ export class PartnerService {
 
       try {
         await db.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.REFERRALS,
           referral.$id,
           {
@@ -266,7 +269,7 @@ export class PartnerService {
     const commissionDocId = `partner_comm_${params.bookingId}`;
     try {
       await db.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PARTNER_COMMISSIONS,
         commissionDocId,
         {
@@ -294,7 +297,7 @@ export class PartnerService {
     // 5. Update denormalized counters on referral
     try {
       await db.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REFERRALS,
         referral.$id,
         {
@@ -310,12 +313,12 @@ export class PartnerService {
     // 6. Update denormalized counters on partner
     try {
       const partner = await db.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PARTNERS,
         referral.partnerId
       );
       await db.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PARTNERS,
         referral.partnerId,
         {
@@ -351,7 +354,7 @@ export class PartnerService {
     }
 
     const result = await db.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.PARTNERS,
       queries
     );
@@ -366,7 +369,7 @@ export class PartnerService {
     const db = dbClient || databases;
 
     const result = await db.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.PARTNER_COMMISSIONS,
       [Query.equal('partnerId', partnerId), Query.orderDesc('createdAt'), Query.limit(100)]
     );
@@ -381,7 +384,7 @@ export class PartnerService {
     const db = dbClient || databases;
 
     const result = await db.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.REFERRALS,
       [Query.equal('partnerId', partnerId), Query.orderDesc('createdAt'), Query.limit(100)]
     );
@@ -396,7 +399,7 @@ export class PartnerService {
     const db = dbClient || databases;
 
     const updated = await db.updateDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.PARTNERS,
       partnerId,
       {
@@ -415,7 +418,7 @@ export class PartnerService {
     const db = dbClient || databases;
 
     const partner = await db.getDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.PARTNERS,
       partnerId
     );

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -145,7 +144,7 @@ export default function AdminUsersPage() {
         }
 
         const res = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WORKERS,
           queries
         );
@@ -188,7 +187,7 @@ export default function AdminUsersPage() {
       }
 
       const res = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         queries
       );
@@ -201,7 +200,7 @@ export default function AdminUsersPage() {
           try {
             // Try to get worker profile
             const workerProfileResponse = await databases.listDocuments(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.WORKERS,
               [Query.equal('userId', user.$id), Query.limit(1)]
             );
@@ -305,7 +304,7 @@ export default function AdminUsersPage() {
       // Verify the userId matches a real user in USERS collection
       try {
         await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           worker.userId
         );
@@ -316,7 +315,7 @@ export default function AdminUsersPage() {
       }
 
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         worker.$id,
         {
@@ -390,7 +389,7 @@ export default function AdminUsersPage() {
       // Verify the userId matches a real user in USERS collection
       try {
         await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           worker.userId
         );
@@ -401,7 +400,7 @@ export default function AdminUsersPage() {
       }
 
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         worker.$id,
         {
@@ -467,7 +466,7 @@ export default function AdminUsersPage() {
       // Delete user document first
       try {
         await databases.deleteDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           worker.userId
         );
@@ -480,7 +479,7 @@ export default function AdminUsersPage() {
 
       // Delete worker document
       await databases.deleteDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         worker.$id
       );
@@ -635,7 +634,7 @@ export default function AdminUsersPage() {
       if (w.userId) {
         try {
           const user = await databases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.USERS,
             w.userId
           );
@@ -647,7 +646,7 @@ export default function AdminUsersPage() {
         // Fetch virtual wallet information
         try {
           const wallets = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.VIRTUAL_WALLETS,
             [Query.equal('userId', w.userId), Query.limit(1)]
           );

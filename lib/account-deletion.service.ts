@@ -1,6 +1,6 @@
-import { Query, ID } from 'appwrite';
-import { COLLECTIONS, DATABASE_ID } from './appwrite';
-const { serverDatabases, serverStorage } = require('./appwrite-server');
+import { Query, ID } from '@/lib/client-utils';
+import { COLLECTIONS, DATABASE_ID } from './api';
+const { serverDatabases, serverStorage } = require('./api-server');
 import { BookingCompletionService } from './booking-completion.service';
 import { WalletService } from './wallet.service';
 

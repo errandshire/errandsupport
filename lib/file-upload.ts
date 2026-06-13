@@ -1,5 +1,5 @@
-import { storage } from './appwrite';
-import { ID } from 'appwrite';
+import { storage } from './api';
+import { ID } from '@/lib/client-utils';
 
 // File upload configuration
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes

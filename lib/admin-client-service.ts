@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 import { notificationService } from './notification-service';
 import { USER_STATUS } from './constants';
 
@@ -99,7 +99,7 @@ class AdminClientService {
       }
 
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         queries
       );
@@ -148,7 +148,7 @@ class AdminClientService {
       // Fetch bookings and reviews in parallel
       const [bookingsResponse, reviewsResponse] = await Promise.all([
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.BOOKINGS,
           [
             Query.equal('clientId', clientId),
@@ -157,7 +157,7 @@ class AdminClientService {
           ]
         ),
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.REVIEWS,
           [
             Query.equal('clientId', clientId),
@@ -214,7 +214,7 @@ class AdminClientService {
   ): Promise<void> {
     try {
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         clientId,
         {
@@ -250,7 +250,7 @@ class AdminClientService {
   async hasActiveBookings(clientId: string): Promise<boolean> {
     try {
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', clientId),
@@ -279,7 +279,7 @@ class AdminClientService {
 
     try {
       await databases.deleteDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         clientId
       );

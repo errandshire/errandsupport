@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ID, Models } from 'appwrite';
-import { account, databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
 import { useAuthStore } from '@/store/auth-store';
 import { User, LoginFormData, RegisterFormData } from '@/lib/types';
 import { toast } from 'sonner';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://72.62.179.203:3000/api';
 
 export interface AuthError {
   message: string;
@@ -25,44 +25,11 @@ export function useAuth() {
     }
   }, []);
 
-  const syncSessionCookie = useCallback(async () => {
-    // The Appwrite client SDK stores its session in localStorage as
-    // "cookieFallback" — a JSON object: { "a_session_<projectId>": "<secret>" }
-    try {
-      const raw = localStorage.getItem('cookieFallback');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const key = parsed && typeof parsed === 'object'
-          ? Object.keys(parsed).find(k => k.startsWith('a_session_'))
-          : null;
-        const secret = key ? parsed[key] : null;
-        if (secret) {
-          await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ secret }),
-          });
-        }
-      }
-    } catch {
-      // Best-effort
-    }
-  }, []);
-
   const checkAuthStatus = useCallback(async () => {
-    // Always sync the session cookie, even if we have a cached user,
-    // so API routes can authenticate requests on every page load.
-    await syncSessionCookie();
-
     if (user && !isLoading) {
       return;
     }
 
-    // Skip the network call when the persisted store already shows no auth.
-    // First-time visitors will have the defaults (null / false), so this
-    // avoids a wasted account.get() round-trip that would 401.
-    // Returning users whose session expired still have isAuthenticated: true
-    // in localStorage, so they'll pass through to the try/catch below.
     const storeState = useAuthStore.getState();
     if (!storeState.isAuthenticated && !storeState.user && !storeState.sessionToken) {
       setLoading(false);
@@ -71,36 +38,48 @@ export function useAuth() {
 
     try {
       setLoading(true);
-      const accountData = await account.get();
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        credentials: 'include',
+      });
       
-      if (accountData) {
-        if (!user || user.$id !== accountData.$id) {
-          const userProfile = await getUserProfile(accountData.$id);
-          setUser(userProfile);
-          setAuthenticated(true);
-        } else {
-          setAuthenticated(true);
+      if (response.ok) {
+        const accountData = await response.json();
+        if (accountData) {
+          if (!user || user.$id !== accountData.$id) {
+            const userProfile = await getUserProfile(accountData.$id);
+            setUser(userProfile);
+            setAuthenticated(true);
+          } else {
+            setAuthenticated(true);
+          }
         }
+      } else {
+        setAuthenticated(false);
+        setUser(null);
       }
     } catch (error) {
-      // No active session
       setAuthenticated(false);
       setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [user, isLoading, setUser, setAuthenticated, setLoading, syncSessionCookie]);
+  }, [user, isLoading, setUser, setAuthenticated, setLoading]);
 
   const getUserProfile = async (userId: string): Promise<User> => {
     try {
-      const profile = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        userId
-      );
+      const response = await fetch(`${API_BASE_URL}/auth/user/${userId}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user profile');
+      }
+
+      const profile = await response.json();
       return profile as User;
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      console.log('Error details:', error.message, error.stack);
       throw new Error('Failed to fetch user profile');
     }
   };
@@ -108,47 +87,41 @@ export function useAuth() {
   const login = async (data: LoginFormData): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
-      
-      // Check for existing session and delete it first
-      try {
-        await account.deleteSession('current');
-      } catch (error) {
-        // No active session to delete, which is fine
-      }
-      
-      // Create new session
-      const session = await account.createEmailPasswordSession(data.email, data.password);
-      
-      if (session) {
-        // Persist session secret as an httpOnly cookie for API route auth.
-        // Try the session.secret first; fall back to cookieFallback from
-        // localStorage (Appwrite may return an empty secret from client SDK).
-        if (session.secret) {
-          await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ secret: session.secret }),
-          });
-        } else {
-          await syncSessionCookie();
-        }
 
-        // Fetch user profile
-        const userProfile = await getUserProfile(session.userId);
-        
-        setUser(userProfile);
+      console.log('Attempting login to:', `${API_BASE_URL}/auth/login`);
+      console.log('Login data:', { email: data.email });
+
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: data.email, password: data.password }),
+      });
+
+      console.log('Login response status:', response.status);
+      console.log('Login response ok:', response.ok);
+
+      if (response.ok) {
+        const session = await response.json();
+        console.log('Login session data:', session);
+
+        // The login endpoint already returns the full user data
+        setUser(session as User);
         setAuthenticated(true);
-        
+
         toast.success('Login successful!');
         return { success: true };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Login API error:', errorData);
+        return { success: false, error: { message: errorData.error || 'Login failed' } };
       }
-      
-      return { success: false, error: { message: 'Failed to create session' } };
     } catch (error: any) {
       console.error('Login error:', error);
-      const errorMessage = getAuthErrorMessage(error);
+      console.error('Login error details:', JSON.stringify(error, null, 2));
+      const errorMessage = error.message || 'An unexpected error occurred';
       toast.error(errorMessage);
-      return { success: false, error: { message: errorMessage, code: error.code } };
+      return { success: false, error: { message: errorMessage } };
     } finally {
       setLoadingState(false);
     }
@@ -158,17 +131,25 @@ export function useAuth() {
     try {
       setLoadingState(true);
       
-      // Create account
-      const account_response = await account.create(
-        ID.unique(),
-        data.email,
-        data.password,
-      );
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          email: data.email, 
+          password: data.password, 
+          name: data.name, 
+          role: data.role,
+          phone: data.phone,
+        }),
+      });
+      
+      if (response.ok) {
+        const account_response = await response.json();
 
-      if (account_response) {
         // Create user profile in database
         await createUserProfile({
-          userId: account_response.$id,
+          userId: account_response.$id || account_response.userId,
           name: data.name,
           email: data.email,
           role: data.role,
@@ -177,14 +158,15 @@ export function useAuth() {
 
         toast.success('Account created successfully! Please log in to continue.');
         return { success: true };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        return { success: false, error: { message: errorData.error || 'Registration failed' } };
       }
-      
-      return { success: false, error: { message: 'Failed to create account' } };
     } catch (error: any) {
       console.error('Registration error:', error);
-      const errorMessage = getAuthErrorMessage(error);
+      const errorMessage = error.message || 'An unexpected error occurred';
       toast.error(errorMessage);
-      return { success: false, error: { message: errorMessage, code: error.code } };
+      return { success: false, error: { message: errorMessage } };
     } finally {
       setLoadingState(false);
     }
@@ -198,35 +180,38 @@ export function useAuth() {
     phone?: string;
   }): Promise<User> => {
     try {
-      // Check if user profile already exists
+      // Check if user profile already exists via VPS API
       try {
-        const existingProfile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTIONS.USERS,
-          profileData.userId
-        );
-        if (existingProfile) {
+        const response = await fetch(`${API_BASE_URL}/auth/user/${profileData.userId}`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const existingProfile = await response.json();
           return existingProfile as unknown as User;
         }
       } catch (error) {
         // Profile doesn't exist, continue with creation
       }
 
-      const profile = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        profileData.userId,
-        {
+      // Create profile via VPS API
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: profileData.userId,
           name: profileData.name,
           email: profileData.email,
           phone: profileData.phone || '',
           role: profileData.role,
-          isActive: false,
-          isVerified: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      );
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create profile');
+      }
+
+      const profile = await response.json();
 
       // Partner referral tracking (non-blocking)
       try {
@@ -235,17 +220,13 @@ export function useAuth() {
           : null;
 
         if (referralCode) {
-          // Add referredByPartnerCode to user document
-          try {
-            await databases.updateDocument(
-              DATABASE_ID,
-              COLLECTIONS.USERS,
-              profileData.userId,
-              { referredByPartnerCode: referralCode }
-            );
-          } catch (refUpdateError) {
-            console.error('Failed to set referredByPartnerCode:', refUpdateError);
-          }
+          // Update profile with referral code via VPS API
+          await fetch(`${API_BASE_URL}/auth/user/${profileData.userId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ referredByPartnerCode: referralCode }),
+          }).catch((err) => console.error('Failed to set referredByPartnerCode:', err));
 
           // Create referral record via API
           fetch('/api/partners/referral', {
@@ -316,15 +297,19 @@ export function useAuth() {
   const logout = useCallback(async (): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
-      // Always clear our session cookie, even if Appwrite logout fails
+      // Clear session cookie
       await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
-      await account.deleteSession('current');
+      // Call VPS logout endpoint
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      }).catch(() => {});
       storeLogout();
       hasInitialized.current = false;
       toast.success('Logged out successfully');
       return { success: true };
     } catch (error: any) {
-      // Still clear local state even if Appwrite call failed
+      // Still clear local state even if call failed
       storeLogout();
       hasInitialized.current = false;
       console.error('Logout error:', error);
@@ -336,69 +321,36 @@ export function useAuth() {
   }, [storeLogout]);
 
   const sendVerificationEmail = async (): Promise<{ success: boolean; error?: AuthError }> => {
-    try {
-      setLoadingState(true);
-      const verification = await account.createVerification(
-        `${window.location.origin}/verify-email`
-      );
-      
-      if (verification) {
-        toast.success('Verification email sent!');
-        return { success: true };
-      }
-      
-      return { success: false, error: { message: 'Failed to send verification email' } };
-    } catch (error: any) {
-      console.error('Email verification error:', error);
-      const errorMessage = getAuthErrorMessage(error);
-      toast.error(errorMessage);
-      return { success: false, error: { message: errorMessage } };
-    } finally {
-      setLoadingState(false);
-    }
+    // TODO: Implement with VPS API
+    toast.error('Email verification not implemented yet');
+    return { success: false, error: { message: 'Not implemented' } };
   };
 
   const verifyEmail = async (userId: string, secret: string): Promise<{ success: boolean; error?: AuthError }> => {
-    try {
-      setLoadingState(true);
-      await account.updateVerification(userId, secret);
-      
-      // Update user profile
-      if (user) {
-        const updatedProfile = await databases.updateDocument(
-          DATABASE_ID,
-          COLLECTIONS.USERS,
-          user.$id,
-          { emailVerified: true, updatedAt: new Date().toISOString() }
-        );
-        setUser(updatedProfile as User);
-      }
-      
-      toast.success('Email verified successfully!');
-      return { success: true };
-    } catch (error: any) {
-      console.error('Email verification error:', error);
-      const errorMessage = getAuthErrorMessage(error);
-      toast.error(errorMessage);
-      return { success: false, error: { message: errorMessage } };
-    } finally {
-      setLoadingState(false);
-    }
+    // TODO: Implement with VPS API
+    toast.error('Email verification not implemented yet');
+    return { success: false, error: { message: 'Not implemented' } };
   };
 
   const sendPasswordReset = async (email: string): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
-      await account.createRecovery(
-        email,
-        `${window.location.origin}/reset-password`
-      );
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
       
-      toast.success('Password reset email sent!');
-      return { success: true };
+      if (response.ok) {
+        toast.success('Password reset email sent!');
+        return { success: true };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        return { success: false, error: { message: errorData.error || 'Failed to send reset email' } };
+      }
     } catch (error: any) {
       console.error('Password reset error:', error);
-      const errorMessage = getAuthErrorMessage(error);
+      const errorMessage = error.message || 'An unexpected error occurred';
       toast.error(errorMessage);
       return { success: false, error: { message: errorMessage } };
     } finally {
@@ -413,16 +365,21 @@ export function useAuth() {
       
       if (!user) throw new Error('No user logged in');
       
-      const updatedProfile = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        user.$id,
-        {
+      const response = await fetch(`${API_BASE_URL}/auth/user/${user.$id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
           ...updates,
           updatedAt: new Date().toISOString(),
-        }
-      );
+        }),
+      });
       
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+      
+      const updatedProfile = await response.json();
       setUser(updatedProfile as User);
       toast.success('Profile updated successfully!');
       return { success: true };
@@ -437,36 +394,31 @@ export function useAuth() {
   };
 
   const forgotPassword = async (email: string): Promise<{ success: boolean; error?: AuthError }> => {
-    try {
-      setLoadingState(true);
-      
-      // Use Appwrite's built-in password recovery
-      // Appwrite will automatically send the reset email
-      const recoveryUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://yourdomain.com'}/reset-password`;
-      await account.createRecovery(email, recoveryUrl);
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error('Forgot password error:', error);
-      const errorMessage = getAuthErrorMessage(error);
-      return { success: false, error: { message: errorMessage, code: error.code } };
-    } finally {
-      setLoadingState(false);
-    }
+    // This is now handled by sendPasswordReset
+    return sendPasswordReset(email);
   };
 
   const resetPassword = async (userId: string, secret: string, newPassword: string): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, secret, newPassword }),
+      });
       
-      // Use Appwrite's built-in password reset
-      await account.updateRecovery(userId, secret, newPassword);
-      
-      return { success: true };
+      if (response.ok) {
+        toast.success('Password reset successfully!');
+        return { success: true };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        return { success: false, error: { message: errorData.error || 'Failed to reset password' } };
+      }
     } catch (error: any) {
       console.error('Reset password error:', error);
-      const errorMessage = getAuthErrorMessage(error);
-      return { success: false, error: { message: errorMessage, code: error.code } };
+      const errorMessage = error.message || 'An unexpected error occurred';
+      toast.error(errorMessage);
+      return { success: false, error: { message: errorMessage } };
     } finally {
       setLoadingState(false);
     }

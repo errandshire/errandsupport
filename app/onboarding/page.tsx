@@ -557,7 +557,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile, professiona
   const uploadFileToStorage = async (file: File): Promise<string> => {
     try {
       const { storage, STORAGE_BUCKET_ID } = await import('@/lib/appwrite');
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
       
       const fileId = ID.unique();
       const uploadedFile = await storage.createFile(STORAGE_BUCKET_ID, fileId, file);
@@ -662,7 +662,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile, professiona
 
       // NOW create the complete WORKERS profile with professional data + verification documents
       const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query, ID } = await import('appwrite');
+      const { Query, ID } = await import('@/lib/db');
 
       // Check if worker profile already exists (shouldn't for new users, but handle edge cases)
       const existingWorkers = await databases.listDocuments(

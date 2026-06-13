@@ -1,9 +1,9 @@
-import { databases } from './appwrite';
-import { Query } from 'appwrite';
-import { COLLECTIONS } from './appwrite';
+import { databases } from './api';
+import { Query } from '@/lib/client-utils';
+import { COLLECTIONS } from './api';
 import { emailService } from './email-service';
 import { TermiiSMSService } from './termii-sms.service';
-import { ID } from 'appwrite';
+import { ID } from '@/lib/client-utils';
 
 interface WorkerDoc {
   $id: string;
@@ -40,7 +40,7 @@ export class WorkerNotificationService {
     try {
       // Get all workers
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [Query.orderDesc('$createdAt'), Query.limit(1000)]
       );
@@ -64,7 +64,7 @@ export class WorkerNotificationService {
         incompleteWorkers.map(async (worker) => {
           try {
             const user = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.USERS,
               worker.userId
             );
@@ -142,7 +142,7 @@ export class WorkerNotificationService {
   private static async sendInAppNotification(worker: WorkerDoc): Promise<boolean> {
     try {
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         ID.unique(),
         {

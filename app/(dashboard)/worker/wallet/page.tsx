@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { WalletService } from "@/lib/wallet.service";
 import { PaystackService } from "@/lib/paystack.service";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { ID, Query } from "appwrite";
 import type { Wallet, WalletTransaction, BankAccount, Withdrawal } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,7 +92,7 @@ export default function WorkerWalletPage() {
 
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS,
         [Query.equal('userId', user.$id)]
       );
@@ -185,7 +184,7 @@ export default function WorkerWalletPage() {
       const bankName = banks.find(b => b.code === newBank.bankCode)?.name || 'Unknown Bank';
 
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS,
         ID.unique(),
         {
@@ -222,7 +221,7 @@ export default function WorkerWalletPage() {
       // Update all accounts: set selected as default, others as non-default
       const updatePromises = bankAccounts.map(account =>
         databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.BANK_ACCOUNTS,
           account.$id,
           {
@@ -258,7 +257,7 @@ export default function WorkerWalletPage() {
       setIsDeletingBank(bankToDelete.$id);
 
       await databases.deleteDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS,
         bankToDelete.$id
       );
@@ -268,7 +267,7 @@ export default function WorkerWalletPage() {
         const remainingAccounts = bankAccounts.filter(b => b.$id !== bankToDelete.$id);
         if (remainingAccounts.length > 0) {
           await databases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.BANK_ACCOUNTS,
             remainingAccounts[0].$id,
             { isDefault: true }
@@ -318,7 +317,7 @@ export default function WorkerWalletPage() {
 
       // Deduct from wallet first
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {
@@ -329,7 +328,7 @@ export default function WorkerWalletPage() {
 
       // Create withdrawal record
       const withdrawal = await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS,
         ID.unique(),
         {
@@ -352,7 +351,7 @@ export default function WorkerWalletPage() {
 
       // Update withdrawal status
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS,
         withdrawal.$id,
         {

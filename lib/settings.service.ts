@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 
 /**
  * SETTINGS SERVICE
@@ -43,7 +43,7 @@ export class SettingsService {
 
       // Fetch from database
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.SETTINGS,
         [Query.limit(1)]
       );
@@ -79,7 +79,7 @@ export class SettingsService {
     try {
       // Get existing settings
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.SETTINGS,
         [Query.limit(1)]
       );
@@ -92,16 +92,16 @@ export class SettingsService {
       if (response.documents.length > 0) {
         // Update existing
         await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.SETTINGS,
           response.documents[0].$id,
           updateData
         );
       } else {
         // Create new
-        const { ID } = await import('appwrite');
+        const { ID } = await import('@/lib/db');
         await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.SETTINGS,
           ID.unique(),
           {
@@ -134,9 +134,9 @@ export class SettingsService {
    */
   private static async createDefaultSettings() {
     try {
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.SETTINGS,
         ID.unique(),
         {

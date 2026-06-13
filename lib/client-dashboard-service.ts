@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 
 export interface ClientStats {
   totalBookings: number;
@@ -80,7 +80,7 @@ class ClientDashboardService {
     try {
       // Fetch bookings for this client
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', userId),
@@ -159,7 +159,7 @@ class ClientDashboardService {
 
     try {
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', userId),
@@ -177,7 +177,7 @@ class ClientDashboardService {
           try {
             if (booking.workerId) {
               const worker = await databases.getDocument(
-                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                DATABASE_ID!,
                 COLLECTIONS.USERS,
                 booking.workerId
               );
@@ -224,7 +224,7 @@ class ClientDashboardService {
       let unreadMessages = 0;
       try {
         const messagesResponse = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.MESSAGES,
           [
             Query.equal('recipientId', userId),
@@ -241,7 +241,7 @@ class ClientDashboardService {
       let activeBookings = 0;
       try {
         const activeResponse = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.BOOKINGS,
           [
             Query.equal('clientId', userId),
@@ -387,7 +387,7 @@ class ClientDashboardService {
   async healthCheck(): Promise<boolean> {
     try {
       await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         [Query.limit(1)]
       );

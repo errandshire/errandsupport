@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { ID, Query } from '@/lib/client-utils';
 import type { Wallet, WalletTransaction } from './types';
 import { COMMISSION_RATE } from './constants';
 
@@ -27,7 +27,7 @@ export class WalletService {
     try {
       // Try to get existing wallet
       const wallets = await db.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         [Query.equal('userId', userId), Query.limit(1)]
       );
@@ -38,7 +38,7 @@ export class WalletService {
 
       // Create new wallet
       const wallet = await db.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         ID.unique(),
         {
@@ -78,7 +78,7 @@ export class WalletService {
       // IDEMPOTENCY CHECK: Try to create transaction with reference as ID
       try {
         await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WALLET_TRANSACTIONS,
           paystackReference, // Use reference as ID for idempotency
           {
@@ -108,7 +108,7 @@ export class WalletService {
 
       // Update wallet balance
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {
@@ -165,7 +165,7 @@ export class WalletService {
       const transactionId = `hold_${bookingId}`;
       try {
         await db.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WALLET_TRANSACTIONS,
           transactionId,
           {
@@ -192,7 +192,7 @@ export class WalletService {
 
       // Move from balance to escrow
       await db.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {
@@ -260,7 +260,7 @@ export class WalletService {
       const transactionId = `release_${bookingId}`;
       try {
         await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WALLET_TRANSACTIONS,
           transactionId,
           {
@@ -291,7 +291,7 @@ export class WalletService {
       const commissionTransactionId = `commission_${bookingId}`;
       try {
         await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WALLET_TRANSACTIONS,
           commissionTransactionId,
           {
@@ -330,7 +330,7 @@ export class WalletService {
 
       // Update client wallet (remove from escrow)
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         clientWallet.$id,
         {
@@ -341,7 +341,7 @@ export class WalletService {
 
       // Update worker wallet (add NET amount after commission)
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         workerWallet.$id,
         {
@@ -377,7 +377,7 @@ export class WalletService {
   static async getTransactions(userId: string, limit: number = 50): Promise<WalletTransaction[]> {
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WALLET_TRANSACTIONS,
         [
           Query.equal('userId', userId),
@@ -441,7 +441,7 @@ export class WalletService {
       // Create rollback transaction record
       const rollbackTransactionId = `rollback_${bookingId}_${Date.now()}`;
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WALLET_TRANSACTIONS,
         rollbackTransactionId,
         {
@@ -458,7 +458,7 @@ export class WalletService {
 
       // Remove NET amount from worker balance
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         workerWallet.$id,
         {
@@ -470,7 +470,7 @@ export class WalletService {
 
       // Add FULL amount back to client escrow (including the commission that was deducted)
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         clientWallet.$id,
         {
@@ -534,7 +534,7 @@ export class WalletService {
       // Create rollback transaction record
       const rollbackTransactionId = `rollback_hold_${bookingId}_${Date.now()}`;
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WALLET_TRANSACTIONS,
         rollbackTransactionId,
         {
@@ -551,7 +551,7 @@ export class WalletService {
 
       // Move from escrow back to balance
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {

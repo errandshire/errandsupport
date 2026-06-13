@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Query } from 'node-appwrite';
-import { COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
+import { Query } from '@/lib/api';
+import { COLLECTIONS, DATABASE_ID } from '@/lib/api';
 import { sanitizeWorkerList } from '@/lib/sanitize-worker';
-
-const { serverDatabases } = require('@/lib/appwrite-server');
+import { serverDatabases } from '@/lib/api-server';
 
 const PAGE_LIMIT = 20;
 const SEARCH_FETCH_LIMIT = 200;

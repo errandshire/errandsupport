@@ -114,11 +114,11 @@ export function JobDetailsModal({ isOpen, onClose, job, onJobAccepted }: JobDeta
             </div>
 
             <div>
-              <p className="text-sm text-gray-500">Budget</p>
+              <p className="text-sm text-gray-500">Your Earnings</p>
               <div className="flex items-center gap-1 mt-1">
                 <DollarSign className="h-4 w-4 text-gray-400" />
                 <span className="text-sm font-semibold text-green-600">
-                  ₦{job.budgetMax.toLocaleString()}
+                  ₦{workerEarnings.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -161,25 +161,6 @@ export function JobDetailsModal({ isOpen, onClose, job, onJobAccepted }: JobDeta
                   <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                   <span>{job.clientRating.toFixed(1)}</span>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Earnings Breakdown */}
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium mb-3">Your Earnings</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Job Budget:</span>
-                <span className="font-medium">₦{job.budgetMax.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-red-600">
-                <span>Platform Fee ({COMMISSION_RATE * 100}%):</span>
-                <span>-₦{platformFee.toLocaleString()}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between text-lg font-semibold text-green-600">
-                <span>You'll Earn:</span>
-                <span>₦{workerEarnings.toLocaleString()}</span>
               </div>
             </div>
           </div>

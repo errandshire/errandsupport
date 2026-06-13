@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Client, Account, Databases } from 'node-appwrite';
-import { COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
-
-const { serverDatabases } = require('@/lib/appwrite-server');
+import { COLLECTIONS, DATABASE_ID, databases, account } from '@/lib/client-utils';
 
 interface AuthenticatedUser {
   $id: string;
@@ -18,33 +15,21 @@ interface AuthResult {
 export async function getAuthenticatedUser(
   request: NextRequest
 ): Promise<AuthResult | null> {
-  // 1. Try the httpOnly "session" cookie (set by /api/auth/session)
-  let sessionSecret = request.cookies.get('session')?.value;
+  // 1. Try the httpOnly "session" cookie
+  const sessionCookie = request.cookies.get('session')?.value;
 
-  // 2. Fallback: read X-Appwrite-Session header (sent by client fetch calls)
-  if (!sessionSecret) {
-    sessionSecret = request.headers.get('x-appwrite-session') ?? undefined;
-  }
-
-  if (!sessionSecret) return null;
-
-  const client = new Client()
-    .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
-  client.setSession(sessionSecret);
-
-  const account = new Account(client);
+  if (!sessionCookie) return null;
 
   try {
-    const user = await account.get();
+    const user = await account.get() as { $id: string; email: string; name: string };
 
     let role: string | undefined;
     try {
-      const userDoc = await serverDatabases.getDocument(
+      const userDoc = await databases.getDocument(
         DATABASE_ID,
         COLLECTIONS.USERS,
         user.$id
-      );
+      ) as { role?: string };
       role = userDoc.role;
     } catch {
       // User doc may not exist yet

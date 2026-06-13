@@ -1,5 +1,5 @@
-import { databases, storage, COLLECTIONS, DATABASE_ID, STORAGE_BUCKET_ID } from './appwrite';
-import { ID, Query, Permission, Role } from 'appwrite';
+import { databases, storage, COLLECTIONS, DATABASE_ID, STORAGE_BUCKET_ID } from './api';
+import { ID, Query, Permission, Role } from '@/lib/client-utils';
 import { Job, JobFormData, JobWithDetails } from './types';
 import { JOB_EXPIRY_HOURS, JOB_STATUS } from './constants';
 import { generateUniqueSlug } from './slug-utils';
@@ -89,6 +89,11 @@ export class JobPostingService {
 
       if (formData.locationLat != null) jobData.locationLat = formData.locationLat;
       if (formData.locationLng != null) jobData.locationLng = formData.locationLng;
+      
+      // Add pricing items for laundry/cleaning jobs
+      if (formData.pricingItems && formData.pricingItems.length > 0) {
+        jobData.pricingItems = JSON.stringify(formData.pricingItems);
+      }
 
       const response = await db.createDocument(
         DATABASE_ID,
@@ -437,6 +442,7 @@ export class JobPostingService {
         [
           Query.equal('status', JOB_STATUS.OPEN),
           Query.orderDesc('$createdAt'),
+          Query.notEqual('status','cancelled'),
           Query.limit(limit)
         ]
       );

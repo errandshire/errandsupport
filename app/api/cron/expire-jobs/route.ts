@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS, DATABASE_ID } from '@/lib/api';
+import { Query } from '@/lib/api';
 import { JOB_STATUS } from '@/lib/constants';
 import { JobNotificationService } from '@/lib/job-notification.service';
 

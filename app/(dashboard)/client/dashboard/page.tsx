@@ -35,8 +35,7 @@ import type { ClientStats, RecentBooking, QuickAction } from "@/lib/client-dashb
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { JobPostingModal } from "@/components/client/job-posting-modal";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { databases, COLLECTIONS } from "@/lib/api";
 import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
 import { AUTO_RELEASE_HOURS } from "@/lib/constants";
@@ -227,7 +226,7 @@ function ClientDashboardContent() {
     if (!user) return;
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', user.$id),
@@ -244,7 +243,7 @@ function ClientDashboardContent() {
           try {
             if (booking.workerId) {
               const worker = await databases.getDocument(
-                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                DATABASE_ID!,
                 COLLECTIONS.USERS,
                 booking.workerId
               );

@@ -46,7 +46,7 @@ export function ChatInterface({
       try {
         const { databases, COLLECTIONS } = await import('@/lib/appwrite');
         const recipient = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           recipientId
         );

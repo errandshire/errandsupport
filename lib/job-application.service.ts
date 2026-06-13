@@ -1,5 +1,5 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './appwrite';
-import { ID, Query, Permission, Role } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTIONS } from './api';
+import { ID, Query, Permission, Role } from '@/lib/client-utils';
 import { JobApplication, JobApplicationWithDetails, JobApplicationStatus } from './types';
 
 /**

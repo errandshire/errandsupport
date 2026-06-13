@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PartnerService } from '@/lib/partner.service';
-const { serverDatabases } = require('@/lib/appwrite-server');
+const { serverDatabases } = require('@/lib/api-server');
 
 /**
  * GET /api/partners/validate?code=EW-XXX

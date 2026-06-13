@@ -1,7 +1,4 @@
-import { databases } from './appwrite';
-import { ID } from 'appwrite';
-import { Query } from 'appwrite';
-import { COLLECTIONS } from './appwrite';
+import { databases, COLLECTIONS, ID, Query } from './api';
 import { SMSService } from './sms.service';
 
 export interface Notification {
@@ -44,7 +41,7 @@ class NotificationService {
 
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         [
           Query.equal('userId', userId),
@@ -70,7 +67,7 @@ class NotificationService {
 
     try {
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         notificationId,
         { isRead: true }
@@ -101,7 +98,7 @@ class NotificationService {
       // Check for duplicate notifications using idempotency key first
       if (idempotencyKey) {
         const existingNotification = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.NOTIFICATIONS,
           [
             Query.equal('idempotencyKey', idempotencyKey),
@@ -116,7 +113,7 @@ class NotificationService {
       } else {
         // Fallback: Check for recent duplicate notifications (last 5 minutes) if no idempotency key
         const recentNotifications = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.NOTIFICATIONS,
           [
             Query.equal('userId', userId),
@@ -155,7 +152,7 @@ class NotificationService {
       ) as NotificationData;
 
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         ID.unique(),
         cleanData
@@ -172,7 +169,7 @@ class NotificationService {
 
     try {
       await databases.deleteDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         notificationId
       );

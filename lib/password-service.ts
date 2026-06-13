@@ -1,4 +1,4 @@
-import { account } from './appwrite';
+import { account } from './api';
 import { toast } from 'sonner';
 
 export interface ChangePasswordRequest {

@@ -1,8 +1,8 @@
-import { COLLECTIONS } from './appwrite';
+import { COLLECTIONS } from './api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
-import { Query } from 'appwrite';
-const { serverDatabases } = require('./appwrite-server');
+import { Query } from '@/lib/client-utils';
+const { serverDatabases } = require('./api-server');
 
 /**
  * CLIENT CANCELLATION SERVICE
@@ -77,7 +77,7 @@ export class ClientCancellationService {
 
       // Get booking details
       const booking = await serverDatabases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -103,7 +103,7 @@ export class ClientCancellationService {
 
       // Check if this is from a job application
       const applications = await serverDatabases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOB_APPLICATIONS,
         [Query.equal('bookingId', bookingId), Query.limit(1)]
       );
@@ -125,7 +125,7 @@ export class ClientCancellationService {
       // If from job application, update application status (skip if already unpicked)
       if (application && application.status !== 'unpicked') {
         await serverDatabases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.JOB_APPLICATIONS,
           application.$id,
           {
@@ -138,7 +138,7 @@ export class ClientCancellationService {
         if (booking.jobId) {
           try {
             const job = await serverDatabases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.JOBS,
               booking.jobId
             );
@@ -146,7 +146,7 @@ export class ClientCancellationService {
             // Only update if job is still in 'assigned' status
             if (job.status === 'assigned') {
               await serverDatabases.updateDocument(
-                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                DATABASE_ID!,
                 COLLECTIONS.JOBS,
                 booking.jobId,
                 {
@@ -169,12 +169,12 @@ export class ClientCancellationService {
         try {
           const [worker, client] = await Promise.all([
             serverDatabases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.USERS,
               booking.workerId
             ),
             serverDatabases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.USERS,
               clientId
             )
@@ -242,7 +242,7 @@ export class ClientCancellationService {
       let job;
       try {
         job = await serverDatabases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.JOBS,
           jobId
         );
@@ -302,7 +302,7 @@ export class ClientCancellationService {
 
       // Update job status to cancelled
       await serverDatabases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOBS,
         jobId,
         {
@@ -313,7 +313,7 @@ export class ClientCancellationService {
 
       // Reject all pending applications
       const applications = await serverDatabases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOB_APPLICATIONS,
         [Query.equal('jobId', jobId), Query.equal('status', 'pending'), Query.limit(100)]
       );
@@ -323,7 +323,7 @@ export class ClientCancellationService {
         try {
           // Update application status
           await serverDatabases.updateDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.JOB_APPLICATIONS,
             app.$id,
             {
@@ -334,7 +334,7 @@ export class ClientCancellationService {
 
           // Get worker details
           const worker = await serverDatabases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.WORKERS,
             app.workerId
           );

@@ -68,13 +68,13 @@ export default function ClientWalletPage() {
     try {
       setIsLoadingWallet(true);
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query } = await import('appwrite');
+      const { Query } = await import('@/lib/db');
 
       const [walletData, transactionsData, bankAccountsData] = await Promise.all([
         WalletService.getOrCreateWallet(user.$id),
         WalletService.getTransactions(user.$id, 50),
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.BANK_ACCOUNTS,
           [Query.equal('userId', user.$id)]
         )
@@ -106,9 +106,9 @@ export default function ClientWalletPage() {
     if (!user) return;
     try {
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query } = await import('appwrite');
+      const { Query } = await import('@/lib/db');
       const bankAccountsData = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS,
         [Query.equal('userId', user.$id)]
       );
@@ -208,11 +208,11 @@ export default function ClientWalletPage() {
 
       // Save to database
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
       const bankName = banks.find(b => b.code === newBank.bankCode)?.name || 'Unknown Bank';
 
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS,
         ID.unique(),
         {
@@ -279,14 +279,14 @@ export default function ClientWalletPage() {
 
       // Import required services
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
 
       // Generate reference
       const reference = PaystackService.generateReference('withdraw');
 
       // Deduct from wallet
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {
@@ -297,7 +297,7 @@ export default function ClientWalletPage() {
 
       // Create withdrawal record
       const withdrawal = await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS,
         ID.unique(),
         {
@@ -320,7 +320,7 @@ export default function ClientWalletPage() {
 
       // Update withdrawal status
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS,
         withdrawal.$id,
         {
@@ -330,7 +330,7 @@ export default function ClientWalletPage() {
 
       // Create transaction record for the deduction
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WALLET_TRANSACTIONS,
         `deduction_${reference}`,
         {

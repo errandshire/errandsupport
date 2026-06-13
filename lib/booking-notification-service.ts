@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from '@/lib/appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, COLLECTIONS } from '@/lib/client-utils';
+import { ID, Query } from '@/lib/client-utils';
 
 /**
  * Booking Notification Service
@@ -275,7 +275,7 @@ export class BookingNotificationService {
       };
 
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         ID.unique(),
         {
@@ -442,7 +442,7 @@ export class BookingNotificationService {
   private static async getWorkerInfo(workerId: string): Promise<any> {
     try {
       const response = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         workerId
       );
@@ -459,7 +459,7 @@ export class BookingNotificationService {
   private static async getClientInfo(clientId: string): Promise<any> {
     try {
       const response = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         clientId
       );
@@ -476,7 +476,7 @@ export class BookingNotificationService {
   static async getUserNotifications(userId: string, limit: number = 50): Promise<BookingNotification[]> {
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         [
           Query.equal('userId', userId),
@@ -502,7 +502,7 @@ export class BookingNotificationService {
   static async markNotificationAsRead(notificationId: string): Promise<void> {
     try {
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         notificationId,
         {
@@ -520,7 +520,7 @@ export class BookingNotificationService {
   static async getUnreadNotificationCount(userId: string): Promise<number> {
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         [
           Query.equal('userId', userId),

@@ -1,8 +1,8 @@
-import { databases, COLLECTIONS } from './appwrite';
+import { databases, COLLECTIONS } from './api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 import { TermiiSMSService } from './termii-sms.service';
-import { Query } from 'appwrite';
+import { Query } from '@/lib/client-utils';
 
 /**
  * BOOKING ACTION SERVICE
@@ -27,7 +27,7 @@ export class BookingActionService {
   static async getRelatedApplication(bookingId: string) {
     try {
       const applications = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOB_APPLICATIONS,
         [
           Query.equal('bookingId', bookingId),
@@ -61,7 +61,7 @@ export class BookingActionService {
       const { bookingId } = params;
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -108,7 +108,7 @@ export class BookingActionService {
       // This reduces friction by eliminating the separate "Start Work" step
       const now = new Date().toISOString();
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
@@ -122,7 +122,7 @@ export class BookingActionService {
       // If from job application, also update application.acceptedAt
       if (application) {
         await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.JOB_APPLICATIONS,
           application.$id,
           {
@@ -134,8 +134,8 @@ export class BookingActionService {
       // Send notifications to client
       try {
         const [worker, client] = await Promise.all([
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
         ]);
 
         // In-app notification
@@ -189,7 +189,7 @@ export class BookingActionService {
       const { bookingId, reason } = params;
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -238,7 +238,7 @@ export class BookingActionService {
 
       // Update application status to declined
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOB_APPLICATIONS,
         application.$id,
         {
@@ -249,14 +249,14 @@ export class BookingActionService {
 
       // Get job to reopen it
       const job = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOBS,
         application.jobId
       );
 
       // Reopen job for applications
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.JOBS,
         application.jobId,
         {
@@ -277,8 +277,8 @@ export class BookingActionService {
       // Notify client
       try {
         const [worker, client] = await Promise.all([
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
         ]);
 
         await notificationService.createNotification({
@@ -324,7 +324,7 @@ export class BookingActionService {
       const { bookingId, reason } = params;
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -357,13 +357,13 @@ export class BookingActionService {
       const { bookingId } = params;
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
 
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
@@ -376,8 +376,8 @@ export class BookingActionService {
       // Send notifications to client
       try {
         const [worker, client] = await Promise.all([
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
         ]);
 
         await notificationService.createNotification({
@@ -425,14 +425,14 @@ export class BookingActionService {
       const { bookingId } = params;
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
 
       // Just update status to worker_completed - DO NOT release payment yet
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
@@ -445,8 +445,8 @@ export class BookingActionService {
       // Send notifications to client
       try {
         const [worker, client] = await Promise.all([
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
-          databases.getDocument(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.workerId),
+          databases.getDocument(DATABASE_ID!, COLLECTIONS.USERS, booking.clientId)
         ]);
 
         await notificationService.createNotification({
@@ -500,7 +500,7 @@ export class BookingActionService {
       const { bookingId, userId } = params;
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -538,7 +538,7 @@ export class BookingActionService {
 
       // Update booking confirmation timestamp
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId,
         {
@@ -582,7 +582,7 @@ export class BookingActionService {
       }
 
       const booking = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );

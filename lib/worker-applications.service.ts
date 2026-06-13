@@ -1,5 +1,5 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './appwrite';
-import { Query, ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTIONS } from './api';
+import { Query, ID } from '@/lib/client-utils';
 
 /**
  * Worker Applications Service

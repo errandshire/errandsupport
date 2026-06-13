@@ -64,7 +64,7 @@ export function EarningsDashboard() {
       
       // Fetch completed bookings for this worker
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           { attribute: 'workerId', value: user!.$id },
@@ -74,7 +74,7 @@ export function EarningsDashboard() {
 
       // Fetch payment records
       const paymentsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.PAYMENTS,
         [
           { attribute: 'workerId', value: user!.$id }

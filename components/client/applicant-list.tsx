@@ -59,7 +59,7 @@ export function ApplicantList({ jobId, onWorkerSelected }: ApplicantListProps) {
     setIsLoading(true);
     try {
       const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
-      const { Query } = await import('appwrite');
+      const { Query } = await import('@/lib/db');
 
       // Fetch applications for this job
       const applications = await databases.listDocuments(

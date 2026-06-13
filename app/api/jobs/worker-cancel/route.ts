@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerCancellationService } from '@/lib/worker-cancellation.service';
 import { requireAuth } from '@/lib/auth-guard';
-const { serverDatabases } = require('@/lib/appwrite-server');
+const { serverDatabases } = require('@/lib/api-server');
 
 /**
  * DELETE /api/jobs/worker-cancel

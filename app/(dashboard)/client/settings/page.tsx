@@ -64,7 +64,7 @@ export default function ClientSettingsPage() {
       // Update user profile
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         user!.$id,
         {

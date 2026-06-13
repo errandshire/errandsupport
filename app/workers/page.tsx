@@ -153,7 +153,7 @@ function WorkersPageContent() {
     }
 
     try {
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
       const { WalletService } = await import('@/lib/wallet.service');
 
       // Use existing booking ID from payment flow or generate new one
@@ -228,7 +228,7 @@ function WorkersPageContent() {
       };
 
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         flattenedBookingRequest.id,
         flattenedBookingRequest
@@ -252,7 +252,7 @@ function WorkersPageContent() {
         // SMS notification (via Termii server-side API)
         try {
           const workerUser = await databases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID!,
             COLLECTIONS.USERS,
             flattenedBookingRequest.workerId
           );

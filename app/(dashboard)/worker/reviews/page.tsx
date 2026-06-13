@@ -31,7 +31,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { ReviewService, type ReviewWithDetails, type WorkerReviewStats } from "@/lib/review-service";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { toast } from "sonner";
 
 // Using ReviewWithDetails from review service
@@ -58,7 +57,7 @@ export default function WorkerReviewsPage() {
       
       // Get worker ID from user
       const workerResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', user.$id), Query.limit(1)]
       );

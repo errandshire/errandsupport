@@ -1,4 +1,4 @@
-import { ID } from "appwrite";
+import { ID } from '@/lib/client-utils';
 import { storage, STORAGE_BUCKET_ID } from "@/lib/appwrite";
 
 /** Same bucket as ID / verification documents */

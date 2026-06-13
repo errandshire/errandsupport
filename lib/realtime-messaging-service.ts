@@ -1,5 +1,5 @@
-import { databases, client, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, client, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 import { notificationService } from './notification-service';
 import type { Message } from './types/marketplace';
 
@@ -40,7 +40,7 @@ class RealtimeMessagingService {
 
     // Subscribe to message collection changes
     this.realtimeSubscription = client.subscribe(
-      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`,
       (response) => {
         this.handleRealtimeUpdate(response, userId);
       }
@@ -126,7 +126,7 @@ class RealtimeMessagingService {
     try {
       // Use better query with conversation grouping
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.MESSAGES,
         [
           Query.or([
@@ -223,7 +223,7 @@ class RealtimeMessagingService {
 
     try {
       const userInfo = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         userId
       );
@@ -274,7 +274,7 @@ class RealtimeMessagingService {
       // Create message document
       console.log('💬 Creating message document...', { conversationId, senderId, recipientId });
       const message = await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.MESSAGES,
         'unique()',
         {
@@ -400,7 +400,7 @@ class RealtimeMessagingService {
       // Batch update unread messages
       const updatePromises = unreadMessages.map(message =>
         databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.MESSAGES,
           message.id,
           { 
@@ -533,7 +533,7 @@ class RealtimeMessagingService {
     try {
       // Find all messages in the conversation
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.MESSAGES,
         [
           Query.equal('conversationId', conversationId),
@@ -543,7 +543,7 @@ class RealtimeMessagingService {
       // Delete each message document
       const deletePromises = response.documents.map((msg: any) =>
         databases.deleteDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.MESSAGES,
           msg.$id
         )

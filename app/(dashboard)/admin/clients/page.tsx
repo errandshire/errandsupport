@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +87,7 @@ export default function AdminClientsPage() {
       }
 
       const res = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         queries
       );
@@ -124,7 +123,7 @@ export default function AdminClientsPage() {
     try {
       // Fetch bookings for this client
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', clientId),
@@ -146,7 +145,7 @@ export default function AdminClientsPage() {
       let averageRating = 0;
       try {
         const reviewsResponse = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.REVIEWS,
           [
             Query.equal('clientId', clientId),
@@ -183,7 +182,7 @@ export default function AdminClientsPage() {
     try {
       setIsUpdatingStatus(true);
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         client.$id,
         {
@@ -223,7 +222,7 @@ export default function AdminClientsPage() {
     try {
       // Check if client has active bookings
       const bookingsResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('clientId', client.$id),
@@ -243,7 +242,7 @@ export default function AdminClientsPage() {
 
       // Delete user document
       await databases.deleteDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         client.$id
       );

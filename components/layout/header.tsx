@@ -20,7 +20,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
 import { useRouter } from "next/navigation";
-import { realtimeNotificationService } from '@/lib/realtime-notification-service';
 import { userProfileImageUrl } from "@/lib/avatar-display";
 
 interface HeaderProps {
@@ -70,41 +69,41 @@ export const Header = React.memo(function Header({ className, children, sidebarO
     };
   }, [isMenuOpen]);
 
-  // Setup real-time notifications
-  React.useEffect(() => {
-    if (!isAuthenticated || !user) return;
+  // Setup real-time notifications (disabled for VPS migration)
+  // React.useEffect(() => {
+  //   if (!isAuthenticated || !user) return;
 
-    let unsubscribe: (() => void) | null = null;
+  //   let unsubscribe: (() => void) | null = null;
 
-    const setupNotifications = async () => {
-      try {
-        // Initialize real-time notification service
-        await realtimeNotificationService.initialize(user.$id);
-        
-        // Get existing notifications
-        const userNotifications = realtimeNotificationService.getUserNotifications(user.$id);
-        setNotifications(userNotifications);
-        setUnreadCount(realtimeNotificationService.getUnreadCount(user.$id));
-        
-        // Subscribe to real-time updates
-        unsubscribe = realtimeNotificationService.subscribe(user.$id, (update) => {
-          setNotifications(realtimeNotificationService.getUserNotifications(user.$id));
-          setUnreadCount(update.unreadCount);
-        });
-        
-      } catch (error) {
-        console.error('Error setting up notifications:', error);
-      }
-    };
+  //   const setupNotifications = async () => {
+  //     try {
+  //       // Initialize real-time notification service
+  //       await realtimeNotificationService.initialize(user.$id);
 
-    setupNotifications();
+  //       // Get existing notifications
+  //       const userNotifications = realtimeNotificationService.getUserNotifications(user.$id);
+  //       setNotifications(userNotifications);
+  //       setUnreadCount(realtimeNotificationService.getUnreadCount(user.$id));
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [isAuthenticated, user]);
+  //       // Subscribe to real-time updates
+  //       unsubscribe = realtimeNotificationService.subscribe(user.$id, (update) => {
+  //         setNotifications(realtimeNotificationService.getUserNotifications(user.$id));
+  //         setUnreadCount(update.unreadCount);
+  //       });
+
+  //     } catch (error) {
+  //       console.error('Error setting up notifications:', error);
+  //     }
+  //   };
+
+  //   setupNotifications();
+
+  //   return () => {
+  //     if (unsubscribe) {
+  //       unsubscribe();
+  //     }
+  //   };
+  // }, [isAuthenticated, user]);
 
   const handleLogout = React.useCallback(() => {
     logout();

@@ -42,7 +42,7 @@ export default function AdminDisputeDetailPage() {
 
       if (data.clientId) {
         const clientData = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           data.clientId
         );
@@ -51,7 +51,7 @@ export default function AdminDisputeDetailPage() {
 
       if (data.workerId) {
         const workerData = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           data.workerId
         );

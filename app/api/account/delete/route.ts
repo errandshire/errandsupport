@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Account, Client } from 'node-appwrite';
 import { AccountDeletionService } from '@/lib/account-deletion.service';
-const { serverDatabases } = require('@/lib/appwrite-server');
-import { COLLECTIONS, DATABASE_ID } from '@/lib/appwrite';
+import { serverDatabases } from '@/lib/api-server';
+import { COLLECTIONS, DATABASE_ID } from '@/lib/api';
+import { account } from '@/lib/api';
 
 /**
  * POST /api/account/delete
@@ -32,27 +32,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Get session from cookie or header
-    const sessionSecret =
-      request.cookies.get('session')?.value ||
-      request.headers.get('x-appwrite-session');
+    // 2. Get session from cookie
+    const sessionCookie = request.cookies.get('session')?.value;
 
-    if (!sessionSecret) {
+    if (!sessionCookie) {
       return NextResponse.json(
         { success: false, message: 'Not authenticated. Please log in.' },
         { status: 401 }
       );
     }
 
-    // 3. Create Appwrite client with user session
-    const client = new Client()
-      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-      .setSession(sessionSecret);
-
-    const account = new Account(client);
-
-    // 4. Verify session is valid and get user
+    // 3. Verify session and get user from VPS API
     let user;
     try {
       user = await account.get();
@@ -65,28 +55,19 @@ export async function POST(request: NextRequest) {
 
     const userId = user.$id;
 
-    // 5. Verify password by attempting to create a new session
-    // (This is how we confirm the user knows their password)
+    // 4. Verify password with VPS API
     let passwordValid = false;
     try {
-      const emailSession = await account.createEmailPasswordSession(user.email, password);
+      await account.createEmailPasswordSession(user.email, password);
       passwordValid = true;
-
-      // Delete the verification session immediately
-      try {
-        await account.deleteSession(emailSession.$id);
-      } catch (deleteError) {
-        console.error('Failed to delete verification session:', deleteError);
-      }
     } catch (error: any) {
-      // Password is incorrect or other error
       if (error.code === 401) {
         return NextResponse.json(
           { success: false, message: 'Incorrect password. Please try again.' },
           { status: 401 }
         );
       }
-      throw error; // Re-throw if it's not an auth error
+      throw error;
     }
 
     if (!passwordValid) {
@@ -169,20 +150,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Delete the Appwrite authentication account
-    // Note: This must be done LAST, after all database operations
+    // 10. Delete authentication account from VPS
     console.log(`🔐 Deleting authentication account for user: ${userId}`);
     try {
-      // Delete all sessions first
-      await account.deleteSessions();
-
-      // Note: Appwrite doesn't have a direct "deleteAccount" method for the logged-in user
-      // The account will be inaccessible after we delete the user from USERS collection
-      // and delete all sessions. The auth record can be cleaned up by admin later if needed.
-
+      await account.deleteSession('current');
     } catch (authError) {
       console.error('Failed to delete auth sessions:', authError);
-      // Don't fail the deletion if this fails - account is already deleted from database
     }
 
     console.log(`✅ Account deletion completed successfully for user: ${userId}`);
@@ -216,27 +189,17 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Get session from cookie or header
-    const sessionSecret =
-      request.cookies.get('session')?.value ||
-      request.headers.get('x-appwrite-session');
+    // 1. Get session from cookie
+    const sessionCookie = request.cookies.get('session')?.value;
 
-    if (!sessionSecret) {
+    if (!sessionCookie) {
       return NextResponse.json(
         { success: false, message: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    // 2. Create Appwrite client with user session
-    const client = new Client()
-      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-      .setSession(sessionSecret);
-
-    const account = new Account(client);
-
-    // 3. Get user
+    // 2. Get user from VPS API
     let user;
     try {
       user = await account.get();
@@ -247,7 +210,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 4. Check eligibility
+    // 3. Check eligibility
     const eligibility = await AccountDeletionService.checkDeletionEligibility(user.$id);
 
     return NextResponse.json({

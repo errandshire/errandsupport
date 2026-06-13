@@ -53,7 +53,7 @@ export function CommissionSettings() {
       // Load from database or use defaults
       // This would typically fetch from a settings collection
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         'settings', // You'd need to create this collection
         []
       );
@@ -82,7 +82,7 @@ export function CommissionSettings() {
       
       // Save to database
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         'settings',
         'commission_settings',
         {

@@ -65,7 +65,7 @@ export function MessageModal({
         }
 
         const response = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           actualRecipientId
         );

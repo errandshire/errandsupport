@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PaystackService } from '@/lib/paystack.service';
 import { WalletService } from '@/lib/wallet.service';
-import { databases, COLLECTIONS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS } from '@/lib/api';
+import { Query } from '@/lib/api';
 
 /**
  * PAYSTACK WEBHOOK HANDLER
@@ -102,7 +102,7 @@ async function handleTransferSuccess(data: any) {
 
     // Find withdrawal by reference
     const withdrawals = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.WITHDRAWALS,
       [Query.equal('reference', reference)]
     );
@@ -112,7 +112,7 @@ async function handleTransferSuccess(data: any) {
 
       // Update withdrawal status
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS,
         withdrawal.$id,
         {
@@ -123,7 +123,7 @@ async function handleTransferSuccess(data: any) {
 
       // Create transaction record
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WALLET_TRANSACTIONS,
         reference, // Use reference for idempotency
         {
@@ -136,7 +136,7 @@ async function handleTransferSuccess(data: any) {
           createdAt: new Date().toISOString()
         }
       );
-
+      
     }
 
   } catch (error) {
@@ -155,7 +155,7 @@ async function handleTransferFailed(data: any) {
 
     // Find withdrawal by reference
     const withdrawals = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      DATABASE_ID!,
       COLLECTIONS.WITHDRAWALS,
       [Query.equal('reference', reference)]
     );
@@ -165,7 +165,7 @@ async function handleTransferFailed(data: any) {
 
       // Update withdrawal status
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WITHDRAWALS,
         withdrawal.$id,
         {
@@ -178,7 +178,7 @@ async function handleTransferFailed(data: any) {
       // Refund to wallet
       const wallet = await WalletService.getOrCreateWallet(withdrawal.userId);
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.VIRTUAL_WALLETS,
         wallet.$id,
         {

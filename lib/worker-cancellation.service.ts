@@ -1,5 +1,5 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 

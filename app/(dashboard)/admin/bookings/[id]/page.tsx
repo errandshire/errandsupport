@@ -32,7 +32,7 @@ export default function AdminBookingDetailPage() {
 
       // Get booking
       const bookingData = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         bookingId
       );
@@ -41,7 +41,7 @@ export default function AdminBookingDetailPage() {
       // Get worker details
       if (bookingData.workerId) {
         const workerData = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           bookingData.workerId
         );
@@ -51,7 +51,7 @@ export default function AdminBookingDetailPage() {
       // Get client details
       if (bookingData.clientId) {
         const clientData = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           bookingData.clientId
         );

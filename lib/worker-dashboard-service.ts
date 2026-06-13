@@ -1,6 +1,6 @@
-import { databases } from '@/lib/appwrite';
-import { COLLECTIONS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases } from '@/lib/client-utils';
+import { COLLECTIONS } from '@/lib/client-utils';
+import { Query } from '@/lib/client-utils';
 import { ReviewService } from './review-service';
 
 export interface WorkerStats {
@@ -75,7 +75,7 @@ class WorkerDashboardService {
     if (cached) return cached;
 
     try {
-      const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+      const DATABASE_ID = DATABASE_ID!;
 
       // Fetch all bookings for this worker
       const allBookings = await databases.listDocuments(
@@ -219,7 +219,7 @@ class WorkerDashboardService {
     if (cached) return cached;
 
     try {
-      const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+      const DATABASE_ID = DATABASE_ID!;
 
       // Fetch bookings for this worker
       const bookingsResponse = await databases.listDocuments(
@@ -465,7 +465,7 @@ class WorkerDashboardService {
     escrowTransactions: any[];
   }> {
     try {
-      const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+      const DATABASE_ID = DATABASE_ID!;
 
       // Fetch worker wallet
       const wallets = await databases.listDocuments(

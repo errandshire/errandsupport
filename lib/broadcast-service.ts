@@ -1,5 +1,5 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './appwrite';
-import { Query, ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTIONS } from './api';
+import { Query, ID } from '@/lib/client-utils';
 import { emailService } from './email-service';
 import { TermiiSMSService } from './termii-sms.service';
 import { notificationService } from './notification-service';

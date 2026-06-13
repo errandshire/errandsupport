@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorkerSelectionService } from '@/lib/worker-selection.service';
 import { requireAuth } from '@/lib/auth-guard';
-const { serverDatabases } = require('@/lib/appwrite-server');
+const { serverDatabases } = require('@/lib/api-server');
 
 /**
  * POST /api/jobs/select-worker

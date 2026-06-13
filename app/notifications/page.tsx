@@ -22,8 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
-import { Query, ID } from "appwrite";
+import { databases, COLLECTIONS } from "@/lib/api";
+import { Query, ID } from '@/lib/api';
 
 interface Notification {
   $id: string;
@@ -52,7 +52,7 @@ export default function NotificationsPage() {
     try {
       setIsLoading(true);
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS || 'notifications',
         [
           Query.equal('userId', user.$id),
@@ -80,7 +80,7 @@ export default function NotificationsPage() {
       setIsMarkingRead(notificationId);
       
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS || 'notifications',
         notificationId,
         {
@@ -120,7 +120,7 @@ export default function NotificationsPage() {
       // Update all unread notifications
       const updatePromises = unreadNotifications.map(notification =>
         databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.NOTIFICATIONS || 'notifications',
           notification.$id,
           {

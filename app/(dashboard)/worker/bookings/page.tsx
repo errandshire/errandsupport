@@ -33,7 +33,6 @@ import { JobApplicationDetailModal } from "@/components/worker/job-application-d
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { useAuth } from "@/hooks/use-auth";
 import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
-import { Query } from "appwrite";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ApplicationWithJob, WorkerApplicationsService } from "@/lib/worker-applications.service";
@@ -74,7 +73,7 @@ export default function WorkerJobsPage() {
 
 
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.BOOKINGS,
         [
           Query.equal('workerId', user.$id),

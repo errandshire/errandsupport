@@ -1,7 +1,7 @@
-import { Models } from 'appwrite';
-
 // User Types
-export interface User extends Models.Document {
+export interface User {
+  $id: string;
+  id?: string;
   name: string;
   email: string;
   phone?: string;
@@ -87,7 +87,7 @@ export interface WorkerVerification {
 }
 
 // Service Types
-export interface Service extends Models.Document {
+export interface Service  {
   name: string;
   description: string;
   categoryId: string;
@@ -99,7 +99,7 @@ export interface Service extends Models.Document {
   updatedAt: string;
 }
 
-export interface Category extends Models.Document {
+export interface Category  {
   name: string;
   description: string;
   icon: string;
@@ -112,7 +112,7 @@ export interface Category extends Models.Document {
 }
 
 // Booking Types
-export interface Booking extends Models.Document {
+export interface Booking  {
   clientId: string;
   workerId: string;
   serviceId: string;
@@ -161,8 +161,17 @@ export interface BookingLocation {
   instructions?: string;
 }
 
+// Pricing Item for laundry/cleaning jobs
+export interface PricingItem {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  pricePerItem: number;
+  totalPrice: number;
+}
+
 // Job Posting Types
-export interface Job extends Models.Document {
+export interface Job  {
   clientId: string;
   title: string;
   description: string;
@@ -178,6 +187,7 @@ export interface Job extends Models.Document {
   duration: number; // in hours
   skillsRequired?: string[];
   attachments?: string[]; // URLs to photos in Appwrite Storage
+  pricingItems?: PricingItem[]; // For laundry/cleaning jobs with predefined pricing
   status: JobStatus;
   assignedWorkerId?: string;
   assignedAt?: string;
@@ -214,6 +224,7 @@ export interface JobFormData {
   duration: number;
   skillsRequired?: string[];
   attachments?: File[]; // Files to upload
+  pricingItems?: PricingItem[]; // For laundry/cleaning jobs with predefined pricing
 }
 
 export interface JobWithDetails extends Job {
@@ -225,7 +236,7 @@ export interface JobWithDetails extends Job {
 }
 
 // Job Application Types
-export interface JobApplication extends Models.Document {
+export interface JobApplication  {
   jobId: string;
   workerId: string;
   clientId: string;
@@ -260,7 +271,7 @@ export interface JobApplicationWithDetails extends JobApplication {
 }
 
 // Review Types
-export interface Review extends Models.Document {
+export interface Review  {
   bookingId: string;
   clientId: string;
   workerId: string;
@@ -352,7 +363,7 @@ export interface SearchResults {
 }
 
 // Notification Types
-export interface Notification extends Models.Document {
+export interface Notification  {
   userId: string;
   type: NotificationType;
   title: string;
@@ -397,7 +408,7 @@ export interface WorkerState {
 }
 
 // SIMPLE WALLET SYSTEM
-export interface Wallet extends Models.Document {
+export interface Wallet  {
   userId: string;
   balance: number;        // Available to spend or withdraw (in Naira)
   escrow: number;         // Money held for active bookings (in Naira)
@@ -406,7 +417,7 @@ export interface Wallet extends Models.Document {
   updatedAt: string;
 }
 
-export interface WalletTransaction extends Models.Document {
+export interface WalletTransaction  {
   userId: string;
   type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw' | 'rollback' | 'rollback_hold' | 'partner_commission';
   amount: number;         // Always in Naira (negative for rollbacks)
@@ -417,7 +428,7 @@ export interface WalletTransaction extends Models.Document {
   createdAt: string;
 }
 
-export interface BankAccount extends Models.Document {
+export interface BankAccount  {
   userId: string;
   accountNumber: string;
   accountName: string;
@@ -428,7 +439,7 @@ export interface BankAccount extends Models.Document {
   createdAt: string;
 }
 
-export interface Withdrawal extends Models.Document {
+export interface Withdrawal  {
   userId: string;
   amount: number;         // In Naira
   bankAccountId: string;
@@ -443,7 +454,7 @@ export interface Withdrawal extends Models.Document {
 // Partner Program Types
 export type PartnerStatus = 'pending' | 'active' | 'suspended' | 'removed';
 
-export interface Partner extends Models.Document {
+export interface Partner  {
   name: string;
   email: string;
   phone?: string;
@@ -463,7 +474,7 @@ export interface Partner extends Models.Document {
 
 export type ReferralStatus = 'active' | 'expired' | 'fraud';
 
-export interface Referral extends Models.Document {
+export interface Referral  {
   partnerCode: string;
   partnerId: string;
   clientId: string;
@@ -479,7 +490,7 @@ export interface Referral extends Models.Document {
 
 export type CommissionStatus = 'pending' | 'paid' | 'cancelled';
 
-export interface PartnerCommission extends Models.Document {
+export interface PartnerCommission  {
   referralId: string;
   partnerId: string;
   partnerCode: string;

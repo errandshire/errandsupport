@@ -1,5 +1,4 @@
-import { databases, client, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS, DATABASE_ID, Query } from './db';
 import type { Notification } from './types';
 
 export interface NotificationUpdate {
@@ -20,13 +19,9 @@ class RealtimeNotificationService {
       this.realtimeSubscription();
     }
 
-    // Subscribe to notification collection changes
-    this.realtimeSubscription = client.subscribe(
-      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${COLLECTIONS.NOTIFICATIONS}.documents`,
-      (response) => {
-        this.handleRealtimeUpdate(response, userId);
-      }
-    );
+    // TODO: Implement realtime subscription with VPS (WebSocket or polling)
+    // For now, use polling as a fallback
+    console.log('Realtime notifications not implemented for VPS yet - using polling fallback');
 
     // Load initial notifications
     await this.loadUserNotifications(userId);
@@ -107,7 +102,7 @@ class RealtimeNotificationService {
   async loadUserNotifications(userId: string, limit: number = 20): Promise<Notification[]> {
     try {
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID,
         COLLECTIONS.NOTIFICATIONS,
         [
           Query.equal('userId', userId),
@@ -156,7 +151,7 @@ class RealtimeNotificationService {
         return false;
       }
 
-      const { ID } = await import('appwrite');
+      const { ID } = await import('@/lib/db');
       
       const notification = {
         id: ID.unique(),
@@ -168,7 +163,7 @@ class RealtimeNotificationService {
       };
 
       await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID,
         COLLECTIONS.NOTIFICATIONS,
         notification.id,
         notification
@@ -197,7 +192,7 @@ class RealtimeNotificationService {
   async markAsRead(notificationId: string, userId: string): Promise<boolean> {
     try {
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.NOTIFICATIONS,
         notificationId,
         { 
@@ -232,7 +227,7 @@ class RealtimeNotificationService {
       // Batch update
       const updatePromises = unreadNotifications.map(notification =>
         databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.NOTIFICATIONS,
           notification.$id,
           { 

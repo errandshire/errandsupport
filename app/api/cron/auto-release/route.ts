@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COLLECTIONS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { COLLECTIONS } from '@/lib/api';
+import { Query } from '@/lib/api';
 import { AUTO_RELEASE_HOURS } from '@/lib/constants';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
 import { TermiiSMSService } from '@/lib/termii-sms.service';
 
 // Use server SDK for cron jobs (no user session available)
-const { serverDatabases } = require('@/lib/appwrite-server');
+const { serverDatabases } = require('@/lib/api-server');
 
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+const DATABASE_ID = DATABASE_ID!;
 
 /**
  * GET /api/cron/auto-release

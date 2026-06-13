@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingActionService } from '@/lib/booking-action-service';
 import { requireAuth } from '@/lib/auth-guard';
-const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/appwrite-server');
+const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/api-server');
 import { trackMetaEvent } from '@/lib/meta-pixel-events';
 
 /**

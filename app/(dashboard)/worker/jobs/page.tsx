@@ -36,10 +36,10 @@ export default function WorkerJobsPage() {
 
       try {
         const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-        const { Query } = await import('appwrite');
+        const { Query } = await import('@/lib/db');
 
         const workers = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WORKERS,
           [Query.equal('userId', user.$id)]
         );
@@ -132,7 +132,7 @@ export default function WorkerJobsPage() {
 
       try {
         const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
-        const { Query } = await import('appwrite');
+        const { Query } = await import('@/lib/db');
 
         // Fetch all applications by this worker
         const applications = await databases.listDocuments(
@@ -193,8 +193,18 @@ export default function WorkerJobsPage() {
   }, [searchParams, jobs, expandedJobId, handleJobClick, router]);
 
   const handleApplyToJob = async (job: Job) => {
-    if (!user || !workerId) {
-      toast.error('Worker profile not found. Please refresh the page.');
+    if (!user) {
+      toast.error('Please log in to apply for jobs.');
+      return;
+    }
+
+    if (!workerId) {
+      toast.error('Please complete your profile to apply for jobs.', {
+        action: {
+          label: 'Complete Profile',
+          onClick: () => router.push('/onboarding'),
+        },
+      });
       return;
     }
 
@@ -336,7 +346,7 @@ export default function WorkerJobsPage() {
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                             <span className="font-semibold text-green-600">
-                              ₦{job.budgetMax.toLocaleString()}
+                              ₦{workerEarnings.toLocaleString()}
                             </span>
                           </div>
                         </div>
@@ -397,19 +407,11 @@ export default function WorkerJobsPage() {
                           </div>
                         </div>
 
-                        {/* Earnings Breakdown */}
+                        {/* Earnings */}
                         <div className="bg-blue-50 p-2.5 sm:p-3 rounded-lg">
                           <h4 className="font-medium mb-2 text-xs sm:text-sm">Your Earnings</h4>
                           <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                            <div className="flex justify-between gap-2">
-                              <span>Job Budget:</span>
-                              <span className="font-medium">₦{details.budgetMax.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between gap-2 text-red-600">
-                              <span>Platform Fee ({COMMISSION_RATE * 100}%):</span>
-                              <span>-₦{platformFee.toLocaleString()}</span>
-                            </div>
-                            <div className="border-t pt-1.5 sm:pt-2 flex justify-between gap-2 text-sm sm:text-base font-semibold text-green-600">
+                            <div className="flex justify-between gap-2 text-sm sm:text-base font-semibold text-green-600">
                               <span>You'll Earn:</span>
                               <span>₦{workerEarnings.toLocaleString()}</span>
                             </div>

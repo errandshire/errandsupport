@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { Query, ID } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { Query, ID } from '@/lib/client-utils';
 import type { Review } from './types';
 
 export interface CreateReviewRequest {
@@ -42,7 +42,7 @@ export class ReviewService {
     try {
       // Check if review already exists for this booking
       const existingReviews = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         [Query.equal('bookingId', data.bookingId)]
       );
@@ -53,7 +53,7 @@ export class ReviewService {
 
       // Create the review
       const review = await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         ID.unique(),
         {
@@ -88,7 +88,7 @@ export class ReviewService {
   ): Promise<ReviewWithDetails[]> {
     try {
       const reviews = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         [
           Query.equal('workerId', workerId),
@@ -105,14 +105,14 @@ export class ReviewService {
           try {
             // Get client details
             const client = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.USERS,
               review.clientId
             );
 
             // Get booking details
             const booking = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.BOOKINGS,
               review.bookingId
             );
@@ -158,7 +158,7 @@ export class ReviewService {
       }
 
       const reviews = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         [
           Query.equal('workerId', workerId),
@@ -220,14 +220,14 @@ export class ReviewService {
 
       // Find the worker document
       const workers = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', workerId), Query.limit(1)]
       );
 
       if (workers.documents.length > 0) {
         await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WORKERS,
           workers.documents[0].$id,
           {
@@ -251,7 +251,7 @@ export class ReviewService {
   ): Promise<void> {
     try {
       await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         reviewId,
         {
@@ -277,7 +277,7 @@ export class ReviewService {
   ): Promise<ReviewWithDetails[]> {
     try {
       const reviews = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         [
           Query.equal('clientId', clientId),
@@ -292,14 +292,14 @@ export class ReviewService {
           try {
             // Get worker details
             const worker = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.WORKERS,
               review.workerId
             );
 
             // Get booking details
             const booking = await databases.getDocument(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              DATABASE_ID!,
               COLLECTIONS.BOOKINGS,
               review.bookingId
             );
@@ -338,7 +338,7 @@ export class ReviewService {
   ): Promise<boolean> {
     try {
       const reviews = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.REVIEWS,
         [
           Query.equal('bookingId', bookingId),

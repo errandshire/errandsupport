@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS } from './appwrite';
-import { Query } from 'appwrite';
+import { databases, COLLECTIONS } from './api';
+import { Query } from '@/lib/client-utils';
 
 export interface DashboardStats {
   totalUsers: number;
@@ -77,12 +77,12 @@ class AdminDashboardService {
       // Parallel fetch for better performance
       const [usersResponse, workersResponse, clientsResponse] = await Promise.all([
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           [Query.limit(1)] // Just get count
         ),
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.WORKERS,
           [
             Query.limit(100),
@@ -90,7 +90,7 @@ class AdminDashboardService {
           ]
         ),
         databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          DATABASE_ID!,
           COLLECTIONS.USERS,
           [
             Query.equal('role', 'client'),
@@ -106,7 +106,7 @@ class AdminDashboardService {
 
       // Get pending verifications (workers with pending status)
       const pendingResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [
           Query.equal('verificationStatus', 'pending'),
@@ -156,7 +156,7 @@ class AdminDashboardService {
     try {
       // Get recent workers (they need approval)
       const workersResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.WORKERS,
         [
           Query.orderDesc('$createdAt'),
@@ -275,7 +275,7 @@ class AdminDashboardService {
     try {
       // Simple ping to database
       await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID!,
         COLLECTIONS.USERS,
         [Query.limit(1)]
       );

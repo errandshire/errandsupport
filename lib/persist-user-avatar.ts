@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { Query } from '@/lib/client-utils';
 
 export type AvatarRole = "client" | "worker" | "admin";
 

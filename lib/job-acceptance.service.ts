@@ -1,5 +1,5 @@
-import { databases, COLLECTIONS, DATABASE_ID } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, COLLECTIONS, DATABASE_ID } from './api';
+import { ID, Query } from '@/lib/client-utils';
 import { Job, JobWithDetails } from './types';
 import { JOB_STATUS, SERVICE_CATEGORIES } from './constants';
 import { WalletService } from './wallet.service';
