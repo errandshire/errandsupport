@@ -1,5 +1,5 @@
 // API Configuration for VPS PostgreSQL backend
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://72.62.179.203:3000/api';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://72.62.179.203:3000/api';
 
 // ID generator for client-side use
 export const ID = {
