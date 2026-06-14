@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COLLECTIONS, DATABASE_ID, databases, account } from '@/lib/client-utils';
+import { COLLECTIONS, DATABASE_ID, databases, account } from '@/lib/api';
 
 interface AuthenticatedUser {
   $id: string;

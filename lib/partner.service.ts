@@ -1,5 +1,5 @@
 import { databases, COLLECTIONS } from './api';
-import { ID, Query } from '@/lib/client-utils';
+import { ID, Query } from '@/lib/api';
 import type { Partner, Referral, PartnerCommission } from './types';
 import {
   PARTNER_COMMISSION_RATE,

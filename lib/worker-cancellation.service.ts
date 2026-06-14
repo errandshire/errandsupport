@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, COLLECTIONS } from './api';
-import { Query } from '@/lib/client-utils';
+import { Query } from '@/lib/api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 

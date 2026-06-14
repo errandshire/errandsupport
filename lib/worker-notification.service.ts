@@ -1,9 +1,9 @@
 import { databases } from './api';
-import { Query } from '@/lib/client-utils';
+import { Query } from '@/lib/api';
 import { COLLECTIONS } from './api';
 import { emailService } from './email-service';
 import { TermiiSMSService } from './termii-sms.service';
-import { ID } from '@/lib/client-utils';
+import { ID } from '@/lib/api';
 
 interface WorkerDoc {
   $id: string;

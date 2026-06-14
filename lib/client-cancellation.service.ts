@@ -1,7 +1,7 @@
 import { COLLECTIONS } from './api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
-import { Query } from '@/lib/client-utils';
+import { Query } from '@/lib/api';
 const { serverDatabases } = require('./api-server');
 
 /**

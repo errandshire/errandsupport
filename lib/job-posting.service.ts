@@ -1,5 +1,5 @@
 import { databases, storage, COLLECTIONS, DATABASE_ID, STORAGE_BUCKET_ID } from './api';
-import { ID, Query, Permission, Role } from '@/lib/client-utils';
+import { ID, Query, Permission, Role } from '@/lib/api';
 import { Job, JobFormData, JobWithDetails } from './types';
 import { JOB_EXPIRY_HOURS, JOB_STATUS } from './constants';
 import { generateUniqueSlug } from './slug-utils';

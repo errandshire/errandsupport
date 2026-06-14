@@ -1,6 +1,6 @@
-import { databases } from '@/lib/client-utils';
-import { COLLECTIONS } from '@/lib/client-utils';
-import { Query } from '@/lib/client-utils';
+import { databases } from '@/lib/api';
+import { COLLECTIONS } from '@/lib/api';
+import { Query } from '@/lib/api';
 import { ReviewService } from './review-service';
 
 export interface WorkerStats {

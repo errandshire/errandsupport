@@ -1,5 +1,4 @@
-import { databases, COLLECTIONS } from '@/lib/client-utils';
-import { ID, Query } from '@/lib/client-utils';
+import { databases, COLLECTIONS, ID, Query } from '@/lib/api';
 
 /**
  * Booking Notification Service

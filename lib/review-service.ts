@@ -1,5 +1,5 @@
 import { databases, COLLECTIONS } from './api';
-import { Query, ID } from '@/lib/client-utils';
+import { Query, ID } from '@/lib/api';
 import type { Review } from './types';
 
 export interface CreateReviewRequest {

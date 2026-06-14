@@ -2,7 +2,7 @@ import { databases, COLLECTIONS } from './api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 import { TermiiSMSService } from './termii-sms.service';
-import { Query } from '@/lib/client-utils';
+import { Query } from '@/lib/api';
 
 /**
  * BOOKING ACTION SERVICE

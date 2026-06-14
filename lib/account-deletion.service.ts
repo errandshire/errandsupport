@@ -1,4 +1,4 @@
-import { Query, ID } from '@/lib/client-utils';
+import { Query, ID } from '@/lib/api';
 import { COLLECTIONS, DATABASE_ID } from './api';
 const { serverDatabases, serverStorage } = require('./api-server');
 import { BookingCompletionService } from './booking-completion.service';

@@ -1,5 +1,5 @@
 import { databases, client, COLLECTIONS } from './api';
-import { Query } from '@/lib/client-utils';
+import { Query } from '@/lib/api';
 import { notificationService } from './notification-service';
 import type { Message } from './types/marketplace';
 

@@ -1,5 +1,5 @@
 import { databases, COLLECTIONS } from './api';
-import { Query } from '@/lib/client-utils';
+import { Query } from '@/lib/api';
 
 /**
  * Migration utility to move verification documents from USERS collection to WORKERS collection

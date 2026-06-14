@@ -1,5 +1,5 @@
 import { databases, COLLECTIONS } from './api';
-import { ID, Query } from '@/lib/client-utils';
+import { ID, Query } from '@/lib/api';
 import type { Wallet, WalletTransaction } from './types';
 import { COMMISSION_RATE } from './constants';
 
