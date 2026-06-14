@@ -9,13 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { BookingNotificationService } from "@/lib/booking-notification-service";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
 import { BookingProgressTracker } from "@/components/shared/booking-progress-tracker";
-import { Query } from "appwrite";
 
 // Updated interface to handle both old and new booking structures
 interface FlattenedBooking {

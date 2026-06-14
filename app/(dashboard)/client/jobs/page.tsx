@@ -36,7 +36,7 @@ export default function ClientJobsPage() {
 
       // Fetch applicant counts for open jobs
       const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
-      const { Query } = await import('@/lib/db');
+      const { Query } = await import('@/lib/appwrite');
 
       const counts: Record<string, number> = {};
       for (const job of fetchedJobs.filter(j => j.status === 'open')) {

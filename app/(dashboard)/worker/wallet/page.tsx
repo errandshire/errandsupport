@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { WalletService } from "@/lib/wallet.service";
 import { PaystackService } from "@/lib/paystack.service";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import type { Wallet, WalletTransaction, BankAccount, Withdrawal } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

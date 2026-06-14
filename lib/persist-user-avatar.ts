@@ -1,5 +1,4 @@
-import { databases, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
-import { Query } from '@/lib/api';
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/api";
 
 export type AvatarRole = "client" | "worker" | "admin";
 

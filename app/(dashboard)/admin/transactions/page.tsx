@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

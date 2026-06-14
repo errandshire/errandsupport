@@ -151,7 +151,7 @@ class RealtimeNotificationService {
         return false;
       }
 
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
       
       const notification = {
         id: ID.unique(),

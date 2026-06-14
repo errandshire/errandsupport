@@ -18,8 +18,7 @@ import {
   Award,
   X
 } from "lucide-react";
-import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { toast } from "sonner";
 import { workerProfileImageUrl } from "@/lib/avatar-display";
 

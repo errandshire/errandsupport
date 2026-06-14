@@ -68,7 +68,7 @@ export default function ClientWalletPage() {
     try {
       setIsLoadingWallet(true);
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query } = await import('@/lib/db');
+      const { Query } = await import('@/lib/appwrite');
 
       const [walletData, transactionsData, bankAccountsData] = await Promise.all([
         WalletService.getOrCreateWallet(user.$id),
@@ -106,7 +106,7 @@ export default function ClientWalletPage() {
     if (!user) return;
     try {
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query } = await import('@/lib/db');
+      const { Query } = await import('@/lib/appwrite');
       const bankAccountsData = await databases.listDocuments(
         DATABASE_ID!,
         COLLECTIONS.BANK_ACCOUNTS,
@@ -208,7 +208,7 @@ export default function ClientWalletPage() {
 
       // Save to database
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
       const bankName = banks.find(b => b.code === newBank.bankCode)?.name || 'Unknown Bank';
 
       await databases.createDocument(
@@ -279,7 +279,7 @@ export default function ClientWalletPage() {
 
       // Import required services
       const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
 
       // Generate reference
       const reference = PaystackService.generateReference('withdraw');

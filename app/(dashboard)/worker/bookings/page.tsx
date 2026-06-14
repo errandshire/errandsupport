@@ -32,7 +32,7 @@ import { JobApplicationsList } from "@/components/worker/job-applications-list";
 import { JobApplicationDetailModal } from "@/components/worker/job-application-detail-modal";
 import { MessageModal } from "@/components/marketplace/message-modal";
 import { useAuth } from "@/hooks/use-auth";
-import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ApplicationWithJob, WorkerApplicationsService } from "@/lib/worker-applications.service";

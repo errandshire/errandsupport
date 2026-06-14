@@ -35,7 +35,7 @@ import { Footer } from "@/components/layout/footer";
 import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { parseDocumentUrls } from "@/lib/utils";
 
 interface Document {

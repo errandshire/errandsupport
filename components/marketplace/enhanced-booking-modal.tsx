@@ -178,7 +178,7 @@ export function EnhancedBookingModal({
       setIsProcessing(true);
       
       // Generate booking ID
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
       const bookingId = ID.unique();
       
       const bookingData: Partial<BookingRequest> = {

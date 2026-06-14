@@ -36,7 +36,7 @@ export default function WorkerJobsPage() {
 
       try {
         const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-        const { Query } = await import('@/lib/db');
+        const { Query } = await import('@/lib/appwrite');
 
         const workers = await databases.listDocuments(
           DATABASE_ID!,
@@ -132,7 +132,7 @@ export default function WorkerJobsPage() {
 
       try {
         const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
-        const { Query } = await import('@/lib/db');
+        const { Query } = await import('@/lib/appwrite');
 
         // Fetch all applications by this worker
         const applications = await databases.listDocuments(

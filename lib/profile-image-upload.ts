@@ -1,5 +1,4 @@
-import { ID } from '@/lib/api';
-import { storage, STORAGE_BUCKET_ID } from "@/lib/appwrite";
+import { ID, storage, STORAGE_BUCKET_ID } from '@/lib/api';
 
 /** Same bucket as ID / verification documents */
 export const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -29,6 +28,6 @@ export async function uploadProfileImageFile(file: File): Promise<string> {
 
   const fileId = ID.unique();
   const uploadedFile = await storage.createFile(STORAGE_BUCKET_ID, fileId, file);
-  const fileUrl = storage.getFileView(STORAGE_BUCKET_ID, uploadedFile.$id);
-  return fileUrl.toString();
+  const fileUrl = storage.getFilePreview(STORAGE_BUCKET_ID, uploadedFile.$id);
+  return fileUrl;
 }

@@ -351,7 +351,7 @@ function PaymentStep({ formData, onFormDataChange, worker, onBookingSubmit }: Pa
       setIsProcessingPayment(true);
 
       // Generate booking ID if not already present
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
       const bookingId = formData.id || ID.unique();
 
       // Update form data with booking ID

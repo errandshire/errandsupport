@@ -243,7 +243,7 @@ export const databases = {
     return await ApiService.getById(table, documentId);
   },
 
-  createDocument: async (databaseId: string, collectionId: string, documentId: string, data: any) => {
+  createDocument: async (databaseId: string, collectionId: string, documentId: string, data: any, _permissions?: any[]) => {
     const table = collectionId;
     return await ApiService.create(table, { ...data, $id: documentId });
   },
@@ -364,3 +364,35 @@ export const storage = {
 export const client = {
   subscribe: (channel: string, callback?: (response: any) => void) => ({ unsubscribe: () => {} }),
 };
+
+// Permission and Role stubs for Appwrite compatibility
+// These are no-ops since the new PostgreSQL backend handles permissions differently
+export class Permission {
+  static read(role: string): string {
+    return `read:${role}`;
+  }
+  static create(role: string): string {
+    return `create:${role}`;
+  }
+  static update(role: string): string {
+    return `update:${role}`;
+  }
+  static delete(role: string): string {
+    return `delete:${role}`;
+  }
+}
+
+export class Role {
+  static user(userId: string): string {
+    return `user:${userId}`;
+  }
+  static users(): string {
+    return 'users';
+  }
+  static guests(): string {
+    return 'guests';
+  }
+  static any(): string {
+    return 'any';
+  }
+}

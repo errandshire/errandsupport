@@ -30,7 +30,7 @@ import { WorkerSidebar, SidebarToggle } from "@/components/layout/worker-sidebar
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { ReviewService, type ReviewWithDetails, type WorkerReviewStats } from "@/lib/review-service";
-import { databases, COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { toast } from "sonner";
 
 // Using ReviewWithDetails from review service

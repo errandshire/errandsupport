@@ -556,15 +556,14 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile, professiona
 
   const uploadFileToStorage = async (file: File): Promise<string> => {
     try {
-      const { storage, STORAGE_BUCKET_ID } = await import('@/lib/appwrite');
-      const { ID } = await import('@/lib/db');
+      const { storage, STORAGE_BUCKET_ID, ID } = await import('@/lib/api');
       
       const fileId = ID.unique();
       const uploadedFile = await storage.createFile(STORAGE_BUCKET_ID, fileId, file);
       
       // Get file URL
-      const fileUrl = storage.getFileView(STORAGE_BUCKET_ID, uploadedFile.$id);
-      return fileUrl.toString();
+      const fileUrl = storage.getFilePreview(STORAGE_BUCKET_ID, uploadedFile.$id);
+      return fileUrl;
     } catch (error) {
       console.error('File upload error:', error);
       throw new Error('Failed to upload file');
@@ -661,8 +660,7 @@ function VerificationStep({ user, onNext, onPrevious, updateProfile, professiona
       }
 
       // NOW create the complete WORKERS profile with professional data + verification documents
-      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query, ID } = await import('@/lib/db');
+      const { databases, DATABASE_ID, COLLECTIONS, Query, ID } = await import('@/lib/api');
 
       // Check if worker profile already exists (shouldn't for new users, but handle edge cases)
       const existingWorkers = await databases.listDocuments(

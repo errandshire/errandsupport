@@ -10,8 +10,7 @@ import { MessageModal } from "@/components/marketplace/message-modal";
 import { WorkerProfileModal } from "@/components/marketplace/worker-profile-modal";
 import { BookingModal } from "@/components/marketplace/booking-modal";
 import { Search, MapPin, Star, Filter, Loader2, ChevronLeft, ChevronRight, X, Shield } from "lucide-react";
-import { databases } from "@/lib/appwrite";
-import { COLLECTIONS } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
@@ -153,7 +152,7 @@ function WorkersPageContent() {
     }
 
     try {
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/api');
       const { WalletService } = await import('@/lib/wallet.service');
 
       // Use existing booking ID from payment flow or generate new one

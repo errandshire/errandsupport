@@ -29,7 +29,7 @@ import { Job, JobWithDetails } from "@/lib/types";
 import { JobAcceptanceService } from "@/lib/job-acceptance.service";
 import { useAuth } from "@/hooks/use-auth";
 import { SERVICE_CATEGORIES } from "@/lib/constants";
-import { databases, COLLECTIONS, DATABASE_ID } from "@/lib/appwrite";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { extractJobIdFromSlug, findJobBySlug } from "@/lib/slug-utils";
 import { WorkerSignupModal } from "@/components/jobs/worker-signup-modal";
 
@@ -165,7 +165,7 @@ export default function JobDetailPage() {
 
     setApplying(true);
     try {
-      const { Query } = await import('@/lib/db');
+      const { Query } = await import('@/lib/api');
 
       // Get worker ID
       const workers = await databases.listDocuments(

@@ -99,7 +99,7 @@ export class SettingsService {
         );
       } else {
         // Create new
-        const { ID } = await import('@/lib/db');
+        const { ID } = await import('@/lib/appwrite');
         await databases.createDocument(
           DATABASE_ID!,
           COLLECTIONS.SETTINGS,
@@ -134,7 +134,7 @@ export class SettingsService {
    */
   private static async createDefaultSettings() {
     try {
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
       await databases.createDocument(
         DATABASE_ID!,
         COLLECTIONS.SETTINGS,

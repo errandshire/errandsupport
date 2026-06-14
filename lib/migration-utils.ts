@@ -217,7 +217,7 @@ export class MigrationUtils {
 
     try {
       console.log('Starting missing worker documents creation...');
-      const { ID } = await import('@/lib/db');
+      const { ID } = await import('@/lib/appwrite');
 
       // Get all users with role 'worker'
       const workerUsers = await databases.listDocuments(
