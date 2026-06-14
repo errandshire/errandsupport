@@ -109,8 +109,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { Query } = await import('appwrite');
+      const { databases, COLLECTIONS, DATABASE_ID, Query } = await import('@/lib/appwrite');
       
       // Fetch worker profile
       const workersResponse = await databases.listDocuments(
