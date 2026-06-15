@@ -53,6 +53,34 @@ export class Query {
   static orderAsc(attribute: string) {
     return { method: 'orderAsc', attribute, value: null };
   }
+
+  static isNull(attribute: string) {
+    return { method: 'isNull', attribute, value: null };
+  }
+
+  static isNotNull(attribute: string) {
+    return { method: 'isNotNull', attribute, value: null };
+  }
+
+  static greaterThanEqual(attribute: string, value: any) {
+    return { method: 'greaterThanEqual', attribute, value };
+  }
+
+  static lessThanEqual(attribute: string, value: any) {
+    return { method: 'lessThanEqual', attribute, value };
+  }
+
+  static contains(attribute: string, value: any) {
+    return { method: 'contains', attribute, value };
+  }
+
+  static startsWith(attribute: string, value: string) {
+    return { method: 'startsWith', attribute, value };
+  }
+
+  static between(attribute: string, start: any, end: any) {
+    return { method: 'between', attribute, value: [start, end] };
+  }
 }
 
 // Table names matching the VPS database

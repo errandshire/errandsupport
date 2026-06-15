@@ -1,5 +1,4 @@
-import { databases, COLLECTIONS } from './api';
-import { Query, ID } from '@/lib/api';
+import { databases, COLLECTIONS, DATABASE_ID, Query, ID } from './api';
 import type { Review } from './types';
 
 export interface CreateReviewRequest {

@@ -109,11 +109,11 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      const { databases, COLLECTIONS, DATABASE_ID, Query } = await import('@/lib/appwrite');
+      const { databases, COLLECTIONS, DATABASE_ID, Query } = await import('@/lib/api');
       
       // Fetch worker profile
       const workersResponse = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        DATABASE_ID,
         COLLECTIONS.WORKERS,
         [Query.equal('userId', userId)]
       );
@@ -129,7 +129,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
         try {
           // Fetch available bookings (no worker assigned)
           const availableBookingsResponse = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID,
             COLLECTIONS.BOOKINGS,
             [
               Query.isNull('workerId'),
@@ -141,7 +141,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
 
           // Fetch accepted bookings (assigned to this worker)
           const acceptedBookingsResponse = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            DATABASE_ID,
             COLLECTIONS.BOOKINGS,
             [
               Query.equal('workerId', profile.$id),
@@ -158,7 +158,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
           if (clientIds.length > 0) {
             try {
               const clientsResponse = await databases.listDocuments(
-                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                DATABASE_ID,
                 COLLECTIONS.USERS,
                 [Query.equal('$id', clientIds)]
               );
@@ -243,7 +243,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
     if (!state.workerProfile) return;
 
     try {
-      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/api');
       
       await databases.updateDocument(
         DATABASE_ID,
@@ -268,7 +268,7 @@ export const useWorkerStore = create<WorkerState>((set, get) => ({
     if (!state.workerProfile) return;
 
     try {
-      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/appwrite');
+      const { databases, DATABASE_ID, COLLECTIONS } = await import('@/lib/api');
       
       await databases.updateDocument(
         DATABASE_ID,
