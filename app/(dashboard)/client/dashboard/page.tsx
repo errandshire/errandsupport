@@ -282,7 +282,14 @@ function ClientDashboardContent() {
       ]);
 
       setStats(dashboardData.stats);
-      setRecentBookings(dashboardData.recentBookings);
+      const seen = new Set();
+      const uniqueBookings = dashboardData.recentBookings.filter((b: any) => {
+        const key = b.id || b.$id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setRecentBookings(uniqueBookings);
       setQuickActions(dashboardData.quickActions);
 
     } catch (error) {
