@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { User, LoginFormData, RegisterFormData } from '@/lib/types';
 import { toast } from 'sonner';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://72.62.179.203:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.erandwork.com/api';
 
 export interface AuthError {
   message: string;
