@@ -1,6 +1,4 @@
-import { databases } from '@/lib/api';
-import { COLLECTIONS } from '@/lib/api';
-import { Query } from '@/lib/api';
+import { databases, COLLECTIONS, DATABASE_ID, Query } from '@/lib/api';
 import { ReviewService } from './review-service';
 
 export interface WorkerStats {
@@ -75,8 +73,6 @@ class WorkerDashboardService {
     if (cached) return cached;
 
     try {
-      const DATABASE_ID = DATABASE_ID!;
-
       // Fetch all bookings for this worker
       const allBookings = await databases.listDocuments(
         DATABASE_ID,
@@ -219,8 +215,6 @@ class WorkerDashboardService {
     if (cached) return cached;
 
     try {
-      const DATABASE_ID = DATABASE_ID!;
-
       // Fetch bookings for this worker
       const bookingsResponse = await databases.listDocuments(
         DATABASE_ID,
@@ -465,8 +459,6 @@ class WorkerDashboardService {
     escrowTransactions: any[];
   }> {
     try {
-      const DATABASE_ID = DATABASE_ID!;
-
       // Fetch worker wallet
       const wallets = await databases.listDocuments(
         DATABASE_ID,
