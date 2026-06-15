@@ -1,5 +1,6 @@
 "use client";
 
+import { DATABASE_ID } from '@/lib/api';
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DisputeService } from "@/lib/dispute.service";

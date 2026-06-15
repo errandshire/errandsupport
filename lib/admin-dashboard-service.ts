@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS } from './api';
+import { databases, COLLECTIONS, DATABASE_ID} from './api';
 import { Query } from '@/lib/api';
 
 export interface DashboardStats {

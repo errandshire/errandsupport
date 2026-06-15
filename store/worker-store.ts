@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { DATABASE_ID } from '@/lib/api';
 import type { WorkerProfile } from '@/lib/types/marketplace';
 
 interface Booking {

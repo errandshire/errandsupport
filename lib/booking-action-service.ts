@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS } from './api';
+import { databases, COLLECTIONS, DATABASE_ID} from './api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 import { TermiiSMSService } from './termii-sms.service';

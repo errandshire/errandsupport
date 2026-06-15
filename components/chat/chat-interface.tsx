@@ -1,5 +1,6 @@
 "use client";
 
+import { DATABASE_ID } from '@/lib/api';
 import * as React from "react";
 import { Send, Image, Paperclip, Smile, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";

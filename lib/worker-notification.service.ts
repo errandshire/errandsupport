@@ -1,4 +1,4 @@
-import { databases } from './api';
+import { databases, DATABASE_ID} from './api';
 import { Query } from '@/lib/api';
 import { COLLECTIONS } from './api';
 import { emailService } from './email-service';

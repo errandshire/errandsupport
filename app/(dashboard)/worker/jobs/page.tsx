@@ -1,5 +1,6 @@
 "use client";
 
+import { DATABASE_ID } from '@/lib/api';
 import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { RefreshCw, Briefcase, MapPin, DollarSign, Calendar, Clock, ChevronDown, ChevronUp, User, Star, Share2, ExternalLink } from "lucide-react";

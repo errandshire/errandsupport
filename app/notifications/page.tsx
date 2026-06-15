@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { databases, COLLECTIONS } from "@/lib/api";
+import { databases, COLLECTIONS, DATABASE_ID} from "@/lib/api";
 import { Query, ID } from '@/lib/api';
 
 interface Notification {

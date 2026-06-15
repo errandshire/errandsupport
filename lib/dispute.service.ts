@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS } from './api';
+import { databases, COLLECTIONS, DATABASE_ID} from './api';
 import { ID, Query } from '@/lib/api';
 import { TermiiSMSService } from './termii-sms.service';
 

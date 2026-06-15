@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { DATABASE_ID } from '@/lib/api';
 import { WorkerNotificationService } from '@/lib/worker-notification.service';
 import { requireAdmin } from '@/lib/auth-guard';
 

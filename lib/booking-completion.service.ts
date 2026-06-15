@@ -1,4 +1,4 @@
-import { COLLECTIONS } from './api';
+import { COLLECTIONS, DATABASE_ID} from './api';
 import { WalletService } from './wallet.service';
 const { serverDatabases } = require('./api-server');
 

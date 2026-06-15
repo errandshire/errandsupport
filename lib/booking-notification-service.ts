@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS, ID, Query } from '@/lib/api';
+import { databases, COLLECTIONS, ID, Query, DATABASE_ID} from '@/lib/api';
 
 /**
  * Booking Notification Service

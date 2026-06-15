@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, COLLECTIONS } from '@/lib/api';
+import { databases, COLLECTIONS, DATABASE_ID} from '@/lib/api';
 import { Query } from '@/lib/api';
 
 /**

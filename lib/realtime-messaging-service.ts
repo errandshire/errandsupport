@@ -1,4 +1,4 @@
-import { databases, client, COLLECTIONS } from './api';
+import { databases, client, COLLECTIONS, DATABASE_ID} from './api';
 import { Query } from '@/lib/api';
 import { notificationService } from './notification-service';
 import type { Message } from './types/marketplace';

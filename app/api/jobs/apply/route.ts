@@ -3,7 +3,7 @@ import { JobApplicationService } from '@/lib/job-application.service';
 import { JobNotificationService } from '@/lib/job-notification.service';
 import { requireAuth } from '@/lib/auth-guard';
 const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/api-server');
-import { Query } from '@/lib/api';
+import { Query, DATABASE_ID} from '@/lib/api';
 
 /**
  * POST /api/jobs/apply

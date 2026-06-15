@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-guard';
-import { Query } from '@/lib/api';
+import { Query, DATABASE_ID} from '@/lib/api';
 const { serverDatabases, COLLECTIONS, DATABASE_ID } = require('@/lib/api-server');
 
 /**

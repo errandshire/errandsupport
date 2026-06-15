@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
 import { ClientCancellationService } from '@/lib/client-cancellation.service';
-import { databases, COLLECTIONS } from '@/lib/api';
+import { databases, COLLECTIONS, DATABASE_ID} from '@/lib/api';
 import { requireAuth } from '@/lib/auth-guard';
 
 /**

@@ -1,4 +1,4 @@
-import { COLLECTIONS } from './api';
+import { COLLECTIONS, DATABASE_ID} from './api';
 import { BookingCompletionService } from './booking-completion.service';
 import { notificationService } from './notification-service';
 import { Query } from '@/lib/api';

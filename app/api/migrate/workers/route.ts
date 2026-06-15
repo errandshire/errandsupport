@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { DATABASE_ID } from '@/lib/api';
 import { MigrationUtils } from '@/lib/migration-utils';
 
 /**
