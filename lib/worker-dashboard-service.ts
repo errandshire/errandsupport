@@ -514,22 +514,25 @@ class WorkerDashboardService {
       escrowTransactions: any[];
     };
   }> {
-    try {
-      const [stats, bookings, balance] = await Promise.all([
-        this.getWorkerStats(userId),
-        this.getWorkerBookings(userId),
-        this.getWorkerBalance(userId)
-      ]);
+    const defaultStats: WorkerStats = {
+      totalEarnings: 0, completedJobs: 0, activeBookings: 0, pendingBookings: 0,
+      avgRating: 0, totalReviews: 0, monthlyEarnings: 0, weeklyEarnings: 0,
+      responseTime: 0, acceptanceRate: 0
+    };
+    const defaultBookings = { availableBookings: [], acceptedBookings: [] };
+    const defaultBalance = { balance: null, escrowTransactions: [] };
 
-      return {
-        stats,
-        bookings,
-        balance
-      };
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      throw error;
-    }
+    const [statsResult, bookingsResult, balanceResult] = await Promise.allSettled([
+      this.getWorkerStats(userId),
+      this.getWorkerBookings(userId),
+      this.getWorkerBalance(userId)
+    ]);
+
+    return {
+      stats: statsResult.status === 'fulfilled' ? statsResult.value : defaultStats,
+      bookings: bookingsResult.status === 'fulfilled' ? bookingsResult.value : defaultBookings,
+      balance: balanceResult.status === 'fulfilled' ? balanceResult.value : defaultBalance,
+    };
   }
 
   // Clear all caches for a specific user
