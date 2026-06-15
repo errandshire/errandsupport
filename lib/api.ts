@@ -108,6 +108,9 @@ export const TABLES = {
   PARTNERS: 'partners',
   REFERRALS: 'referrals',
   SETTINGS: 'settings',
+  CATEGORIES: 'categories',
+  BROADCAST_MESSAGES: 'broadcast_messages',
+  PARTNER_COMMISSIONS: 'partner_commissions',
 };
 
 /**
