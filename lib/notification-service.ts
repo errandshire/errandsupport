@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS, ID, Query } from './api';
+import { databases, COLLECTIONS, DATABASE_ID, ID, Query } from './api';
 import { SMSService } from './sms.service';
 
 export interface Notification {

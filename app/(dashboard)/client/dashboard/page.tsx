@@ -35,7 +35,7 @@ import type { ClientStats, RecentBooking, QuickAction } from "@/lib/client-dashb
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { JobPostingModal } from "@/components/client/job-posting-modal";
-import { databases, COLLECTIONS } from "@/lib/api";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { BookingConfirmationModal } from "@/components/client/booking-confirmation-modal";
 import { CountdownTimer } from "@/components/shared/countdown-timer";
 import { AUTO_RELEASE_HOURS } from "@/lib/constants";

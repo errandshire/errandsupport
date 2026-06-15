@@ -1,5 +1,4 @@
-import { databases, COLLECTIONS } from './api';
-import { Query } from '@/lib/api';
+import { databases, COLLECTIONS, DATABASE_ID, Query } from './api';
 
 export interface ClientStats {
   totalBookings: number;
