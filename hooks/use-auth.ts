@@ -335,10 +335,10 @@ export function useAuth() {
   const sendPasswordReset = async (email: string): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
-      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      const response = await fetch(`${API_BASE_URL}/auth/request-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, purpose: 'reset' }),
       });
       
       if (response.ok) {
@@ -398,21 +398,35 @@ export function useAuth() {
     return sendPasswordReset(email);
   };
 
-  const resetPassword = async (userId: string, secret: string, newPassword: string): Promise<{ success: boolean; error?: AuthError }> => {
+  const resetPassword = async (email: string, otp: string, newPassword: string): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
-      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+
+      // Step 1: Verify OTP
+      const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, secret, newPassword }),
+        body: JSON.stringify({ email, otp }),
       });
-      
-      if (response.ok) {
+
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json().catch(() => ({}));
+        return { success: false, error: { message: errorData.error || 'Invalid or expired OTP' } };
+      }
+
+      // Step 2: Set new password
+      const setPasswordResponse = await fetch(`${API_BASE_URL}/auth/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: newPassword }),
+      });
+
+      if (setPasswordResponse.ok) {
         toast.success('Password reset successfully!');
         return { success: true };
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        return { success: false, error: { message: errorData.error || 'Failed to reset password' } };
+        const errorData = await setPasswordResponse.json().catch(() => ({}));
+        return { success: false, error: { message: errorData.error || 'Failed to set new password' } };
       }
     } catch (error: any) {
       console.error('Reset password error:', error);

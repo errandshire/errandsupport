@@ -48,6 +48,7 @@ export default function ForgotPasswordPage() {
       
       if (result.success) {
         setIsSubmitted(true);
+        router.push(`/reset-password?email=${encodeURIComponent(data.email)}`);
         toast.success("Password reset email sent! Check your inbox.");
       } else {
         toast.error(result.error?.message || "Failed to send reset email");
