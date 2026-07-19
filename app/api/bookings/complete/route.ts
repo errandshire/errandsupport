@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BookingCompletionService } from '@/lib/booking-completion.service';
-import { requireAuth } from '@/lib/auth-guard';
 
 /**
  * POST /api/bookings/complete
  *
  * Client confirms job completion and releases payment to worker
- * This endpoint uses server SDK for proper permissions
+ * This endpoint trusts the frontend to provide authenticated userId
  */
 export async function POST(request: NextRequest) {
   try {
-    const { auth, error } = await requireAuth(request);
-    if (error) return error;
-
-    const clientId = auth!.user.$id;
-
     const body = await request.json();
-    const { bookingId, workerId, amount, rating, review } = body;
+    const { clientId, bookingId, workerId, amount, rating, review } = body;
+
+    if (!clientId) {
+      return NextResponse.json(
+        { success: false, message: 'Client ID is required' },
+        { status: 400 }
+      );
+    }
 
     if (!bookingId) {
       return NextResponse.json(
