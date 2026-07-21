@@ -1,7 +1,7 @@
 // Server-side API client for VPS PostgreSQL backend
 // Replaces node-appwrite for Next.js API routes
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://72.62.179.203:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://72.62.179.203:3004/api';
 
 export class ServerApiService {
   private static async request<T>(
