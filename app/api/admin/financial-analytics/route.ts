@@ -42,12 +42,14 @@ export async function GET(request: NextRequest) {
       }
 
       const cutoffMonthKey = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}`;
+      const cutoffYear = cutoffDate.getFullYear();
       filteredAnalytics = {
         ...analytics,
         monthlyRevenue: analytics.monthlyRevenue.filter(m => {
           const monthKey = `${m.year}-${String(m.monthNumber).padStart(2, '0')}`;
           return monthKey >= cutoffMonthKey;
-        })
+        }),
+        annualRevenue: analytics.annualRevenue.filter(a => a.year >= cutoffYear)
       };
     }
 

@@ -135,7 +135,7 @@ export default function FinancialAnalyticsPage() {
     );
   }
 
-  const { summary, monthlyRevenue, transactionsByType, recentTransactions, withdrawalsByStatus, periodComparison } = analytics;
+  const { summary, monthlyRevenue, annualRevenue, transactionsByType, recentTransactions, withdrawalsByStatus, periodComparison } = analytics;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -166,7 +166,7 @@ export default function FinancialAnalyticsPage() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <StatsCard
           title="Total Revenue (20% Commission)"
           value={formatNaira(summary.totalRevenue)}
@@ -176,10 +176,18 @@ export default function FinancialAnalyticsPage() {
           variant="success"
         />
         <StatsCard
-          title="Total Money In"
-          value={formatNaira(summary.totalMoneyIn)}
-          description="Top-ups + booking holds"
-          icon={ArrowDownLeft}
+          title="Annual Revenue"
+          value={formatNaira(periodComparison.thisYearRevenue || 0)}
+          icon={Calendar}
+          trend={periodComparison.annualRevenueChange}
+          trendLabel="vs last year"
+          variant="success"
+        />
+        <StatsCard
+          title="This Year Completed Jobs"
+          value={summary.totalCompletedJobs.toLocaleString()}
+          description="Jobs completed this year"
+          icon={Activity}
         />
         <StatsCard
           title="Total Money Out"
@@ -227,9 +235,9 @@ export default function FinancialAnalyticsPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Monthly Revenue Chart */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>Monthly Revenue & Money Flow</CardTitle>
             <CardDescription>Revenue, money in, and money out over time</CardDescription>
@@ -261,8 +269,43 @@ export default function FinancialAnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Transaction Types */}
+        {/* Annual Revenue Chart */}
         <Card>
+          <CardHeader>
+            <CardTitle>Annual Revenue & Money Flow</CardTitle>
+            <CardDescription>Yearly revenue, money in, and money out</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {annualRevenue.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No annual data available</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-5 text-xs font-medium text-gray-500 border-b pb-2">
+                  <span>Year</span>
+                  <span className="text-right">Revenue</span>
+                  <span className="text-right">Jobs</span>
+                  <span className="text-right">Money In</span>
+                  <span className="text-right">Money Out</span>
+                </div>
+                {[...annualRevenue].reverse().map((year) => (
+                  <div key={year.year} className="grid grid-cols-5 text-sm py-2 border-b border-gray-100 last:border-0">
+                    <span className="font-medium">{year.label}</span>
+                    <span className="text-right text-green-600">{formatCompactNaira(year.revenue)}</span>
+                    <span className="text-right">{year.completedJobs}</span>
+                    <span className="text-right text-blue-600">{formatCompactNaira(year.moneyIn)}</span>
+                    <span className="text-right text-red-600">{formatCompactNaira(year.moneyOut)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Transaction Types */}
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Transactions by Type</CardTitle>
             <CardDescription>Volume and value breakdown</CardDescription>

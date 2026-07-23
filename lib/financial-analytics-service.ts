@@ -14,6 +14,7 @@ export interface FinancialAnalytics {
     averageCommissionPerJob: number;
   };
   monthlyRevenue: MonthlyRevenueItem[];
+  annualRevenue: AnnualRevenueItem[];
   transactionsByType: TransactionTypeStat[];
   recentTransactions: WalletTransaction[];
   withdrawalsByStatus: WithdrawalStatusStat[];
@@ -24,6 +25,16 @@ export interface MonthlyRevenueItem {
   month: string;
   year: number;
   monthNumber: number;
+  revenue: number;
+  moneyIn: number;
+  moneyOut: number;
+  withdrawals: number;
+  completedJobs: number;
+}
+
+export interface AnnualRevenueItem {
+  year: number;
+  label: string;
   revenue: number;
   moneyIn: number;
   moneyOut: number;
@@ -63,6 +74,9 @@ export interface PeriodComparison {
   thisMonthWithdrawals: number;
   lastMonthWithdrawals: number;
   withdrawalsChange: number;
+  thisYearRevenue: number;
+  lastYearRevenue: number;
+  annualRevenueChange: number;
 }
 
 const TRANSACTION_TYPE_LABELS: Record<string, string> = {
@@ -83,8 +97,18 @@ const WITHDRAWAL_STATUS_LABELS: Record<string, string> = {
   failed: 'Failed'
 };
 
+const COMMISSION_RATE = 0.20; // 20% service fee
+
 class FinancialAnalyticsService {
   private readonly MAX_TRANSACTIONS = 10000;
+
+  /**
+   * Extract a numeric booking amount from various possible field locations
+   */
+  private getBookingAmount(booking: any): number {
+    const raw = booking?.totalAmount ?? booking?.amount ?? booking?.budget?.amount ?? booking?.payment?.amount ?? 0;
+    return typeof raw === 'number' ? raw : parseFloat(raw) || 0;
+  }
 
   /**
    * Fetch all wallet transactions for analytics
@@ -135,6 +159,26 @@ class FinancialAnalyticsService {
   }
 
   /**
+   * Fetch completed bookings to derive service fee revenue
+   */
+  private async fetchCompletedBookings(): Promise<any[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        [
+          Query.equal('status', 'completed'),
+          Query.limit(this.MAX_TRANSACTIONS)
+        ]
+      );
+      return response.documents || [];
+    } catch (error) {
+      console.error('Error fetching completed bookings for analytics:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get date key for grouping (YYYY-MM)
    */
   private getMonthKey(dateString: string): { year: number; month: number; key: string; label: string } {
@@ -150,16 +194,22 @@ class FinancialAnalyticsService {
    * Calculate financial analytics
    */
   async getAnalytics(): Promise<FinancialAnalytics> {
-    const transactions = await this.fetchTransactions();
-    const withdrawals = await this.fetchWithdrawals();
+    const [transactions, withdrawals, completedBookings] = await Promise.all([
+      this.fetchTransactions(),
+      this.fetchWithdrawals(),
+      this.fetchCompletedBookings()
+    ]);
 
     const now = new Date();
     const currentMonthKey = this.getMonthKey(now.toISOString()).key;
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthKey = this.getMonthKey(lastMonth.toISOString()).key;
+    const currentYear = now.getFullYear();
+    const lastYear = currentYear - 1;
 
     // Group transactions by month
     const monthlyData = new Map<string, MonthlyRevenueItem>();
+    const annualData = new Map<number, AnnualRevenueItem>();
 
     // Summary calculations
     let totalRevenue = 0;
@@ -170,15 +220,31 @@ class FinancialAnalyticsService {
     let escrowBalance = 0;
     let completedJobsCount = 0;
 
+    // Track completed job IDs to avoid double counting
+    const completedJobIds = new Set<string>();
+    const commissionBookingIds = new Set<string>();
+
     // Type aggregations
     const typeStats = new Map<string, TransactionTypeStat>();
 
-    // Process wallet transactions
-    transactions.forEach(tx => {
-      const amount = Math.abs(tx.amount) || 0;
-      const { key, year, month, label } = this.getMonthKey(tx.createdAt);
+    // Helper to initialize annual data
+    const initAnnual = (year: number) => {
+      if (!annualData.has(year)) {
+        annualData.set(year, {
+          year,
+          label: String(year),
+          revenue: 0,
+          moneyIn: 0,
+          moneyOut: 0,
+          withdrawals: 0,
+          completedJobs: 0
+        });
+      }
+      return annualData.get(year)!;
+    };
 
-      // Initialize month if needed
+    // Helper to initialize monthly data
+    const initMonth = (key: string, year: number, month: number, label: string) => {
       if (!monthlyData.has(key)) {
         monthlyData.set(key, {
           month: label,
@@ -191,7 +257,16 @@ class FinancialAnalyticsService {
           completedJobs: 0
         });
       }
-      const monthData = monthlyData.get(key)!;
+      return monthlyData.get(key)!;
+    };
+
+    // Process wallet transactions
+    transactions.forEach(tx => {
+      const amount = Math.abs(tx.amount) || 0;
+      const { key, year, month, label } = this.getMonthKey(tx.createdAt);
+
+      const monthData = initMonth(key, year, month, label);
+      const yearData = initAnnual(year);
 
       // Initialize type stat
       if (!typeStats.has(tx.type)) {
@@ -207,17 +282,22 @@ class FinancialAnalyticsService {
 
       switch (tx.type) {
         case 'commission':
+          // commission transactions already represent service fee revenue
           totalRevenue += amount;
           monthData.revenue += amount;
+          yearData.revenue += amount;
           typeStat.amount += amount;
-          completedJobsCount += 1;
-          monthData.completedJobs += 1;
+          if (tx.bookingId) {
+            commissionBookingIds.add(tx.bookingId);
+            completedJobIds.add(tx.bookingId);
+          }
           break;
 
         case 'topup':
         case 'booking_hold':
           totalMoneyIn += amount;
           monthData.moneyIn += amount;
+          yearData.moneyIn += amount;
           typeStat.amount += amount;
           break;
 
@@ -225,13 +305,16 @@ class FinancialAnalyticsService {
           totalWithdrawals += amount;
           totalMoneyOut += amount;
           monthData.moneyOut += amount;
+          yearData.moneyOut += amount;
           monthData.withdrawals += amount;
+          yearData.withdrawals += amount;
           typeStat.amount += amount;
           break;
 
         case 'booking_release':
           totalMoneyOut += amount;
           monthData.moneyOut += amount;
+          yearData.moneyOut += amount;
           typeStat.amount += amount;
           break;
 
@@ -239,6 +322,7 @@ class FinancialAnalyticsService {
           // Refunds reduce money in
           totalMoneyIn -= amount;
           monthData.moneyIn -= amount;
+          yearData.moneyIn -= amount;
           typeStat.amount += amount;
           break;
 
@@ -249,6 +333,34 @@ class FinancialAnalyticsService {
 
         default:
           typeStat.amount += amount;
+      }
+    });
+
+    // Process completed bookings to derive 20% service fee revenue
+    completedBookings.forEach(booking => {
+      const bookingId = booking.$id || booking.id;
+      // Skip if revenue already accounted for via commission transaction
+      if (bookingId && commissionBookingIds.has(bookingId)) return;
+
+      const bookingAmount = this.getBookingAmount(booking);
+      const commission = Math.round(bookingAmount * COMMISSION_RATE);
+      if (commission <= 0) return;
+
+      const completedAt = booking.completedAt || booking.updatedAt || booking.createdAt || booking.$updatedAt || booking.$createdAt;
+      const { key, year, month, label } = this.getMonthKey(completedAt);
+
+      const monthData = initMonth(key, year, month, label);
+      const yearData = initAnnual(year);
+
+      totalRevenue += commission;
+      monthData.revenue += commission;
+      yearData.revenue += commission;
+
+      if (!completedJobIds.has(bookingId)) {
+        monthData.completedJobs += 1;
+        yearData.completedJobs += 1;
+        completedJobsCount += 1;
+        completedJobIds.add(bookingId);
       }
     });
 
@@ -275,6 +387,11 @@ class FinancialAnalyticsService {
     // Monthly data sorted chronologically
     const monthlyRevenue = Array.from(monthlyData.entries())
       .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, value]) => value);
+
+    // Annual data sorted chronologically
+    const annualRevenue = Array.from(annualData.entries())
+      .sort(([a], [b]) => a - b)
       .map(([, value]) => value);
 
     // Withdrawal status stats
@@ -309,11 +426,17 @@ class FinancialAnalyticsService {
     const thisMonthWithdrawals = currentMonthData.withdrawals;
     const lastMonthWithdrawals = lastMonthData.withdrawals;
 
+    const thisYearData = annualData.get(currentYear) || { revenue: 0, withdrawals: 0, completedJobs: 0 };
+    const lastYearData = annualData.get(lastYear) || { revenue: 0, withdrawals: 0, completedJobs: 0 };
+
     const revenueChange = lastMonthRevenue > 0
       ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
       : 0;
     const withdrawalsChange = lastMonthWithdrawals > 0
       ? ((thisMonthWithdrawals - lastMonthWithdrawals) / lastMonthWithdrawals) * 100
+      : 0;
+    const annualRevenueChange = lastYearData.revenue > 0
+      ? ((thisYearData.revenue - lastYearData.revenue) / lastYearData.revenue) * 100
       : 0;
 
     return {
@@ -330,6 +453,7 @@ class FinancialAnalyticsService {
         averageCommissionPerJob
       },
       monthlyRevenue,
+      annualRevenue,
       transactionsByType: Array.from(typeStats.values()).sort((a, b) => b.amount - a.amount),
       recentTransactions: transactions.slice(0, 15),
       withdrawalsByStatus: Array.from(withdrawalStatusStats.values()),
@@ -339,7 +463,10 @@ class FinancialAnalyticsService {
         revenueChange,
         thisMonthWithdrawals,
         lastMonthWithdrawals,
-        withdrawalsChange
+        withdrawalsChange,
+        thisYearRevenue: thisYearData.revenue,
+        lastYearRevenue: lastYearData.revenue,
+        annualRevenueChange
       }
     };
   }
