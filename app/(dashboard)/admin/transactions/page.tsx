@@ -68,9 +68,15 @@ export default function AdminTransactionsPage() {
   }, [transactions, searchQuery]);
 
   const stats = React.useMemo(() => {
-    const topups = transactions.filter(t => t.type === 'topup').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const withdrawals = transactions.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const bookings = transactions.filter(t => t.type === 'booking_hold').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const topups = transactions
+      .filter(t => t.type === 'topup')
+      .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0), 0);
+    const withdrawals = transactions
+      .filter(t => t.type === 'withdraw')
+      .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0), 0);
+    const bookings = transactions
+      .filter(t => t.type === 'booking_hold')
+      .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0), 0);
 
     return { topups, withdrawals, bookings, total: transactions.length };
   }, [transactions]);

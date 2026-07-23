@@ -174,7 +174,11 @@ class AdminClientService {
       ).length;
       
       const totalSpent = bookings.reduce(
-        (sum: number, b: any) => sum + (b.budgetAmount || b.totalAmount || 0), 
+        (sum: number, b: any) => {
+          const amount = typeof b.budgetAmount === 'number' ? b.budgetAmount : parseFloat(b.budgetAmount) || 0;
+          const totalAmount = typeof b.totalAmount === 'number' ? b.totalAmount : parseFloat(b.totalAmount) || 0;
+          return sum + (amount || totalAmount);
+        }, 
         0
       );
 

@@ -78,9 +78,9 @@ export default function AdminPartnersPage() {
 
   const stats = React.useMemo(() => {
     const active = partners.filter((p) => p.status === "active").length;
-    const totalEarnings = partners.reduce((sum, p) => sum + (p.totalEarnings || 0), 0);
-    const totalReferrals = partners.reduce((sum, p) => sum + (p.totalReferrals || 0), 0);
-    const pendingPayouts = partners.reduce((sum, p) => sum + (p.pendingPayout || 0), 0);
+    const totalEarnings = partners.reduce((sum, p) => sum + (typeof p.totalEarnings === 'number' ? p.totalEarnings : parseFloat(p.totalEarnings) || 0), 0);
+    const totalReferrals = partners.reduce((sum, p) => sum + (typeof p.totalReferrals === 'number' ? p.totalReferrals : parseFloat(p.totalReferrals) || 0), 0);
+    const pendingPayouts = partners.reduce((sum, p) => sum + (typeof p.pendingPayout === 'number' ? p.pendingPayout : parseFloat(p.pendingPayout) || 0), 0);
     return { total: partners.length, active, totalEarnings, totalReferrals, pendingPayouts };
   }, [partners]);
 

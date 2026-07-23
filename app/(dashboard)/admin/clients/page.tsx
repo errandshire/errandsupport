@@ -139,7 +139,11 @@ export default function AdminClientsPage() {
         ['confirmed', 'accepted', 'in_progress'].includes(b.status)
       ).length;
       
-      const totalSpent = bookings.reduce((sum: number, b: any) => sum + (b.budgetAmount || b.totalAmount || 0), 0);
+      const totalSpent = bookings.reduce((sum: number, b: any) => {
+        const amount = typeof b.budgetAmount === 'number' ? b.budgetAmount : parseFloat(b.budgetAmount) || 0;
+        const totalAmount = typeof b.totalAmount === 'number' ? b.totalAmount : parseFloat(b.totalAmount) || 0;
+        return sum + (amount || totalAmount);
+      }, 0);
       
       // Calculate average rating from reviews
       let averageRating = 0;

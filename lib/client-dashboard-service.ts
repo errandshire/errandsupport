@@ -103,7 +103,7 @@ class ClientDashboardService {
       const completionRate = totalBookings > 0 ? (completedTasks / totalBookings) * 100 : 0;
       
       // Calculate spending
-      const totalSpent = bookings.reduce((sum, b) => sum + (b.budgetAmount || 0), 0);
+      const totalSpent = bookings.reduce((sum, b) => sum + (typeof b.budgetAmount === 'number' ? b.budgetAmount : parseFloat(b.budgetAmount) || 0), 0);
       
       const thisMonth = new Date();
       thisMonth.setDate(1);
@@ -111,7 +111,7 @@ class ClientDashboardService {
       
       const monthlySpending = bookings
         .filter(b => new Date(b.$createdAt) >= thisMonth)
-        .reduce((sum, b) => sum + (b.budgetAmount || 0), 0);
+        .reduce((sum, b) => sum + (typeof b.budgetAmount === 'number' ? b.budgetAmount : parseFloat(b.budgetAmount) || 0), 0);
 
       // Calculate average rating (from completed bookings)
       const ratedBookings = bookings.filter(b => b.clientRating && b.clientRating > 0);

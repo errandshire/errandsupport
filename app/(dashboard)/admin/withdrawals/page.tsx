@@ -72,8 +72,8 @@ export default function AdminWithdrawalsPage() {
     const completed = withdrawals.filter(w => w.status === 'completed');
     const failed = withdrawals.filter(w => w.status === 'failed');
 
-    const totalAmount = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
-    const completedAmount = completed.reduce((sum, w) => sum + (w.amount || 0), 0);
+    const totalAmount = withdrawals.reduce((sum, w) => sum + (typeof w.amount === 'number' ? w.amount : parseFloat(w.amount) || 0), 0);
+    const completedAmount = completed.reduce((sum, w) => sum + (typeof w.amount === 'number' ? w.amount : parseFloat(w.amount) || 0), 0);
 
     return {
       pending: pending.length,
