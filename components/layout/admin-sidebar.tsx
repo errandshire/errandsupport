@@ -73,6 +73,12 @@ const sidebarItems = [
     icon: DollarSign,
     badge: null,
   },
+  {
+    title: "Financial Analytics",
+    href: "/admin/financial-analytics",
+    icon: BarChart3,
+    badge: null,
+  },
   // {
   //   title: "Auto-Release",
   //   href: "/admin/auto-release",
