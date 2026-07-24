@@ -43,6 +43,14 @@ export async function POST(request: NextRequest) {
 
     // Check if Resend is configured
     if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'dummy-key-for-build') {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📧 Development mode: skipping email send because RESEND_API_KEY is not configured');
+        return NextResponse.json({
+          success: true,
+          devSkipped: true,
+          message: 'Email skipped in development (RESEND_API_KEY not configured)'
+        });
+      }
       console.error('❌ Resend API key not configured');
       return NextResponse.json(
         { error: 'Email service not configured - RESEND_API_KEY missing' },

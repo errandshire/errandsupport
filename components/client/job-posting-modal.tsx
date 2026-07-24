@@ -9,14 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { JobFormData } from "@/lib/types";
 import { JobPostingService } from "@/lib/job-posting.service";
 import { WalletService } from "@/lib/wallet.service";
 import { JobNotificationService } from "@/lib/job-notification.service";
-import { SERVICE_CATEGORIES, JOB_DURATION_OPTIONS, MAX_JOB_ATTACHMENTS, CATEGORIES_WITH_PRICING, LAUNDRY_PRICING, HOUSE_CLEANING_PRICING } from "@/lib/constants";
+import { SERVICE_CATEGORIES, JOB_DURATION_OPTIONS, MAX_JOB_ATTACHMENTS } from "@/lib/constants";
+import { databases } from "@/lib/api";
 import { trackJobPost } from "@/lib/meta-pixel-events";
 
 interface JobPostingModalProps {
@@ -98,9 +98,6 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
     attachments: [],
   });
 
-  // State for pricing items (laundry/cleaning)
-  const [selectedItems, setSelectedItems] = React.useState<Record<string, number>>({});
-
   const [attachmentPreviews, setAttachmentPreviews] = React.useState<string[]>([]);
 
   const steps = [
@@ -174,26 +171,6 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
         }
         return true;
       case 'budget':
-        // For laundry/cleaning, validate items are selected
-        if (formData.categoryId === 'laundry' || formData.categoryId === 'cleaning') {
-          if (Object.keys(selectedItems).length === 0) {
-            toast.error('Please select at least one item');
-            return false;
-          }
-          // Auto-calculate budget from selected items
-          const totalBudget = Object.entries(selectedItems).reduce((total, [itemId, quantity]) => {
-            const item = (formData.categoryId === 'laundry' ? LAUNDRY_PRICING : HOUSE_CLEANING_PRICING).find(i => i.id === itemId);
-            return total + (item ? item.price * quantity : 0);
-          }, 0);
-          setFormData(prev => ({
-            ...prev,
-            budgetMax: totalBudget,
-            budgetMin: totalBudget,
-            budgetType: 'fixed'
-          }));
-          return true;
-        }
-        // For other categories, validate manual budget
         if (!formData.budgetMax || formData.budgetMax <= 0) {
           toast.error('Please enter a valid budget');
           return false;
@@ -241,43 +218,30 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
       // Strip File objects and replace with uploaded URLs for the JSON body
       const { attachments, ...restFormData } = formData;
       
-      // Add pricing items for laundry/cleaning jobs
-      const pricingItems = (formData.categoryId === 'laundry' || formData.categoryId === 'cleaning') 
-        ? Object.entries(selectedItems)
-            .filter(([_, quantity]) => quantity > 0)
-            .map(([itemId, quantity]) => {
-              const item = (formData.categoryId === 'laundry' ? LAUNDRY_PRICING : HOUSE_CLEANING_PRICING).find(i => i.id === itemId);
-              return item ? { itemId, itemName: item.name, quantity, pricePerItem: item.price, totalPrice: item.price * quantity } : null;
-            })
-            .filter(Boolean)
-        : [];
-      
-      const jobPayload = { ...restFormData, attachmentUrls, pricingItems };
-
-      const response = await fetch('/api/jobs/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include session cookie for authentication
-        body: JSON.stringify({
-          clientId,
-          jobData: jobPayload
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        console.error('Job creation failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          result
-        });
-        throw new Error(result.message || 'Failed to post job');
+      // Try to get browser geolocation, matching mobile behavior (non-blocking on web)
+      let locationLat: number | undefined;
+      let locationLng: number | undefined;
+      if (typeof window !== 'undefined' && navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 5000 });
+          });
+          locationLat = position.coords.latitude;
+          locationLng = position.coords.longitude;
+        } catch {
+          // Location is optional; continue posting without coordinates
+        }
       }
+      
+      const jobPayload: Partial<JobFormData> & { attachmentUrls?: string[] } = {
+        ...restFormData,
+        attachmentUrls,
+        ...(locationLat !== undefined ? { locationLat } : {}),
+        ...(locationLng !== undefined ? { locationLng } : {}),
+      };
 
-      const job = result.job;
+      // Post directly through the VPS API client (same flow as the mobile app)
+      const job = await JobPostingService.createJob(clientId, jobPayload as any, databases);
 
       // Track job posting event
       const budget = formData.budgetType === 'fixed' ? formData.budgetMax! : (formData.budgetMax! + formData.budgetMin!) / 2;
@@ -306,7 +270,6 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
         attachments: [],
       });
       setAttachmentPreviews([]);
-      setSelectedItems({});
       setCurrentStep('details');
     } catch (error) {
       console.error('Failed to post job:', error);
@@ -361,8 +324,6 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
                   value={formData.categoryId}
                   onValueChange={(value) => {
                     setFormData(prev => ({ ...prev, categoryId: value }));
-                    // Reset selected items when category changes
-                    setSelectedItems({});
                   }}
                 >
                   <SelectTrigger>
@@ -497,135 +458,21 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
           {/* Step 4: Budget */}
           {currentStep === 'budget' && (
             <div className="space-y-4">
-              {/* Show pricing selection for laundry and cleaning categories */}
-              {(formData.categoryId === 'laundry' || formData.categoryId === 'cleaning') && (
-                <div className="space-y-4 mb-6">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-blue-900 mb-2">Select Items & Quantities</h4>
-                    <p className="text-sm text-blue-800">Choose the items you need and specify quantities. The total will be calculated automatically.</p>
-                  </div>
-
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {(formData.categoryId === 'laundry' ? LAUNDRY_PRICING : HOUSE_CLEANING_PRICING).map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center gap-3 flex-1">
-                          <span className="text-2xl">{item.icon}</span>
-                          <div className="flex-1">
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-green-600 font-semibold">₦{item.price.toLocaleString()}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedItems(prev => {
-                                const current = prev[item.id] || 0;
-                                if (current > 0) {
-                                  const newItems = { ...prev };
-                                  newItems[item.id] = current - 1;
-                                  if (newItems[item.id] === 0) delete newItems[item.id];
-                                  return newItems;
-                                }
-                                return prev;
-                              });
-                            }}
-                            disabled={!selectedItems[item.id]}
-                          >
-                            -
-                          </Button>
-                          <span className="w-12 text-center font-medium">
-                            {selectedItems[item.id] || 0}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedItems(prev => ({
-                                ...prev,
-                                [item.id]: (prev[item.id] || 0) + 1
-                              }));
-                            }}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Calculate and show total */}
-                  {Object.keys(selectedItems).length > 0 && (
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-green-900 mb-2">Selected Items:</h4>
-                      <div className="space-y-1 mb-3">
-                        {Object.entries(selectedItems).map(([itemId, quantity]) => {
-                          const item = (formData.categoryId === 'laundry' ? LAUNDRY_PRICING : HOUSE_CLEANING_PRICING).find(i => i.id === itemId);
-                          if (!item || quantity === 0) return null;
-                          return (
-                            <div key={itemId} className="flex justify-between text-sm">
-                              <span>{item.name} x {quantity}</span>
-                              <span className="font-medium">₦{(item.price * quantity).toLocaleString()}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="border-t border-green-200 pt-2 flex justify-between">
-                        <span className="font-bold text-green-900">Total Budget:</span>
-                        <span className="font-bold text-green-900 text-lg">
-                          ₦{Object.entries(selectedItems).reduce((total, [itemId, quantity]) => {
-                            const item = (formData.categoryId === 'laundry' ? LAUNDRY_PRICING : HOUSE_CLEANING_PRICING).find(i => i.id === itemId);
-                            return total + (item ? item.price * quantity : 0);
-                          }, 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* Budget Type Radio - RANGE OPTION COMMENTED OUT */}
-              {/* <div>
-                <Label>Budget Type *</Label>
-                <RadioGroup
-                  value={formData.budgetType}
-                  onValueChange={(value: 'fixed' | 'range') => setFormData(prev => ({
+              <div>
+                <Label htmlFor="budget">Budget Amount (₦) *</Label>
+                <Input
+                  id="budget"
+                  type="number"
+                  placeholder="5000"
+                  value={formData.budgetMax || ''}
+                  onChange={(e) => setFormData(prev => ({
                     ...prev,
-                    budgetType: value,
-                    budgetMin: value === 'fixed' ? 0 : prev.budgetMin,
+                    budgetMax: parseInt(e.target.value) || 0,
+                    budgetMin: parseInt(e.target.value) || 0,
+                    budgetType: 'fixed'
                   }))}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="fixed" id="fixed" />
-                    <Label htmlFor="fixed">Fixed Price</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="range" id="range" />
-                    <Label htmlFor="range">Price Range</Label>
-                  </div>
-                </RadioGroup>
-              </div> */}
-
-              {/* Only show manual budget input for non-pricing categories */}
-              {formData.categoryId !== 'laundry' && formData.categoryId !== 'cleaning' && (
-                <div>
-                  <Label htmlFor="budget">Budget Amount (₦) *</Label>
-                  <Input
-                    id="budget"
-                    type="number"
-                    placeholder="5000"
-                    value={formData.budgetMax || ''}
-                    onChange={(e) => setFormData(prev => ({
-                      ...prev,
-                      budgetMax: parseInt(e.target.value) || 0,
-                      budgetMin: parseInt(e.target.value) || 0,
-                      budgetType: 'fixed'
-                    }))}
-                  />
-                </div>
-              )}
+                />
+              </div>
 
               {/* RANGE BUDGET FIELDS COMMENTED OUT */}
               {/* {formData.budgetType === 'range' && (
@@ -700,18 +547,6 @@ export function JobPostingModal({ isOpen, onClose, clientId, onJobCreated }: Job
                   <p className="font-medium text-green-600">
                     ₦{formData.budgetMax?.toLocaleString()}
                   </p>
-                  {(formData.categoryId === 'laundry' || formData.categoryId === 'cleaning') && Object.keys(selectedItems).length > 0 && (
-                    <div className="mt-2 text-xs text-gray-600">
-                      <p className="font-medium mb-1">Items:</p>
-                      {Object.entries(selectedItems).map(([itemId, quantity]) => {
-                        const item = (formData.categoryId === 'laundry' ? LAUNDRY_PRICING : HOUSE_CLEANING_PRICING).find(i => i.id === itemId);
-                        if (!item || quantity === 0) return null;
-                        return (
-                          <p key={itemId}>• {item.name} x {quantity}</p>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

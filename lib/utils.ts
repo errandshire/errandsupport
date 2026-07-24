@@ -55,3 +55,21 @@ export function parseDocumentUrls(documentsString?: string): string[] {
 export function joinDocumentUrls(documents: string[]): string {
   return documents.filter(url => url.trim().length > 0).join(',');
 }
+
+/**
+ * Get the current user's $id from the persisted auth store.
+ * Safe to call from client-side service code.
+ */
+export function getCurrentUserId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const parsed = JSON.parse(authStorage);
+      return parsed?.state?.user?.$id || '';
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return '';
+}

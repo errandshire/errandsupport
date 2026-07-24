@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobPostingService } from '@/lib/job-posting.service';
 import { requireAuth } from '@/lib/auth-guard';
-const { serverDatabases } = require('@/lib/api-server');
+import { createServerClient } from '@/lib/api-server';
 
 /**
  * POST /api/jobs/create
@@ -41,8 +41,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create job using server SDK (has API key authority for permissions)
-    const job = await JobPostingService.createJob(clientId, jobData, serverDatabases);
+    // Create job using an authenticated server client that forwards the user's session
+    const serverClient = createServerClient(request.headers);
+    const job = await JobPostingService.createJob(clientId, jobData, serverClient);
 
     return NextResponse.json({
       success: true,

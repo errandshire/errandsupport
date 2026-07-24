@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { COLLECTIONS, DATABASE_ID, databases, account } from '@/lib/api';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://72.62.179.203:3004/api';
 
 interface AuthenticatedUser {
   $id: string;
@@ -15,29 +16,25 @@ interface AuthResult {
 export async function getAuthenticatedUser(
   request: NextRequest
 ): Promise<AuthResult | null> {
-  // 1. Try the httpOnly "session" cookie
-  const sessionCookie = request.cookies.get('session')?.value;
+  // The VPS backend identifies users via the x-user-id header or userId query.
+  // The web/mobile client sends the current user's $id as x-user-id.
+  const userId = request.headers.get('x-user-id') || '';
 
-  if (!sessionCookie) return null;
+  if (!userId) return null;
 
   try {
-    const user = await account.get() as { $id: string; email: string; name: string };
+    const response = await fetch(`${API_BASE_URL}/auth/me?userId=${encodeURIComponent(userId)}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
 
-    let role: string | undefined;
-    try {
-      const userDoc = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        user.$id
-      ) as { role?: string };
-      role = userDoc.role;
-    } catch {
-      // User doc may not exist yet
-    }
+    if (!response.ok) return null;
+
+    const user = await response.json() as { $id: string; email: string; name: string; role?: string };
 
     return {
       user: { $id: user.$id, email: user.email, name: user.name },
-      role,
+      role: user.role,
     };
   } catch {
     return null;

@@ -172,6 +172,7 @@ export interface PricingItem {
 
 // Job Posting Types
 export interface Job  {
+  $id?: string;
   clientId: string;
   title: string;
   description: string;

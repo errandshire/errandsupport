@@ -1,3 +1,5 @@
+import { getCurrentUserId } from '@/lib/utils';
+
 // Email configuration for client-side templates
 const EMAIL_CONFIG = {
   from: process.env.NEXT_PUBLIC_FROM_EMAIL || 'notifications@erandwork.com',
@@ -567,10 +569,14 @@ class EmailTemplateBuilder {
 class EmailService {
   private async sendEmail(to: string, subject: string, html: string, type?: string): Promise<boolean> {
     try {
+      // The /api/email/send route uses requireAuth, which expects the x-user-id header.
+      const userId = getCurrentUserId();
+
       const response = await fetch('/api/email/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(userId ? { 'x-user-id': userId } : {}),
         },
         body: JSON.stringify({
           to,

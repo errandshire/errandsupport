@@ -123,9 +123,26 @@ export class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+
+    // The VPS backend uses the x-user-id header to identify the current user.
+    // Try to read the persisted auth user id from localStorage.
+    let userId = '';
+    if (typeof window !== 'undefined') {
+      try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          const parsed = JSON.parse(authStorage);
+          userId = parsed?.state?.user?.$id || '';
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        ...(userId ? { 'x-user-id': userId } : {}),
         ...options.headers,
       },
       credentials: 'include',

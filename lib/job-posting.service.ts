@@ -52,15 +52,22 @@ export class JobPostingService {
       // Generate unique job ID first (needed for slug)
       const jobId = ID.unique();
 
-      // Generate SEO-friendly slug from title
-      const slug = generateUniqueSlug(formData.title, jobId);
+      // Generate slug exactly like the mobile app does
+      const slug = `${formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${jobId.slice(-6)}`;
 
-      // Appwrite datetime attributes require full ISO 8601 strings.
-      // The form sends "YYYY-MM-DD" — convert to a proper datetime.
-      let scheduledDateISO = formData.scheduledDate;
-      if (scheduledDateISO && !scheduledDateISO.includes('T')) {
-        const timePart = formData.scheduledTime || '00:00';
-        scheduledDateISO = new Date(`${scheduledDateISO}T${timePart}:00`).toISOString();
+      // Convert scheduledDate to ISO format (matches mobile version)
+      let scheduledDateISO: string;
+      if (formData.scheduledDate && formData.scheduledDate.trim()) {
+        const dateStr = formData.scheduledDate.trim();
+        const timeStr = formData.scheduledTime?.trim() || '09:00';
+        try {
+          const dateObj = new Date(`${dateStr}T${timeStr}:00`);
+          scheduledDateISO = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : new Date().toISOString();
+        } catch {
+          scheduledDateISO = new Date().toISOString();
+        }
+      } else {
+        scheduledDateISO = new Date().toISOString();
       }
 
       const jobData: Record<string, unknown> = {
@@ -68,16 +75,17 @@ export class JobPostingService {
         title: formData.title,
         description: formData.description,
         categoryId: formData.categoryId,
-        budgetType: formData.budgetType,
-        budgetMin: formData.budgetMin,
+        budgetType: 'fixed',
+        budgetMin: formData.budgetMin || formData.budgetMax,
         budgetMax: formData.budgetMax,
-        locationAddress: formData.locationAddress,
+        locationAddress: formData.locationAddress || 'Not specified',
         scheduledDate: scheduledDateISO,
-        scheduledTime: formData.scheduledTime,
+        scheduledTime: formData.scheduledTime || '09:00',
         duration: formData.duration,
         skillsRequired: formData.skillsRequired || [],
         attachments: attachmentUrls,
         status: JOB_STATUS.OPEN,
+        assignedWorkerId: null,
         expiresAt: expiresAt.toISOString(),
         viewCount: 0,
         requiresFunding: false,
@@ -87,13 +95,8 @@ export class JobPostingService {
         updatedAt: new Date().toISOString(),
       };
 
-      if (formData.locationLat != null) jobData.locationLat = formData.locationLat;
-      if (formData.locationLng != null) jobData.locationLng = formData.locationLng;
-      
-      // Add pricing items for laundry/cleaning jobs
-      if (formData.pricingItems && formData.pricingItems.length > 0) {
-        jobData.pricingItems = JSON.stringify(formData.pricingItems);
-      }
+      if (formData.locationLat != null) jobData.latitude = formData.locationLat;
+      if (formData.locationLng != null) jobData.longitude = formData.locationLng;
 
       const response = await db.createDocument(
         DATABASE_ID,
