@@ -57,6 +57,28 @@ export function joinDocumentUrls(documents: string[]): string {
 }
 
 /**
+ * Coerce a backend value that may be a string, JSON string, or array into a string array.
+ * Useful for Appwrite/SQLite fields that store arrays as comma-separated or JSON strings.
+ */
+export function toStringArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map(v => String(v));
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    // Try JSON parse first, fall back to comma-separated
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(v => String(v));
+      return [];
+    } catch {
+      return trimmed.split(',').map(v => v.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+/**
  * Get the current user's $id from the persisted auth store.
  * Safe to call from client-side service code.
  */

@@ -11,7 +11,7 @@ import { Job } from "@/lib/types";
 import { MapPin, Calendar, Clock, DollarSign, Users, Eye, Briefcase } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SERVICE_CATEGORIES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, toStringArray } from "@/lib/utils";
 import { ApplicantList } from "./applicant-list";
 
 interface JobDetailsModalProps {
@@ -40,6 +40,7 @@ export function JobDetailsModal({
 
   const status = statusConfig[job.status];
   const category = SERVICE_CATEGORIES.find(c => c.id === job.categoryId);
+  const skills = toStringArray(job.skillsRequired);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -102,11 +103,11 @@ export function JobDetailsModal({
           </div>
 
           {/* Skills Required */}
-          {job.skillsRequired && job.skillsRequired.length > 0 && (
+          {skills.length > 0 && (
             <div>
               <h3 className="font-semibold text-lg mb-2">Skills Required</h3>
               <div className="flex flex-wrap gap-2">
-                {job.skillsRequired.map((skill, index) => (
+                {skills.map((skill, index) => (
                   <Badge key={index} variant="outline">
                     {skill}
                   </Badge>

@@ -14,6 +14,7 @@ import { JobAcceptanceService } from "@/lib/job-acceptance.service";
 import { useAuth } from "@/hooks/use-auth";
 import { SERVICE_CATEGORIES, COMMISSION_RATE } from "@/lib/constants";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { toStringArray } from "@/lib/utils";
 
 export default function WorkerJobsPage() {
   const { user } = useAuth();
@@ -368,16 +369,19 @@ export default function WorkerJobsPage() {
                         </div>
 
                         {/* Skills Required */}
-                        {details.skillsRequired && details.skillsRequired.length > 0 && (
-                          <div>
-                            <h4 className="font-medium mb-2 text-xs sm:text-sm">Skills Required</h4>
-                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                              {details.skillsRequired.map((skill, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">{skill}</Badge>
-                              ))}
+                        {(() => {
+                          const skills = toStringArray(details.skillsRequired);
+                          return skills.length > 0 ? (
+                            <div>
+                              <h4 className="font-medium mb-2 text-xs sm:text-sm">Skills Required</h4>
+                              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                {skills.map((skill, index) => (
+                                  <Badge key={index} variant="outline" className="text-xs">{skill}</Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          ) : null;
+                        })()}
 
                         {/* Attachments */}
                         {details.attachments && details.attachments.length > 0 && (

@@ -32,6 +32,7 @@ import { SERVICE_CATEGORIES } from "@/lib/constants";
 import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { extractJobIdFromSlug, findJobBySlug } from "@/lib/slug-utils";
 import { WorkerSignupModal } from "@/components/jobs/worker-signup-modal";
+import { toStringArray } from "@/lib/utils";
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -269,6 +270,7 @@ export default function JobDetailPage() {
 
   const isJobAvailable = job.status === 'open';
   const isExpired = new Date(job.expiresAt) < new Date();
+  const skills = toStringArray(job.skillsRequired);
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
@@ -415,13 +417,13 @@ export default function JobDetailPage() {
               </div>
 
               {/* Skills Required */}
-              {job.skillsRequired && job.skillsRequired.length > 0 && (
+              {skills.length > 0 && (
                 <>
                   <Separator />
                   <div>
                     <h3 className="font-semibold text-lg mb-2">Skills Required</h3>
                     <div className="flex flex-wrap gap-2">
-                      {job.skillsRequired.map((skill, index) => (
+                      {skills.map((skill, index) => (
                         <Badge key={index} variant="secondary">
                           {skill}
                         </Badge>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, ArrowUpRight, ArrowDownRight, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Search, ArrowUpRight, ArrowDownRight, RefreshCw, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -77,13 +77,17 @@ export default function AdminTransactionsPage() {
     const bookings = transactions
       .filter(t => t.type === 'booking_hold')
       .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0), 0);
+    const commission = transactions
+      .filter(t => t.type === 'commission')
+      .reduce((sum, t) => sum + (typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0), 0);
 
-    return { topups, withdrawals, bookings, total: transactions.length };
+    return { topups, withdrawals, bookings, commission, total: transactions.length };
   }, [transactions]);
 
   const getTypeIcon = (type: string) => {
     if (type === 'topup') return <ArrowDownRight className="h-4 w-4 text-green-600" />;
     if (type === 'withdraw') return <ArrowUpRight className="h-4 w-4 text-blue-600" />;
+    if (type === 'commission') return <TrendingUp className="h-4 w-4 text-emerald-600" />;
     return <ArrowUpRight className="h-4 w-4 text-orange-600" />;
   };
 
@@ -94,6 +98,7 @@ export default function AdminTransactionsPage() {
       booking_hold: 'bg-orange-100 text-orange-800',
       booking_release: 'bg-purple-100 text-purple-800',
       booking_refund: 'bg-red-100 text-red-800',
+      commission: 'bg-emerald-100 text-emerald-800',
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
@@ -114,7 +119,7 @@ export default function AdminTransactionsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Total Transactions</CardDescription>
@@ -147,6 +152,14 @@ export default function AdminTransactionsPage() {
             <p className="text-2xl font-bold text-orange-600">₦{stats.bookings.toLocaleString()}</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Platform Commission (20%)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-emerald-600">₦{stats.commission.toLocaleString()}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -173,6 +186,7 @@ export default function AdminTransactionsPage() {
                 <SelectItem value="booking_hold">Booking Holds</SelectItem>
                 <SelectItem value="booking_release">Releases</SelectItem>
                 <SelectItem value="booking_refund">Refunds</SelectItem>
+                <SelectItem value="commission">Commission</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={loadTransactions}>
@@ -221,11 +235,11 @@ export default function AdminTransactionsPage() {
                   </div>
                   <div className="text-right flex-shrink-0 ml-4">
                     <p className={`font-semibold text-lg ${
-                      tx.type === 'topup' || tx.type === 'booking_release'
+                      tx.type === 'topup' || tx.type === 'booking_release' || tx.type === 'commission'
                         ? 'text-green-600'
                         : 'text-red-600'
                     }`}>
-                      {tx.type === 'topup' || tx.type === 'booking_release' ? '+' : '-'}
+                      {tx.type === 'topup' || tx.type === 'booking_release' || tx.type === 'commission' ? '+' : '-'}
                       ₦{(tx.amount || 0).toLocaleString()}
                     </p>
                     <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'} className="text-xs">

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { JobWithDetails } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { COMMISSION_RATE } from "@/lib/constants";
+import { toStringArray } from "@/lib/utils";
 
 interface JobDetailsModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export function JobDetailsModal({ isOpen, onClose, job, onJobAccepted }: JobDeta
 
   const workerEarnings = Math.round(job.budgetMax * (1 - COMMISSION_RATE));
   const platformFee = job.budgetMax - workerEarnings;
+  const skills = toStringArray(job.skillsRequired);
 
   const handleAcceptJob = async () => {
     setIsAccepting(true);
@@ -125,11 +127,11 @@ export function JobDetailsModal({ isOpen, onClose, job, onJobAccepted }: JobDeta
           </div>
 
           {/* Skills Required */}
-          {job.skillsRequired && job.skillsRequired.length > 0 && (
+          {skills.length > 0 && (
             <div>
               <h4 className="font-medium mb-2">Skills Required</h4>
               <div className="flex flex-wrap gap-2">
-                {job.skillsRequired.map((skill, index) => (
+                {skills.map((skill, index) => (
                   <Badge key={index} variant="outline">{skill}</Badge>
                 ))}
               </div>
