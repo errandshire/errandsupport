@@ -82,6 +82,12 @@ export function toStringArray(value: unknown): string[] {
  * Get the current user's $id from the persisted auth store.
  * Safe to call from client-side service code.
  */
+export function generatePaymentReference(prefix: string = 'pay'): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  return `${prefix}_${timestamp}_${random}`;
+}
+
 export function getCurrentUserId(): string {
   if (typeof window === 'undefined') return '';
   try {

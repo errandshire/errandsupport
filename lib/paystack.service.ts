@@ -9,8 +9,13 @@ import crypto from 'crypto';
  * Security: All webhooks verified with signature
  */
 
-const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || process.env.NEXT_PUBLIC_PAYSTACK_SECRET_KEY!;
-const PAYSTACK_PUBLIC = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!;
+const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || '';
+
+function ensureSecret() {
+  if (!PAYSTACK_SECRET) {
+    throw new Error('PAYSTACK_SECRET_KEY is not configured');
+  }
+}
 
 export class PaystackService {
 
@@ -27,6 +32,7 @@ export class PaystackService {
     callbackUrl: string;
     metadata?: Record<string, any>;
   }) {
+    ensureSecret();
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -61,6 +67,7 @@ export class PaystackService {
    * @returns Payment details with amount IN NAIRA
    */
   static async verifyPayment(reference: string) {
+    ensureSecret();
     const response = await fetch(
       `https://api.paystack.co/transaction/verify/${reference}`,
       {
@@ -92,6 +99,7 @@ export class PaystackService {
    * CRITICAL for security - prevents fake webhooks
    */
   static verifyWebhookSignature(payload: string, signature: string): boolean {
+    ensureSecret();
     const hash = crypto
       .createHmac('sha512', PAYSTACK_SECRET)
       .update(payload)
@@ -109,6 +117,7 @@ export class PaystackService {
     bankCode: string;
     accountName: string;
   }) {
+    ensureSecret();
     const response = await fetch('https://api.paystack.co/transferrecipient', {
       method: 'POST',
       headers: {
@@ -146,6 +155,7 @@ export class PaystackService {
     reference: string;
     reason?: string;
   }) {
+    ensureSecret();
     const response = await fetch('https://api.paystack.co/transfer', {
       method: 'POST',
       headers: {
@@ -178,6 +188,7 @@ export class PaystackService {
    * Get list of Nigerian banks
    */
   static async getBanks() {
+    ensureSecret();
     const response = await fetch(
       'https://api.paystack.co/bank?currency=NGN&country=nigeria',
       {
@@ -207,6 +218,7 @@ export class PaystackService {
     accountNumber: string;
     bankCode: string;
   }) {
+    ensureSecret();
     const response = await fetch(
       `https://api.paystack.co/bank/resolve?account_number=${params.accountNumber}&bank_code=${params.bankCode}`,
       {

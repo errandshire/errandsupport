@@ -5,8 +5,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { WalletService } from "@/lib/wallet.service";
-import { PaystackService } from "@/lib/paystack.service";
 import { SettingsService } from "@/lib/settings.service";
+import { paystackProxy } from "@/lib/paystack-client";
+import { generatePaymentReference } from "@/lib/utils";
 import type { Wallet, WalletTransaction } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,7 +96,7 @@ export default function ClientWalletPage() {
   // Load banks list
   const loadBanks = React.useCallback(async () => {
     try {
-      const banksList = await PaystackService.getBanks();
+      const banksList = await paystackProxy('getBanks');
       setBanks(banksList);
     } catch (error) {
       console.error('Error loading banks:', error);
@@ -142,10 +143,10 @@ export default function ClientWalletPage() {
       setIsProcessingTopUp(true);
 
       // Generate unique reference
-      const reference = PaystackService.generateReference('topup');
+      const reference = generatePaymentReference('topup');
 
       // Initialize payment
-      const payment = await PaystackService.initializePayment({
+      const payment = await paystackProxy('initialize', {
         amountInNaira: amount,
         email: user.email,
         reference,
@@ -175,7 +176,7 @@ export default function ClientWalletPage() {
 
     try {
       setIsVerifyingAccount(true);
-      const result = await PaystackService.verifyBankAccount({
+      const result = await paystackProxy('verifyBankAccount', {
         accountNumber: newBank.accountNumber,
         bankCode: newBank.bankCode
       });
@@ -201,7 +202,7 @@ export default function ClientWalletPage() {
       setIsAddingBank(true);
 
       // Create recipient on Paystack
-      const recipient = await PaystackService.createRecipient({
+      const recipient = await paystackProxy('createRecipient', {
         accountNumber: newBank.accountNumber,
         bankCode: newBank.bankCode,
         accountName: newBank.accountName
@@ -283,7 +284,7 @@ export default function ClientWalletPage() {
       const { ID } = await import('@/lib/appwrite');
 
       // Generate reference
-      const reference = PaystackService.generateReference('withdraw');
+      const reference = generatePaymentReference('withdraw');
 
       // Deduct from wallet
       await databases.updateDocument(
@@ -312,7 +313,7 @@ export default function ClientWalletPage() {
       );
 
       // Initiate Paystack transfer (with deducted amount)
-      await PaystackService.initiateTransfer({
+      await paystackProxy('initiateTransfer', {
         amountInNaira: amountToReceive,
         recipientCode: bankAccount.paystackRecipientCode!,
         reference,
