@@ -47,9 +47,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Diagnostic: confirm env vars are available server-side
+    const resendKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.FROM_EMAIL;
+    console.log(`🔑 RESEND_API_KEY: ${resendKey ? `set (${resendKey.slice(0, 8)}...)` : 'NOT SET'}`);
+    console.log(`📧 FROM_EMAIL: ${fromEmail || 'NOT SET'}`);
+
     // Get targeted users
     console.log('🎯 Filtering users with criteria:', filters);
     const users = await BroadcastService.getTargetedUsers(filters);
+    console.log(`👥 Found ${users.length} users`);
 
     if (users.length === 0) {
       return NextResponse.json(
@@ -67,6 +74,11 @@ export async function POST(request: NextRequest) {
       filters,
       users,
     });
+
+    console.log('📊 Broadcast stats:', JSON.stringify(result.stats));
+    if ((result.stats as any).firstEmailError) {
+      console.error('📧 First email error:', (result.stats as any).firstEmailError);
+    }
 
     if (result.success) {
       return NextResponse.json({
