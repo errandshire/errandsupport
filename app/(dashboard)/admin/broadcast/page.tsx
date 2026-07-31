@@ -133,7 +133,7 @@ export default function AdminBroadcastPage() {
 
       const response = await fetch('/api/admin/broadcast', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.$id },
         body: JSON.stringify({
           adminId: user.$id,
           message: {

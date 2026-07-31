@@ -282,6 +282,13 @@ export class BroadcastService {
             // Send email
             if (channels.email && user.email) {
               try {
+                const resendApiKey = process.env.RESEND_API_KEY;
+                const fromEmail = process.env.FROM_EMAIL || 'noreply@erandwork.com';
+
+                if (!resendApiKey) {
+                  throw new Error('RESEND_API_KEY is not configured');
+                }
+
                 const emailHtml = `
                   <!DOCTYPE html>
                   <html>
@@ -310,16 +317,25 @@ export class BroadcastService {
                   </html>
                 `;
 
-                await fetch('/api/email/send', {
+                const emailRes = await fetch('https://api.resend.com/emails', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${resendApiKey}`,
+                  },
                   body: JSON.stringify({
+                    from: fromEmail,
                     to: user.email,
                     subject: message.title,
                     html: emailHtml,
-                    type: 'admin_broadcast',
                   }),
                 });
+
+                if (!emailRes.ok) {
+                  const errBody = await emailRes.json().catch(() => ({}));
+                  throw new Error(errBody?.message || `Resend error ${emailRes.status}`);
+                }
+
                 stats.emailsSent++;
               } catch (error) {
                 console.error(`❌ Email failed for user ${user.$id}:`, error);

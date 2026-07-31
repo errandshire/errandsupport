@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-guard';
 
-const VPS_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api', '') || '';
+// INTERNAL_VPS_BASE_URL is server-side only — points to the production VPS
+// which holds the Paystack secret key. Falls back to the public API base if not set.
+const VPS_API_BASE =
+  process.env.INTERNAL_VPS_BASE_URL ||
+  (process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api', '') ?? '');
 
 /**
  * Server-side Paystack proxy for wallet operations.
