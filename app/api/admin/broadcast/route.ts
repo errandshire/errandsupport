@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { BroadcastService } from '@/lib/broadcast-service';
 import { requireAdmin } from '@/lib/auth-guard';
 
+export const maxDuration = 300; // Allow up to 5 minutes for bulk email sending
+
 /**
  * Admin Broadcast API
  *
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
     // Diagnostic: confirm env vars are available server-side
     const resendKey = process.env.RESEND_API_KEY;
     const fromEmail = process.env.FROM_EMAIL;
-    console.log(`🔑 RESEND_API_KEY: ${resendKey ? `set (${resendKey.slice(0, 8)}...)` : 'NOT SET'}`);
+    console.log(`🔑 RESEND_API_KEY: ${resendKey ? `set (${resendKey.trim().slice(0, 8)}... length=${resendKey.length})` : 'NOT SET'}`);
     console.log(`📧 FROM_EMAIL: ${fromEmail || 'NOT SET'}`);
 
     // Get targeted users

@@ -282,8 +282,8 @@ export class BroadcastService {
             // Send email
             if (channels.email && user.email) {
               try {
-                const resendApiKey = process.env.RESEND_API_KEY?.trim();
-                const fromEmail = (process.env.FROM_EMAIL || 'noreply@erandwork.com').trim();
+                const resendApiKey = process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, '');
+                const fromEmail = (process.env.FROM_EMAIL || 'noreply@erandwork.com').trim().replace(/^["']|["']$/g, '');
 
                 if (!resendApiKey) {
                   throw new Error('RESEND_API_KEY is not configured');
@@ -338,6 +338,8 @@ export class BroadcastService {
                 }
 
                 stats.emailsSent++;
+                // Throttle to avoid Resend rate limits (~5 emails/sec max)
+                await new Promise(resolve => setTimeout(resolve, 200));
               } catch (error: any) {
                 const errMsg = error?.message || String(error);
                 console.error(`❌ BROADCAST EMAIL FAILED for ${user.email}: ${errMsg}`);
