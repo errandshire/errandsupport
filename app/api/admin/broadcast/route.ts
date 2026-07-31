@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
         stats: result.stats,
         estimatedCost: result.estimatedCost,
         message: result.message,
+        emailError: (result.stats as any).firstEmailError || null,
       });
     } else {
       return NextResponse.json(

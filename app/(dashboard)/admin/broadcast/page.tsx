@@ -158,7 +158,7 @@ export default function AdminBroadcastPage() {
         const failed = result.stats.emailsFailed + result.stats.smsFailed + result.stats.inAppFailed;
         toast.success(`Broadcast sent! ${delivered} delivered${failed > 0 ? `, ${failed} failed` : ''}.`);
         if (result.stats.emailsFailed > 0 && result.stats.emailsSent === 0) {
-          toast.error(`All ${result.stats.emailsFailed} emails failed — check RESEND_API_KEY in Vercel env vars.`);
+          toast.error(`All ${result.stats.emailsFailed} emails failed: ${result.emailError || 'check Vercel function logs'}`);
         }
 
         // Reset form

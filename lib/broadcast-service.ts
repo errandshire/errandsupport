@@ -334,13 +334,15 @@ export class BroadcastService {
 
                 if (!emailRes.ok) {
                   const errBody = await emailRes.json().catch(() => ({}));
-                  throw new Error(errBody?.message || `Resend error ${emailRes.status}`);
+                  throw new Error(errBody?.message || `Resend HTTP ${emailRes.status}`);
                 }
 
                 stats.emailsSent++;
-              } catch (error) {
-                console.error(`❌ Email failed for user ${user.$id}:`, error);
+              } catch (error: any) {
+                const errMsg = error?.message || String(error);
+                console.error(`❌ BROADCAST EMAIL FAILED for ${user.email}: ${errMsg}`);
                 stats.emailsFailed++;
+                if (!stats.firstEmailError) (stats as any).firstEmailError = errMsg;
               }
             }
 
