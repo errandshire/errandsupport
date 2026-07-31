@@ -307,6 +307,7 @@ export class BroadcastService {
                         <h1>ErrandWork</h1>
                       </div>
                       <div class="content">
+                        <p>Hi ${user.firstName || user.name?.split(' ')[0] || 'there'},</p>
                         ${message.htmlContent}
                       </div>
                       <div class="footer">
