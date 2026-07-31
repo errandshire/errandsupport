@@ -282,8 +282,8 @@ export class BroadcastService {
             // Send email
             if (channels.email && user.email) {
               try {
-                const resendApiKey = process.env.RESEND_API_KEY;
-                const fromEmail = process.env.FROM_EMAIL || 'noreply@erandwork.com';
+                const resendApiKey = process.env.RESEND_API_KEY?.trim();
+                const fromEmail = (process.env.FROM_EMAIL || 'noreply@erandwork.com').trim();
 
                 if (!resendApiKey) {
                   throw new Error('RESEND_API_KEY is not configured');
