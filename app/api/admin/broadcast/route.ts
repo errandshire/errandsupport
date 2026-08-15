@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const adminId = auth!.user.$id;
 
     const body = await request.json();
-    const { message, channels, filters } = body;
+    const { message, channels, filters, batchOption } = body;
 
     // Validate required fields
     if (!message || !message.title || !message.content) {
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
       channels,
       filters,
       users,
+      batchOption,
     });
 
     console.log('📊 Broadcast stats:', JSON.stringify(result.stats));

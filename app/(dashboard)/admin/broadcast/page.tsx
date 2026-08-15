@@ -42,6 +42,18 @@ export default function AdminBroadcastPage() {
   const [showPreview, setShowPreview] = React.useState(false);
   const [sendingStatus, setSendingStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
+  // Batch selection state
+  const [batchSelection, setBatchSelection] = React.useState<string>('all');
+  const BATCH_SIZE = 90; // Users per batch (safely under 100/sending limit)
+
+  // Calculate total batches based on recipient count
+  const totalBatches = Math.max(1, Math.ceil(recipientCount / BATCH_SIZE));
+
+  // Calculate recipients for selected batch
+  const selectedBatchRecipients = batchSelection === 'all'
+    ? recipientCount
+    : Math.min(BATCH_SIZE, recipientCount - (parseInt(batchSelection) - 1) * BATCH_SIZE);
+
   // Calculate date range for registration filter
   const getDateRange = () => {
     const now = new Date();
@@ -109,6 +121,11 @@ export default function AdminBroadcastPage() {
       return;
     }
 
+    if (batchSelection !== 'all' && selectedBatchRecipients <= 0) {
+      toast.error('No users in selected batch');
+      return;
+    }
+
     setShowPreview(true);
   };
 
@@ -131,6 +148,10 @@ export default function AdminBroadcastPage() {
         registrationDate: getDateRange(),
       };
 
+      const batchOption = batchSelection !== 'all'
+        ? { batch: parseInt(batchSelection), totalBatches }
+        : undefined;
+
       const response = await fetch('/api/admin/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user.$id },
@@ -147,6 +168,7 @@ export default function AdminBroadcastPage() {
             inApp: inAppEnabled,
           },
           filters,
+          batchOption,
         }),
       });
 
@@ -303,6 +325,39 @@ export default function AdminBroadcastPage() {
                   </Badge>
                 </div>
               </div>
+
+              {/* Batch Selection */}
+              {recipientCount > BATCH_SIZE && (
+                <div className="pt-4 border-t space-y-2">
+                  <Label className="text-sm font-medium">Send in Batches</Label>
+                  <p className="text-xs text-gray-500">
+                    Resend allows ~100 emails per sending process. Split your recipients into batches.
+                  </p>
+                  <Select value={batchSelection} onValueChange={setBatchSelection}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users ({recipientCount})</SelectItem>
+                      {Array.from({ length: totalBatches }, (_, i) => {
+                        const batchNum = i + 1;
+                        const start = i * BATCH_SIZE + 1;
+                        const end = Math.min((i + 1) * BATCH_SIZE, recipientCount);
+                        return (
+                          <SelectItem key={batchNum} value={String(batchNum)}>
+                            Batch {String.fromCharCode(64 + batchNum)} (Users {start}-{end})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {batchSelection !== 'all' && (
+                    <p className="text-xs text-blue-600 font-medium">
+                      Will send to {selectedBatchRecipients} users in this batch
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -421,7 +476,7 @@ export default function AdminBroadcastPage() {
                   ) : (
                     <>
                       <Send className="h-4 w-4 mr-2" />
-                      Send to {recipientCount} Users
+                      Send to {batchSelection !== 'all' ? selectedBatchRecipients : recipientCount} Users
                     </>
                   )}
                 </Button>
@@ -510,7 +565,7 @@ export default function AdminBroadcastPage() {
             <Alert>
               <AlertDescription>
                 <div className="space-y-1">
-                  <p><strong>Recipients:</strong> {recipientCount} users</p>
+                  <p><strong>Recipients:</strong> {batchSelection !== 'all' ? selectedBatchRecipients : recipientCount} users{batchSelection !== 'all' && ` (Batch ${String.fromCharCode(64 + parseInt(batchSelection))}/${totalBatches})`}</p>
                   <p><strong>Channels:</strong> {[emailEnabled && 'Email', smsEnabled && 'SMS', inAppEnabled && 'In-App'].filter(Boolean).join(', ')}</p>
                   {smsEnabled && <p><strong>Estimated Cost:</strong> ₦{estimatedCost.toLocaleString()}</p>}
                 </div>

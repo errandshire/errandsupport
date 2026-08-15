@@ -118,6 +118,13 @@ export class BroadcastService {
 
       let users = response.documents;
 
+      // Sort by most recently created first (newest users get priority)
+      users.sort((a: any, b: any) => {
+        const dateA = new Date(a.$createdAt || a.createdAt || 0).getTime();
+        const dateB = new Date(b.$createdAt || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
       // Verification status filter (only for workers)
       if (filters.verificationStatus && filters.verificationStatus.length > 0 && filters.role === 'worker') {
         // Need to cross-reference with WORKERS collection
@@ -199,11 +206,17 @@ export class BroadcastService {
     channels: BroadcastChannels;
     filters: BroadcastFilters;
     users: any[];
+    batchOption?: { batch: number; totalBatches: number };
   }): Promise<BroadcastResult> {
-    const { adminId, message, channels, filters, users } = params;
+    const { adminId, message, channels, filters, users, batchOption } = params;
+
+    // If batchOption is provided, slice users to only the selected batch
+    const targetUsers = batchOption && batchOption.batch > 0
+      ? users.slice((batchOption.batch - 1) * 90, batchOption.batch * 90)
+      : users;
 
     const stats = {
-      totalTargeted: users.length,
+      totalTargeted: targetUsers.length,
       emailsSent: 0,
       emailsFailed: 0,
       smsSent: 0,
@@ -251,15 +264,20 @@ export class BroadcastService {
         // Continue anyway - don't let logging failure stop the broadcast
       }
 
-      // Process users in batches
-      const batchSize = 50;
-      for (let i = 0; i < users.length; i += batchSize) {
-        const batch = users.slice(i, i + batchSize);
+      // Process users — sequential to respect Resend rate limits
+      const BATCH_DELAY_MS = 2000; // 2 second pause between internal batches
+      const EMAIL_DELAY_MS = 250; // 250ms between individual emails (~4/sec)
+      const INTERNAL_BATCH_SIZE = 45;
+      const totalBatches = Math.ceil(targetUsers.length / INTERNAL_BATCH_SIZE);
 
-        console.log(`📤 Processing batch ${Math.floor(i / batchSize) + 1} (${batch.length} users)`);
+      for (let i = 0; i < targetUsers.length; i += INTERNAL_BATCH_SIZE) {
+        const batch = targetUsers.slice(i, i + INTERNAL_BATCH_SIZE);
+        const batchNum = Math.floor(i / INTERNAL_BATCH_SIZE) + 1;
 
-        // Send to each user in batch
-        await Promise.all(batch.map(async (user) => {
+        console.log(`📤 Processing batch ${batchNum}/${totalBatches} (${batch.length} users)`);
+
+        // Send sequentially within batch (not Promise.all) to avoid rate limiting
+        for (const user of batch) {
           try {
             // Send in-app notification
             if (channels.inApp) {
@@ -279,99 +297,99 @@ export class BroadcastService {
               }
             }
 
-            // Send email
-            if (channels.email && user.email) {
-              try {
-                const resendApiKey = process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, '');
-                const fromEmail = (process.env.FROM_EMAIL || 'noreply@erandwork.com').trim().replace(/^["']|["']$/g, '');
+          // Send email
+          if (channels.email && user.email) {
+            try {
+              const resendApiKey = process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, '');
+              const fromEmail = (process.env.FROM_EMAIL || 'noreply@erandwork.com').trim().replace(/^["']|["']$/g, '');
 
-                if (!resendApiKey) {
-                  throw new Error('RESEND_API_KEY is not configured');
-                }
+              if (!resendApiKey) {
+                throw new Error('RESEND_API_KEY is not configured');
+              }
 
-                const emailHtml = `
-                  <!DOCTYPE html>
-                  <html>
-                  <head>
-                    <style>
-                      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                      .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
-                      .content { padding: 30px; background-color: #f9fafb; }
-                      .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }
-                    </style>
-                  </head>
-                  <body>
-                    <div class="container">
-                      <div class="header">
-                        <h1>ErrandWork</h1>
-                      </div>
-                      <div class="content">
-                        <p>Hi ${user.firstName || user.name?.split(' ')[0] || 'there'},</p>
-                        ${message.htmlContent}
-                      </div>
-                      <div class="footer">
-                        <p>Best regards,<br>The ErrandWork Team</p>
-                      </div>
+              const emailHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
+                    .content { padding: 30px; background-color: #f9fafb; }
+                    .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="header">
+                      <h1>ErrandWork</h1>
                     </div>
-                  </body>
-                  </html>
-                `;
+                    <div class="content">
+                      <p>Hi ${user.firstName || user.name?.split(' ')[0] || 'there'},</p>
+                      ${message.htmlContent}
+                    </div>
+                    <div class="footer">
+                      <p>Best regards,<br>The ErrandWork Team</p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+              `;
 
-                const emailRes = await fetch('https://api.resend.com/emails', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${resendApiKey}`,
-                  },
-                  body: JSON.stringify({
-                    from: fromEmail,
-                    to: user.email,
-                    subject: message.title,
-                    html: emailHtml,
-                  }),
-                });
+              const emailRes = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${resendApiKey}`,
+                },
+                body: JSON.stringify({
+                  from: fromEmail,
+                  to: user.email,
+                  subject: message.title,
+                  html: emailHtml,
+                }),
+              });
 
-                if (!emailRes.ok) {
-                  const errBody = await emailRes.json().catch(() => ({}));
-                  throw new Error(errBody?.message || `Resend HTTP ${emailRes.status}`);
-                }
-
-                stats.emailsSent++;
-              } catch (error: any) {
-                const errMsg = error?.message || String(error);
-                console.error(`❌ BROADCAST EMAIL FAILED for ${user.email}: ${errMsg}`);
-                stats.emailsFailed++;
-                if (!stats.firstEmailError) (stats as any).firstEmailError = errMsg;
-              } finally {
-                // Always throttle to avoid Resend rate limits (~5 emails/sec)
-                await new Promise(resolve => setTimeout(resolve, 200));
+              if (!emailRes.ok) {
+                const errBody = await emailRes.json().catch(() => ({}));
+                throw new Error(errBody?.message || `Resend HTTP ${emailRes.status}`);
               }
-            }
 
-            // Send SMS
-            if (channels.sms && user.phone) {
-              try {
-                const smsText = `ErrandWork: ${message.title}\n\n${this.htmlToPlainText(message.htmlContent || message.content).substring(0, 140)}`;
-
-                await TermiiSMSService.sendSMS({
-                  to: user.phone,
-                  message: smsText,
-                });
-                stats.smsSent++;
-              } catch (error) {
-                console.error(`❌ SMS failed for user ${user.$id}:`, error);
-                stats.smsFailed++;
-              }
+              stats.emailsSent++;
+            } catch (error: any) {
+              const errMsg = error?.message || String(error);
+              console.error(`❌ BROADCAST EMAIL FAILED for ${user.email}: ${errMsg}`);
+              stats.emailsFailed++;
+              if (!stats.firstEmailError) (stats as any).firstEmailError = errMsg;
             }
-          } catch (error) {
-            console.error(`❌ Failed to process user ${user.$id}:`, error);
+            // Throttle between individual emails
+            await new Promise(resolve => setTimeout(resolve, EMAIL_DELAY_MS));
           }
-        }));
 
-        // Delay between batches to avoid rate limiting
-        if (i + batchSize < users.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+          // Send SMS
+          if (channels.sms && user.phone) {
+            try {
+              const smsText = `ErrandWork: ${message.title}\n\n${this.htmlToPlainText(message.htmlContent || message.content).substring(0, 140)}`;
+
+              await TermiiSMSService.sendSMS({
+                to: user.phone,
+                message: smsText,
+              });
+              stats.smsSent++;
+            } catch (error) {
+              console.error(`❌ SMS failed for user ${user.$id}:`, error);
+              stats.smsFailed++;
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Failed to process user ${user.$id}:`, error);
+        }
+        }
+
+        // Delay between batches
+        if (i + INTERNAL_BATCH_SIZE < targetUsers.length) {
+          console.log(`⏳ Batch ${batchNum} complete. Waiting ${BATCH_DELAY_MS}ms before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
         }
       }
 
@@ -402,7 +420,9 @@ export class BroadcastService {
         broadcastId,
         stats,
         estimatedCost: channels.sms ? this.calculateSMSCost(users.length) : 0,
-        message: `Broadcast sent successfully to ${users.length} users`,
+        message: batchOption
+          ? `Batch ${batchOption.batch}/${batchOption.totalBatches}: sent to ${targetUsers.length} users. Emails: ${stats.emailsSent} sent, ${stats.emailsFailed} failed.`
+          : `Broadcast sent to ${targetUsers.length} users in ${totalBatches} batch(es). Emails: ${stats.emailsSent} sent, ${stats.emailsFailed} failed.`,
       };
 
     } catch (error) {
