@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { DownloadApp } from "@/components/download-app";
 import Image from "next/image";
 
 const fadeIn: Variants = {
@@ -292,6 +293,28 @@ export default function Home() {
                 </Link>
               </Button>
             </motion.div>
+          </motion.div>
+        </motion.section>
+
+        {/* Download App Section */}
+        <motion.section
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          variants={staggerContainer}
+          className="py-16 bg-emerald-50 rounded-3xl my-8"
+        >
+          <motion.div
+            variants={fadeIn}
+            className="text-center max-w-2xl mx-auto px-4"
+          >
+            <h2 className="text-3xl md:text-4xl font-serif font-bold text-neutral-900 mb-4">
+              Get the ErrandWork App
+            </h2>
+            <p className="text-lg text-neutral-600 mb-8">
+              Post errands, get matched with verified workers, and track jobs from your phone.
+            </p>
+            <DownloadApp className="justify-center" />
           </motion.div>
         </motion.section>
       </main>

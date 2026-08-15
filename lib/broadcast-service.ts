@@ -338,13 +338,14 @@ export class BroadcastService {
                 }
 
                 stats.emailsSent++;
-                // Throttle to avoid Resend rate limits (~5 emails/sec max)
-                await new Promise(resolve => setTimeout(resolve, 200));
               } catch (error: any) {
                 const errMsg = error?.message || String(error);
                 console.error(`❌ BROADCAST EMAIL FAILED for ${user.email}: ${errMsg}`);
                 stats.emailsFailed++;
                 if (!stats.firstEmailError) (stats as any).firstEmailError = errMsg;
+              } finally {
+                // Always throttle to avoid Resend rate limits (~5 emails/sec)
+                await new Promise(resolve => setTimeout(resolve, 200));
               }
             }
 
