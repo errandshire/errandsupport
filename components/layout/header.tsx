@@ -21,6 +21,7 @@ import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
 import { useRouter } from "next/navigation";
 import { userProfileImageUrl } from "@/lib/avatar-display";
+import { DownloadApp } from "@/components/download-app";
 
 interface HeaderProps {
   className?: string;
@@ -342,6 +343,7 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                   <Button size="sm" asChild>
                     <Link href="/register">Get Started</Link>
                   </Button>
+                  <DownloadApp className="hidden lg:flex" />
                 </div>
               )}
 
@@ -422,6 +424,7 @@ export const Header = React.memo(function Header({ className, children, sidebarO
                         Get Started
                       </Link>
                     </Button>
+                    <DownloadApp />
                   </div>
                 )}
               </nav>

@@ -6,6 +6,7 @@ import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin } from "luc
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { DownloadApp } from "@/components/download-app";
 
 interface FooterProps {
   className?: string;
@@ -80,21 +81,27 @@ export function Footer({ className }: FooterProps) {
               </p>
             </div>
 
-            {/* Contact Info (right) */}
-            <div className="space-y-3 text-sm text-neutral-300">
-              <div className="flex items-center space-x-2">
-                <Mail className="h-4 w-4" />
-                <span>support@erandwork.com</span>
+            {/* Download App + Contact (right) */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-white mb-3">Download the App</h4>
+                <DownloadApp />
               </div>
-              <div className="flex items-center space-x-2">
-                <Phone className="h-4 w-4" />
-                <a href="tel:+2349163213366" className="hover:text-white transition-colors">
-                  +234 916 321 3366
-                </a>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MapPin className="h-4 w-4" />
-                <span>Lagos, Nigeria</span>
+              <div className="space-y-3 text-sm text-neutral-300">
+                <div className="flex items-center space-x-2">
+                  <Mail className="h-4 w-4" />
+                  <span>support@erandwork.com</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Phone className="h-4 w-4" />
+                  <a href="tel:+2349163213366" className="hover:text-white transition-colors">
+                    +234 916 321 3366
+                  </a>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4" />
+                  <span>Lagos, Nigeria</span>
+                </div>
               </div>
             </div>
           </div>
