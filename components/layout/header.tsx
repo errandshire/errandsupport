@@ -21,7 +21,7 @@ import { notificationService } from '@/lib/notification-service';
 import type { Notification } from '@/lib/types';
 import { useRouter } from "next/navigation";
 import { userProfileImageUrl } from "@/lib/avatar-display";
-import { DownloadApp } from "@/components/download-app";
+import { DownloadApp, DownloadAppHeader } from "@/components/download-app";
 
 interface HeaderProps {
   className?: string;
@@ -250,6 +250,11 @@ export const Header = React.memo(function Header({ className, children, sidebarO
               >
                 <Search className="h-5 w-5" />
               </Button>
+
+              {/* Download App Icons - Mobile (below search, always visible) */}
+              <div className="md:hidden flex items-center gap-1">
+                <DownloadAppHeader className="text-neutral-700" />
+              </div>
 
               {/* Show loading state during hydration */}
               {!isMounted ? (
