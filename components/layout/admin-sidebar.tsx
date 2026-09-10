@@ -85,15 +85,22 @@ const sidebarItems = [
   //   icon: Clock,
   //   badge: null,
   // },
+  {
+    title: "Worker Applications",
+    href: "/admin/worker-applications",
+    icon: Shield,
+    badge: null,
+  },
+
   // {
   //   title: "Verifications",
   //   href: "/admin/verifications",
   //   icon: Shield,
   //   badge: "5",
   // },
- 
-  
-  
+
+
+
   // {
   //   title: "Commission Settings",
   //   href: "/admin/commission",
