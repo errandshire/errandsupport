@@ -59,7 +59,7 @@ export function DownloadAppHeader({ className }: { className?: string }) {
   if (platform === "android" && PLAY_STORE_URL) {
     return (
       <Link
-        href={PLAY_STORE_URL}
+        href="/download"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Get it on Google Play"
@@ -75,7 +75,7 @@ export function DownloadAppHeader({ className }: { className?: string }) {
   if (platform === "ios" && APP_STORE_URL) {
     return (
       <Link
-        href={APP_STORE_URL}
+        href="/download"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Download on the App Store"
@@ -91,7 +91,7 @@ export function DownloadAppHeader({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <Link
-        href={PLAY_STORE_URL}
+        href="/download"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Get it on Google Play"
@@ -102,7 +102,7 @@ export function DownloadAppHeader({ className }: { className?: string }) {
         </svg>
       </Link>
       <Link
-        href={APP_STORE_URL}
+        href="/download"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Download on the App Store"
@@ -135,7 +135,7 @@ export function DownloadApp({ className }: { className?: string }) {
     return (
       <div className={cn("flex flex-col sm:flex-row gap-4", className)}>
         <StoreButton
-          href={PLAY_STORE_URL}
+          href="/download"
           label="Google Play"
           subLabel="GET IT ON"
           icon={googleIcon}
@@ -148,7 +148,7 @@ export function DownloadApp({ className }: { className?: string }) {
     return (
       <div className={cn("flex flex-col sm:flex-row gap-4", className)}>
         <StoreButton
-          href={APP_STORE_URL}
+          href="/download"
           label="App Store"
           subLabel="Download on the"
           icon={appleIcon}
@@ -161,7 +161,7 @@ export function DownloadApp({ className }: { className?: string }) {
     <div className={cn("flex flex-col sm:flex-row gap-4", className)}>
       {PLAY_STORE_URL && (
         <StoreButton
-          href={PLAY_STORE_URL}
+          href="/download"
           label="Google Play"
           subLabel="GET IT ON"
           icon={googleIcon}
@@ -169,7 +169,7 @@ export function DownloadApp({ className }: { className?: string }) {
       )}
       {APP_STORE_URL && (
         <StoreButton
-          href={APP_STORE_URL}
+          href="/download"
           label="App Store"
           subLabel="Download on the"
           icon={appleIcon}
