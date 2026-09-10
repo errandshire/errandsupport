@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   Users,
   UserCircle,
@@ -134,6 +135,7 @@ const AlertItem = React.memo(({ alert }: { alert: SystemAlert }) => {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const router = useRouter();
   
   // State management
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
@@ -193,8 +195,8 @@ export default function AdminDashboard() {
   }, []);
 
   const handleReview = React.useCallback((id: string) => {
-    // In production, would navigate to detailed review page
-  }, []);
+    router.push(`/admin/users?worker=${id}`);
+  }, [router]);
 
   // Loading state
   if (isLoading && !stats) {

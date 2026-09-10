@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +100,7 @@ function formatReadableDate(isoString: string | undefined): string {
 }
 
 export default function AdminUsersPage() {
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = React.useState(false);
   const [workers, setWorkers] = React.useState<WorkerDoc[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
@@ -667,6 +669,27 @@ export default function AdminUsersPage() {
       setDetailLoading(false);
     }
   };
+
+  // Auto-open a specific worker's detail modal when navigated here with ?worker=<id>
+  React.useEffect(() => {
+    const workerId = searchParams.get("worker");
+    if (!workerId) return;
+
+    (async () => {
+      try {
+        const worker = await databases.getDocument(
+          DATABASE_ID!,
+          COLLECTIONS.WORKERS,
+          workerId
+        );
+        openDetails(worker as unknown as WorkerDoc);
+      } catch (error) {
+        console.error("Failed to load worker for review:", error);
+        toast.error("Could not find that worker application");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <div className="space-y-6 overflow-hidden">
