@@ -26,7 +26,7 @@ const statusConfig = {
 };
 
 export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: JobCardProps) {
-  const status = statusConfig[job.status];
+  const status = statusConfig[job.status] || { label: job.status || 'Unknown', color: 'bg-gray-100 text-gray-800' };
   const canCancel = job.status === 'open' || job.status === 'assigned';
 
   const handleShare = async (e: React.MouseEvent) => {
@@ -65,28 +65,28 @@ export function JobCard({ job, onViewDetails, onCancelJob, applicantCount }: Job
           <div className="grid grid-cols-2 gap-2 mt-3 text-sm text-gray-600">
             <div className="flex items-center gap-1">
               <MapPin className="h-4 w-4" />
-              <span className="truncate">{job.locationAddress}</span>
+              <span className="truncate">{job.locationAddress || 'Not specified'}</span>
             </div>
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              <span>{new Date(job.scheduledDate).toLocaleDateString()}</span>
+              <span>{job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString() : 'Not scheduled'}</span>
             </div>
             <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              <span>{job.duration} hours</span>
+              <span>{job.duration != null ? `${job.duration} hours` : 'N/A'}</span>
             </div>
             <div className="flex items-center gap-1">
               <DollarSign className="h-4 w-4" />
               <span className="font-semibold text-green-600">
                 {job.budgetType === 'fixed'
-                  ? `₦${job.budgetMax.toLocaleString()}`
-                  : `₦${job.budgetMin.toLocaleString()} - ₦${job.budgetMax.toLocaleString()}`}
+                  ? `₦${(job.budgetMax ?? 0).toLocaleString()}`
+                  : `₦${(job.budgetMin ?? 0).toLocaleString()} - ₦${(job.budgetMax ?? 0).toLocaleString()}`}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-            {job.viewCount > 0 && (
+            {job.viewCount != null && job.viewCount > 0 && (
               <div className="flex items-center gap-1">
                 <Eye className="h-3 w-3" />
                 <span>{job.viewCount} views</span>

@@ -38,7 +38,7 @@ export function JobDetailsModal({
 }: JobDetailsModalProps) {
   if (!job) return null;
 
-  const status = statusConfig[job.status];
+  const status = statusConfig[job.status] || { label: job.status || 'Unknown', color: 'bg-gray-100 text-gray-800' };
   const category = SERVICE_CATEGORIES.find(c => c.id === job.categoryId);
   const skills = toStringArray(job.skillsRequired);
 
@@ -68,29 +68,29 @@ export function JobDetailsModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-gray-700">{job.locationAddress}</span>
+                <span className="text-gray-700">{job.locationAddress || 'Not specified'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-gray-700">
-                  {new Date(job.scheduledDate).toLocaleDateString('en-US', {
+                  {job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString('en-US', {
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric'
-                  })}
+                  }) : 'Not scheduled'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-gray-700">{job.duration} hours at {job.scheduledTime}</span>
+                <span className="text-gray-700">{job.duration != null ? `${job.duration} hours` : 'N/A'} at {job.scheduledTime || 'N/A'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="font-semibold text-green-600">
                   {job.budgetType === 'fixed'
-                    ? `₦${job.budgetMax.toLocaleString()}`
-                    : `₦${job.budgetMin.toLocaleString()} - ₦${job.budgetMax.toLocaleString()}`}
+                    ? `₦${(job.budgetMax ?? 0).toLocaleString()}`
+                    : `₦${(job.budgetMin ?? 0).toLocaleString()} - ₦${(job.budgetMax ?? 0).toLocaleString()}`}
                 </span>
               </div>
             </div>
@@ -135,7 +135,7 @@ export function JobDetailsModal({
 
           {/* Statistics */}
           <div className="flex items-center gap-4 text-sm text-gray-600">
-            {job.viewCount > 0 && (
+            {job.viewCount != null && job.viewCount > 0 && (
               <div className="flex items-center gap-1">
                 <Eye className="h-4 w-4" />
                 <span>{job.viewCount} views</span>
@@ -143,7 +143,7 @@ export function JobDetailsModal({
             )}
             <div className="flex items-center gap-1">
               <Briefcase className="h-4 w-4" />
-              <span>Posted {new Date(job.createdAt).toLocaleDateString()}</span>
+              <span>Posted {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : 'Recently'}</span>
             </div>
           </div>
 

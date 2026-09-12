@@ -160,7 +160,23 @@ export class ApiService {
         throw err;
       }
 
-      return await response.json();
+      const json = await response.json();
+
+      // Unwrap VPS API responses: { success: true, data: ... } -> data
+      // Handles paginated responses: { success: true, data: [...], pagination: {...} }
+      // and single-object responses: { success: true, data: {...} }
+      if (json && typeof json === 'object' && !Array.isArray(json) && 'success' in json) {
+        if (json.success === false) {
+          const err: any = new Error(json.error || json.message || 'API request failed');
+          err.code = json.code;
+          throw err;
+        }
+        if ('data' in json) {
+          return json.data as T;
+        }
+      }
+
+      return json as T;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -281,9 +297,11 @@ export const databases = {
         }
       });
 
-      return { documents: await ApiService.query(table, filters, options), total: 0 };
+      const documents = await ApiService.query(table, filters, options);
+      return { documents, total: Array.isArray(documents) ? documents.length : 0 };
     }
-    return { documents: await ApiService.getAll(table), total: 0 };
+    const documents = await ApiService.getAll(table);
+    return { documents, total: Array.isArray(documents) ? documents.length : 0 };
   }, 
 
   getDocument: async (databaseId: string, collectionId: string, documentId: string) => {

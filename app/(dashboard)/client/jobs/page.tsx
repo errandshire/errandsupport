@@ -33,7 +33,7 @@ export default function ClientJobsPage() {
     setIsLoading(true);
     try {
       const fetchedJobs = await JobPostingService.getClientJobs(user.$id);
-      setJobs(fetchedJobs);
+      setJobs(Array.isArray(fetchedJobs) ? fetchedJobs : []);
 
       // Fetch applicant counts for open jobs
       const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');

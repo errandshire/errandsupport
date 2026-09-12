@@ -37,7 +37,21 @@ export class ServerApiService {
         throw err;
       }
 
-      return await response.json();
+      const json = await response.json();
+
+      // Unwrap VPS API responses: { success: true, data: ... } -> data
+      if (json && typeof json === 'object' && !Array.isArray(json) && 'success' in json) {
+        if (json.success === false) {
+          const err: any = new Error(json.error || json.message || 'API request failed');
+          err.code = json.code;
+          throw err;
+        }
+        if ('data' in json) {
+          return json.data as T;
+        }
+      }
+
+      return json as T;
     } catch (error) {
       console.error('Server API request failed:', error);
       throw error;
