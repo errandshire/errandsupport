@@ -384,16 +384,19 @@ export default function WorkerJobsPage() {
                         })()}
 
                         {/* Attachments */}
-                        {details.attachments && details.attachments.length > 0 && (
-                          <div>
-                            <h4 className="font-medium mb-2 text-xs sm:text-sm">Photos</h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                              {details.attachments.map((url, index) => (
-                                <img key={index} src={url} alt={`Attachment ${index + 1}`} className="w-full h-20 sm:h-24 object-cover rounded" />
-                              ))}
+                        {(() => {
+                          const attachments = toStringArray(details.attachments);
+                          return attachments.length > 0 ? (
+                            <div>
+                              <h4 className="font-medium mb-2 text-xs sm:text-sm">Photos</h4>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {attachments.map((url, index) => (
+                                  <img key={index} src={url} alt={`Attachment ${index + 1}`} className="w-full h-20 sm:h-24 object-cover rounded" />
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          ) : null;
+                        })()}
 
                         {/* Client Info */}
                         <div className="bg-gray-50 p-2.5 sm:p-3 rounded-lg">

@@ -117,21 +117,24 @@ export function JobDetailsModal({
           )}
 
           {/* Attachments */}
-          {job.attachments && job.attachments.length > 0 && (
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Photos</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {job.attachments.map((url, index) => (
-                  <img
-                    key={index}
-                    src={url}
-                    alt={`Attachment ${index + 1}`}
-                    className="w-full h-32 object-cover rounded-lg border"
-                  />
-                ))}
+          {(() => {
+            const attachments = toStringArray(job.attachments);
+            return attachments.length > 0 ? (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Photos</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {attachments.map((url, index) => (
+                    <img
+                      key={index}
+                      src={url}
+                      alt={`Attachment ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
 
           {/* Statistics */}
           <div className="flex items-center gap-4 text-sm text-gray-600">

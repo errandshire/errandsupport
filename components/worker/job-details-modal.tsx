@@ -139,16 +139,19 @@ export function JobDetailsModal({ isOpen, onClose, job, onJobAccepted }: JobDeta
           )}
 
           {/* Attachments */}
-          {job.attachments && job.attachments.length > 0 && (
-            <div>
-              <h4 className="font-medium mb-2">Photos</h4>
-              <div className="grid grid-cols-3 gap-2">
-                {job.attachments.map((url, index) => (
-                  <img key={index} src={url} alt={`Attachment ${index + 1}`} className="w-full h-24 object-cover rounded" />
-                ))}
+          {(() => {
+            const attachments = toStringArray(job.attachments);
+            return attachments.length > 0 ? (
+              <div>
+                <h4 className="font-medium mb-2">Photos</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {attachments.map((url, index) => (
+                    <img key={index} src={url} alt={`Attachment ${index + 1}`} className="w-full h-24 object-cover rounded" />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
 
           {/* Client Info */}
           <div className="bg-gray-50 p-4 rounded-lg">
