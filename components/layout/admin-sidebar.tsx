@@ -92,6 +92,12 @@ const sidebarItems = [
     icon: Shield,
     badge: null,
   },
+  {
+    title: "Recent Jobs",
+    href: "/admin/recent-jobs",
+    icon: FileText,
+    badge: null,
+  },
 
   // {
   //   title: "Verifications",

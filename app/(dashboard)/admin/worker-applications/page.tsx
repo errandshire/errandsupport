@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { ApiService } from "@/lib/api";
+import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ interface WorkerApplication {
   lga: string;
   idNumber: string;
   idDocument: string;
+  selfieWithId?: string;
   verificationStatus: string;
   rejectionReason: string;
   submittedAt: string;
@@ -36,9 +37,17 @@ export default function WorkerApplicationsPage() {
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      const data = await ApiService.request<WorkerApplication[]>("/worker-applications?status=pending");
-      setApplications(data);
+      const res = await databases.listDocuments(
+        DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        [
+          Query.equal('verificationStatus', 'pending'),
+          Query.orderDesc('submittedAt')
+        ]
+      );
+      setApplications(res.documents as unknown as WorkerApplication[]);
     } catch (error: any) {
+      console.error('Error fetching applications:', error);
       toast.error(error.message || "Failed to load applications");
     } finally {
       setLoading(false);
@@ -52,10 +61,22 @@ export default function WorkerApplicationsPage() {
   const handleApprove = async (id: string) => {
     try {
       setProcessing(id);
-      await ApiService.request(`/worker-applications/${id}/approve`, { method: "POST" });
+      await databases.updateDocument(
+        DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        id,
+        {
+          verificationStatus: 'approved',
+          isVerified: true,
+          idVerified: true,
+          isActive: true,
+          verifiedAt: new Date().toISOString()
+        }
+      );
       toast.success("Worker application approved");
       fetchApplications();
     } catch (error: any) {
+      console.error('Error approving:', error);
       toast.error(error.message || "Failed to approve");
     } finally {
       setProcessing(null);
@@ -70,14 +91,20 @@ export default function WorkerApplicationsPage() {
     }
     try {
       setProcessing(id);
-      await ApiService.request(`/worker-applications/${id}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ reason }),
-      });
+      await databases.updateDocument(
+        DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        id,
+        {
+          verificationStatus: 'denied',
+          rejectionReason: reason
+        }
+      );
       toast.success("Worker application rejected");
       setRejectionReasons((prev) => ({ ...prev, [id]: "" }));
       fetchApplications();
     } catch (error: any) {
+      console.error('Error rejecting:', error);
       toast.error(error.message || "Failed to reject");
     } finally {
       setProcessing(null);
@@ -123,14 +150,23 @@ export default function WorkerApplicationsPage() {
                 <div><span className="font-medium">NIN:</span> {app.idNumber}</div>
               </div>
 
-              {app.idDocument ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Document:</p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Documents:</p>
+                {app.idDocument ? (
                   <a href={app.idDocument} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> View uploaded document
+                    <FileText className="h-4 w-4" /> View ID Document
                   </a>
-                </div>
-              ) : null}
+                ) : (
+                  <p className="text-sm text-neutral-500">No ID document uploaded</p>
+                )}
+                {app.selfieWithId ? (
+                  <a href={app.selfieWithId} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm flex items-center gap-2">
+                    <FileText className="h-4 w-4" /> View Selfie with ID
+                  </a>
+                ) : (
+                  <p className="text-sm text-neutral-500">No selfie with ID uploaded</p>
+                )}
+              </div>
 
               <div className="flex flex-col md:flex-row gap-3 pt-2">
                 <Button
