@@ -293,7 +293,7 @@ export default function RecentJobsPage() {
                         <td className="py-3 pr-4">₦{(job.budgetAmount || 0).toLocaleString()}</td>
                         <td className="py-3 pr-4">{[job.city, job.state].filter(Boolean).join(", ") || "—"}</td>
                         <td className="py-3 pr-4"><Badge className={getStatusBadge(job.status)}>{job.status}</Badge></td>
-                        <td className="py-3 pr-4">{job.createdAt ? new Date(job.createdAt).toLocaleDateString() : "—"}</td>
+                        <td className="py-3 pr-4">{job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</td>
                         <td className="py-3 pr-4">
                           <div className="flex gap-2 flex-wrap">
                             <Button size="sm" variant="outline" onClick={() => openJobDetail(job)}>
@@ -333,7 +333,7 @@ export default function RecentJobsPage() {
                         <div><span className="text-neutral-500">Phone:</span> {job.clientPhone || "—"}</div>
                         <div><span className="text-neutral-500">Budget:</span> ₦{(job.budgetAmount || 0).toLocaleString()}</div>
                         <div><span className="text-neutral-500">Location:</span> {[job.city, job.state].filter(Boolean).join(", ") || "—"}</div>
-                        <div><span className="text-neutral-500">Created:</span> {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : "—"}</div>
+                        <div><span className="text-neutral-500">Created:</span> {job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</div>
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" onClick={() => openJobDetail(job)} className="flex-1">
