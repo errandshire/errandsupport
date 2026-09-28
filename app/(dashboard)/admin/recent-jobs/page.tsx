@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
+import { ApiService } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,18 +28,22 @@ type JobDoc = {
   workerId?: string;
   title: string;
   description: string;
-  category: string;
+  categoryId?: string;
+  category?: string;
   budgetAmount: number;
   totalAmount?: number;
-  location: string;
-  state: string;
-  city: string;
-  address: string;
+  locationAddress?: string;
+  location?: string;
+  state?: string;
+  city?: string;
+  address?: string;
   status: 'open' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'rejected';
   scheduledDate?: string;
   scheduledTime?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  $createdAt?: string;
+  $updatedAt?: string;
   clientName?: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -103,7 +108,8 @@ export default function RecentJobsPage() {
               clientEmail: client.email,
               clientPhone: client.phone
             };
-          } catch {
+          } catch (error) {
+            // Client not found or other error - return job with placeholder info
             return { ...job, clientName: 'Unknown', clientEmail: '', clientPhone: '' };
           }
         })
@@ -289,11 +295,11 @@ export default function RecentJobsPage() {
                         <td className="py-3 pr-4 font-medium">{job.title || "—"}</td>
                         <td className="py-3 pr-4">{job.clientName || "—"}</td>
                         <td className="py-3 pr-4">{job.clientPhone || "—"}</td>
-                        <td className="py-3 pr-4">{job.category || "—"}</td>
-                        <td className="py-3 pr-4">₦{(job.budgetAmount || 0).toLocaleString()}</td>
-                        <td className="py-3 pr-4">{[job.city, job.state].filter(Boolean).join(", ") || "—"}</td>
+                        <td className="py-3 pr-4">{job.category || job.categoryId || "—"}</td>
+                        <td className="py-3 pr-4">₦{(job.budgetAmount || job.totalAmount || 0).toLocaleString()}</td>
+                        <td className="py-3 pr-4">{job.locationAddress || [job.city, job.state].filter(Boolean).join(", ") || job.location || "—"}</td>
                         <td className="py-3 pr-4"><Badge className={getStatusBadge(job.status)}>{job.status}</Badge></td>
-                        <td className="py-3 pr-4">{job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</td>
+                        <td className="py-3 pr-4">{job.createdAt || job.$createdAt ? new Date(job.createdAt || job.$createdAt || "").toLocaleString() : "—"}</td>
                         <td className="py-3 pr-4">
                           <div className="flex gap-2 flex-wrap">
                             <Button size="sm" variant="outline" onClick={() => openJobDetail(job)}>
@@ -331,9 +337,9 @@ export default function RecentJobsPage() {
                       <div className="grid grid-cols-1 gap-2 text-xs">
                         <div><span className="text-neutral-500">Client:</span> {job.clientName || "—"}</div>
                         <div><span className="text-neutral-500">Phone:</span> {job.clientPhone || "—"}</div>
-                        <div><span className="text-neutral-500">Budget:</span> ₦{(job.budgetAmount || 0).toLocaleString()}</div>
-                        <div><span className="text-neutral-500">Location:</span> {[job.city, job.state].filter(Boolean).join(", ") || "—"}</div>
-                        <div><span className="text-neutral-500">Created:</span> {job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</div>
+                        <div><span className="text-neutral-500">Budget:</span> ₦{(job.budgetAmount || job.totalAmount || 0).toLocaleString()}</div>
+                        <div><span className="text-neutral-500">Location:</span> {job.locationAddress || [job.city, job.state].filter(Boolean).join(", ") || job.location || "—"}</div>
+                        <div><span className="text-neutral-500">Created:</span> {job.createdAt || job.$createdAt ? new Date(job.createdAt || job.$createdAt || "").toLocaleString() : "—"}</div>
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" onClick={() => openJobDetail(job)} className="flex-1">
@@ -422,13 +428,13 @@ export default function RecentJobsPage() {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div><span className="font-medium">Title:</span> {selectedJob.title || "—"}</div>
-                    <div><span className="font-medium">Category:</span> {selectedJob.category || "—"}</div>
-                    <div><span className="font-medium">Budget:</span> ₦{(selectedJob.budgetAmount || 0).toLocaleString()}</div>
+                    <div><span className="font-medium">Category:</span> {selectedJob.category || selectedJob.categoryId || "—"}</div>
+                    <div><span className="font-medium">Budget:</span> ₦{(selectedJob.budgetAmount || selectedJob.totalAmount || 0).toLocaleString()}</div>
                     <div><span className="font-medium">Status:</span> <Badge className={getStatusBadge(selectedJob.status)}>{selectedJob.status}</Badge></div>
-                    <div><span className="font-medium">Location:</span> {selectedJob.location || "—"}</div>
+                    <div><span className="font-medium">Location:</span> {selectedJob.locationAddress || selectedJob.location || "—"}</div>
                     <div><span className="font-medium">State:</span> {selectedJob.state || "—"}</div>
                     <div><span className="font-medium">City:</span> {selectedJob.city || "—"}</div>
-                    <div><span className="font-medium">Created:</span> {selectedJob.createdAt ? new Date(selectedJob.createdAt).toLocaleString() : "—"}</div>
+                    <div><span className="font-medium">Created:</span> {selectedJob.createdAt || selectedJob.$createdAt ? new Date(selectedJob.createdAt || selectedJob.$createdAt || "").toLocaleString() : "—"}</div>
                   </div>
                   {selectedJob.description && (
                     <div>
