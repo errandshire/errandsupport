@@ -122,7 +122,7 @@ export default function AdminUsersPage() {
   const [isSendingMessage, setIsSendingMessage] = React.useState(false);
   const [isSendingReminders, setIsSendingReminders] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [itemsPerPage] = React.useState(20);
+  const [itemsPerPage, setItemsPerPage] = React.useState(50);
   const [idDocumentFilter, setIdDocumentFilter] = React.useState<"all" | "with-id" | "without-id">("all");
   const [dataSource, setDataSource] = React.useState<"users" | "workers">("users");
   const [sortOrder, setSortOrder] = React.useState<"date" | "name-asc" | "name-desc">("date");
@@ -135,8 +135,8 @@ export default function AdminUsersPage() {
       if (source === "workers") {
         const queries = [
           Query.orderDesc("$createdAt"),
-          Query.limit(20),
-          Query.offset((page - 1) * 20)
+          Query.limit(itemsPerPage),
+          Query.offset((page - 1) * itemsPerPage)
         ];
 
         // Add search if provided
@@ -177,8 +177,8 @@ export default function AdminUsersPage() {
       const queries = [
         Query.equal('role', 'worker'),
         Query.orderDesc("$createdAt"),
-        Query.limit(20), // Fixed value instead of state
-        Query.offset((page - 1) * 20)
+        Query.limit(itemsPerPage),
+        Query.offset((page - 1) * itemsPerPage)
       ];
 
       // Add search if provided
@@ -293,7 +293,12 @@ export default function AdminUsersPage() {
   React.useEffect(() => {
     fetchWorkers(currentPage, search, idDocumentFilter, dataSource);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, idDocumentFilter, dataSource]); // Removed fetchWorkers dependency
+  }, [currentPage, search, idDocumentFilter, dataSource, itemsPerPage]); // Added itemsPerPage dependency
+
+  // Reset to page 1 when itemsPerPage changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
 
   const approveWorker = async (worker: WorkerDoc) => {
     try {
@@ -758,6 +763,16 @@ export default function AdminUsersPage() {
               className="pl-8 w-full sm:w-64"
             />
           </div>
+          <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(parseInt(value))}>
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={() => fetchWorkers(currentPage, search, idDocumentFilter, dataSource)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
@@ -781,6 +796,11 @@ export default function AdminUsersPage() {
               {dataSource === "workers" ? "📊 WORKERS Collection" : "👥 USERS Collection"}
             </Badge>
           </div>
+          {!search.trim() && (
+            <p className="text-sm text-neutral-500">
+              Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} workers
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -917,7 +937,23 @@ export default function AdminUsersPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-neutral-600">Page {currentPage} of {totalPages}</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={currentPage}
+                  onChange={(e) => {
+                    const page = parseInt(e.target.value);
+                    if (page >= 1 && page <= totalPages) {
+                      setCurrentPage(page);
+                    }
+                  }}
+                  className="w-20 text-center"
+                />
+              </div>
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
@@ -928,7 +964,6 @@ export default function AdminUsersPage() {
                   </PaginationItem>
 
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    // Show first page, last page, current page, and pages around current
                     if (
                       page === 1 ||
                       page === totalPages ||
@@ -991,21 +1026,21 @@ export default function AdminUsersPage() {
                       <Detail label="Email" value={selected.email || "—"} />
                       <Detail label="Phone" value={selected.phone || "—"} />
                       <Detail label="User ID" value={<code className="font-mono break-all text-xs">{selected.userId || "—"}</code>} />
-                      <Detail label="Worker Doc ID" value={<code className="font-mono break-all text-xs">{selected.$id}</code>} />
+                      <Detail label="Worker Doc ID" value={<code className="font-mono break-all text-xs">{selected.$id || "—"}</code>} />
                       <Detail label="Status" value={statusBadge(getWorkerStatus(selected))} />
                     </div>
-                    
+
                     {selected.bio && (
                       <div>
                         <Detail label="Bio/Description" value={<div className="whitespace-pre-wrap">{selected.bio}</div>} />
                       </div>
                     )}
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <Detail label="Location" value={[selected.city, selected.state].filter(Boolean).join(", ") || "—"} />
                       <Detail label="Address" value={selected.address || "—"} />
-                      <Detail label="Categories" value={(selected.categories && selected.categories.length) ? selected.categories.join(", ") : "—"} />
-                      <Detail label="Skills" value={(selected.skills && selected.skills.length) ? selected.skills.join(", ") : "—"} />
+                      <Detail label="Categories" value={Array.isArray(selected.categories) ? selected.categories.join(", ") : (selected.categories || "—")} />
+                      <Detail label="Skills" value={Array.isArray(selected.skills) ? selected.skills.join(", ") : (selected.skills || "—")} />
                     </div>
                   </CardContent>
                 </Card>
@@ -1030,7 +1065,7 @@ export default function AdminUsersPage() {
                     )}
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                      <Detail label="Working Days" value={(selected.workingDays && selected.workingDays.length) ? selected.workingDays.join(", ") : "—"} />
+                      <Detail label="Working Days" value={Array.isArray(selected.workingDays) ? selected.workingDays.join(", ") : (selected.workingDays || "—")} />
                       <Detail label="Working Hours" value={selected.workingHoursStart && selected.workingHoursEnd ? `${selected.workingHoursStart} - ${selected.workingHoursEnd}` : "—"} />
                       <Detail label="Timezone" value={selected.timezone || "—"} />
                       <Detail label="Location Coordinates" value={selected.locationLat && selected.locationLng ? `${selected.locationLat}, ${selected.locationLng}` : "—"} />

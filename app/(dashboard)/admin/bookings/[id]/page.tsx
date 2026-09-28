@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ArrowLeft, Calendar, DollarSign, MapPin, User, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Loader2, ArrowLeft, Calendar, DollarSign, MapPin, User, Clock, CheckCircle, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -21,6 +21,7 @@ export default function AdminBookingDetailPage() {
   const [worker, setWorker] = React.useState<any>(null);
   const [client, setClient] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const [isRenewing, setIsRenewing] = React.useState(false);
 
   React.useEffect(() => {
     loadBooking();
@@ -88,6 +89,42 @@ export default function AdminBookingDetailPage() {
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const renewJob = async () => {
+    if (!booking) return;
+
+    if (!confirm(`Are you sure you want to renew this job? This will reopen it for workers to apply.`)) {
+      return;
+    }
+
+    try {
+      setIsRenewing(true);
+
+      // Update booking status to 'open' and reset relevant fields
+      await databases.updateDocument(
+        DATABASE_ID!,
+        COLLECTIONS.BOOKINGS,
+        booking.$id,
+        {
+          status: 'open',
+          workerId: null,
+          acceptedAt: null,
+          completedAt: null,
+          cancelledAt: null,
+          cancellationReason: null,
+          updatedAt: new Date().toISOString()
+        }
+      );
+
+      toast.success('Job renewed successfully');
+      loadBooking(); // Reload booking data
+    } catch (error) {
+      console.error('Error renewing job:', error);
+      toast.error('Failed to renew job');
+    } finally {
+      setIsRenewing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -120,14 +157,36 @@ export default function AdminBookingDetailPage() {
       </Button>
 
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <h1 className="text-3xl font-bold">Booking #{booking.$id.slice(0, 8)}</h1>
-          <Badge className={getStatusBadge(booking.status)}>
-            {booking.status.replace('_', ' ')}
-          </Badge>
-          <Badge className={getPaymentStatusBadge(booking.paymentStatus)}>
-            Payment: {booking.paymentStatus}
-          </Badge>
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">Booking #{booking.$id.slice(0, 8)}</h1>
+            <Badge className={getStatusBadge(booking.status)}>
+              {booking.status.replace('_', ' ')}
+            </Badge>
+            <Badge className={getPaymentStatusBadge(booking.paymentStatus)}>
+              Payment: {booking.paymentStatus}
+            </Badge>
+          </div>
+          {(booking.status === 'cancelled' || booking.status === 'completed' || booking.status === 'rejected') && (
+            <Button
+              onClick={renewJob}
+              disabled={isRenewing}
+              variant="outline"
+              className="gap-2"
+            >
+              {isRenewing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Renewing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Renew Job
+                </>
+              )}
+            </Button>
+          )}
         </div>
         <p className="text-gray-600">Created on {new Date(booking.createdAt).toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
       </div>

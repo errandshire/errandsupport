@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS, DATABASE_ID, ID, Query } from './api';
+import { databases, COLLECTIONS, DATABASE_ID, ID, Query, API_BASE_URL } from './api';
 import { SMSService } from './sms.service';
 
 export interface Notification {
@@ -157,6 +157,22 @@ class NotificationService {
         ID.unique(),
         cleanData
       );
+
+      // Send push notification via VPS
+      try {
+        await fetch(`${API_BASE_URL}/push/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            title: title || 'Notification',
+            body: message,
+            data: { type: type || 'info', actionUrl },
+          }),
+        });
+      } catch (pushError) {
+        console.warn('Push notification failed (non-blocking):', pushError);
+      }
     } catch (error) {
       console.error('Error creating notification:', error);
       throw error; // Re-throw to handle in calling code

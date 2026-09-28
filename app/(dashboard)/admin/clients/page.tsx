@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { RefreshCw, Search, Trash2, MessageSquare, Send, UserCheck, UserX, Eye, Calendar, DollarSign } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,6 +39,7 @@ type ClientDoc = {
   phoneVerified?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  latestJobDate?: string; // For sorting by latest job
 };
 
 type ClientStats = {
@@ -66,7 +68,10 @@ export default function AdminClientsPage() {
   const [isSendingMessage, setIsSendingMessage] = React.useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [itemsPerPage] = React.useState(20);
+  const [itemsPerPage, setItemsPerPage] = React.useState(50);
+  const [clientJobs, setClientJobs] = React.useState<any[]>([]);
+  const [selectedJob, setSelectedJob] = React.useState<any | null>(null);
+  const [jobDetailOpen, setJobDetailOpen] = React.useState(false);
 
   const fetchClients = React.useCallback(async (page: number = 1, searchQuery: string = "") => {
     try {
@@ -76,8 +81,8 @@ export default function AdminClientsPage() {
       const queries = [
         Query.equal('role', 'client'),
         Query.orderDesc("$createdAt"),
-        Query.limit(20), // Fixed value instead of state
-        Query.offset((page - 1) * 20)
+        Query.limit(itemsPerPage),
+        Query.offset((page - 1) * itemsPerPage)
       ];
 
       // Add search if provided - fetch more for client-side filtering
@@ -86,24 +91,13 @@ export default function AdminClientsPage() {
         queries.push(Query.limit(5000)); // Fetch ALL records for searching across all pages
       }
 
-      const res = await databases.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.USERS,
-        queries
-      );
-
+      const res = await databases.listDocuments(DATABASE_ID!, COLLECTIONS.USERS, queries);
       setTotalCount(res.total);
-
-      // Filter search results if search query provided
       let filteredClients = res.documents;
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
-        filteredClients = res.documents.filter((c: any) => {
-          const text = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.state || ""} ${c.city || ""}`.toLowerCase();
-          return text.includes(q);
-        });
+        filteredClients = res.documents.filter((c: any) => `${c.name} ${c.email} ${c.phone}`.toLowerCase().includes(q));
       }
-
       setClients(filteredClients as unknown as ClientDoc[]);
     } catch (error) {
       console.error("Error loading clients:", error);
@@ -117,7 +111,12 @@ export default function AdminClientsPage() {
   React.useEffect(() => {
     fetchClients(currentPage, search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search]); // Removed fetchClients dependency
+  }, [currentPage, search, itemsPerPage]); // Added itemsPerPage dependency
+
+  // Reset to page 1 when itemsPerPage changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
 
   const fetchClientStats = React.useCallback(async (clientId: string) => {
     try {
@@ -269,6 +268,42 @@ export default function AdminClientsPage() {
     setMessageModalOpen(true);
   };
 
+  const deleteJob = async (job: any) => {
+    if (!confirm(`Delete "${job.title || "this job"}"?`)) return;
+    try {
+      await databases.deleteDocument(DATABASE_ID!, COLLECTIONS.BOOKINGS, job.$id);
+      toast.success("Job deleted");
+      if (selected) {
+        const jobs = await databases.listDocuments(DATABASE_ID!, COLLECTIONS.BOOKINGS, [Query.equal('clientId', selected.$id), Query.orderDesc('$createdAt'), Query.limit(50)]);
+        setClientJobs(jobs.documents);
+      }
+    } catch {
+      toast.error("Failed to delete job");
+    }
+  };
+
+  const renewJob = async (job: any) => {
+    if (!confirm(`Renew "${job.title || "this job"}"? This will reopen it for workers.`)) return;
+    try {
+      await databases.updateDocument(DATABASE_ID!, COLLECTIONS.BOOKINGS, job.$id, {
+        status: 'open',
+        workerId: null,
+        acceptedAt: null,
+        completedAt: null,
+        cancelledAt: null,
+        cancellationReason: null,
+        updatedAt: new Date().toISOString()
+      });
+      toast.success("Job renewed");
+      if (selected) {
+        const jobs = await databases.listDocuments(DATABASE_ID!, COLLECTIONS.BOOKINGS, [Query.equal('clientId', selected.$id), Query.orderDesc('$createdAt'), Query.limit(50)]);
+        setClientJobs(jobs.documents);
+      }
+    } catch {
+      toast.error("Failed to renew job");
+    }
+  };
+
   const sendMessageToClient = async () => {
     if (!clientToMessage || !messageTitle.trim() || !messageContent.trim()) {
       toast.error("Please fill in both title and message");
@@ -339,6 +374,22 @@ export default function AdminClientsPage() {
       setDetailLoading(true);
       setDetailOpen(true);
       await fetchClientStats(client.$id);
+      // Fetch client jobs
+      try {
+        const jobsResponse = await databases.listDocuments(
+          DATABASE_ID!,
+          COLLECTIONS.BOOKINGS,
+          [
+            Query.equal('clientId', client.$id),
+            Query.orderDesc('$createdAt'),
+            Query.limit(50)
+          ]
+        );
+        setClientJobs(jobsResponse.documents);
+      } catch (error) {
+        console.error("Error fetching client jobs:", error);
+        setClientJobs([]);
+      }
     } finally {
       setDetailLoading(false);
     }
@@ -358,6 +409,16 @@ export default function AdminClientsPage() {
               className="pl-8 w-full sm:w-64"
             />
           </div>
+          <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(parseInt(value))}>
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={() => fetchClients(currentPage, search)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
@@ -367,6 +428,11 @@ export default function AdminClientsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Clients ({search.trim() ? clients.length : totalCount})</CardTitle>
+          {!search.trim() && (
+            <p className="text-sm text-neutral-500">
+              Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} clients
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -497,50 +563,16 @@ export default function AdminClientsPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-neutral-600">Page {currentPage} of {totalPages}</span>
+                <Input type="number" min={1} max={totalPages} value={currentPage} onChange={(e) => { const p = parseInt(e.target.value); if (p >= 1 && p <= totalPages) setCurrentPage(p); }} className="w-20 text-center" />
+              </div>
               <Pagination>
                 <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    // Show first page, last page, current page, and pages around current
-                    if (
-                      page === 1 ||
-                      page === totalPages ||
-                      (page >= currentPage - 1 && page <= currentPage + 1)
-                    ) {
-                      return (
-                        <PaginationItem key={page}>
-                          <PaginationLink
-                            onClick={() => setCurrentPage(page)}
-                            isActive={currentPage === page}
-                            className="cursor-pointer"
-                          >
-                            {page}
-                          </PaginationLink>
-                        </PaginationItem>
-                      );
-                    } else if (page === currentPage - 2 || page === currentPage + 2) {
-                      return (
-                        <PaginationItem key={page}>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      );
-                    }
-                    return null;
-                  })}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
+                  <PaginationItem><PaginationPrevious onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} /></PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => { if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) { return <PaginationItem key={page}><PaginationLink onClick={() => setCurrentPage(page)} isActive={currentPage === page} className="cursor-pointer">{page}</PaginationLink></PaginationItem>; } else if (page === currentPage - 2 || page === currentPage + 2) { return <PaginationItem key={page}><PaginationEllipsis /></PaginationItem>; } return null; })}
+                  <PaginationItem><PaginationNext onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} /></PaginationItem>
                 </PaginationContent>
               </Pagination>
             </div>
@@ -696,6 +728,44 @@ export default function AdminClientsPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Client Jobs */}
+                <Card className="col-span-1 lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Client Jobs ({clientJobs.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {clientJobs.length === 0 ? (
+                      <div className="text-sm text-neutral-500">No jobs found.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {clientJobs.map((job: any) => (
+                          <div key={job.$id} className="border rounded p-3 flex justify-between items-center">
+                            <div>
+                              <div className="font-medium text-sm">{job.title || "Untitled"}</div>
+                              <div className="text-xs text-neutral-500">{job.category} • ₦{(job.budgetAmount || 0).toLocaleString()} • {job.status}</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedJob(job); setJobDetailOpen(true); }}>
+                                <Eye className="h-3 w-3 mr-1" /> View
+                              </Button>
+                              {(job.status === 'cancelled' || job.status === 'completed' || job.status === 'rejected') && (
+                                <Button size="sm" variant="outline" onClick={() => renewJob(job)}>
+                                  <RefreshCw className="h-3 w-3 mr-1" /> Renew
+                                </Button>
+                              )}
+                              {job.status === 'open' && (
+                                <Button size="sm" variant="destructive" onClick={() => deleteJob(job)}>
+                                  <Trash2 className="h-3 w-3 mr-1" /> Delete
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </div>
           )}
@@ -737,6 +807,58 @@ export default function AdminClientsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Detail Dialog */}
+      <Dialog open={jobDetailOpen} onOpenChange={setJobDetailOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] md:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Job Details</DialogTitle>
+          </DialogHeader>
+          {selectedJob ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <Detail label="Title" value={selectedJob.title || "—"} />
+                <Detail label="Category" value={selectedJob.category || "—"} />
+                <Detail label="Budget" value={`₦${(selectedJob.budgetAmount || 0).toLocaleString()}`} />
+                <Detail label="Status" value={
+                  <Badge className={
+                    selectedJob.status === 'open' ? 'bg-green-100 text-green-800' :
+                    selectedJob.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                    selectedJob.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }>
+                    {selectedJob.status}
+                  </Badge>
+                } />
+                <Detail label="Location" value={selectedJob.location || "—"} />
+                <Detail label="State" value={selectedJob.state || "—"} />
+                <Detail label="City" value={selectedJob.city || "—"} />
+                <Detail label="Created" value={selectedJob.createdAt ? new Date(selectedJob.createdAt).toLocaleString() : "—"} />
+              </div>
+              {selectedJob.description && (
+                <div>
+                  <p className="text-xs text-neutral-500 mb-1">Description</p>
+                  <p className="text-sm">{selectedJob.description}</p>
+                </div>
+              )}
+              <div className="flex gap-2 pt-4 border-t">
+                {(selectedJob.status === 'cancelled' || selectedJob.status === 'completed' || selectedJob.status === 'rejected') && (
+                  <Button size="sm" variant="outline" onClick={() => { renewJob(selectedJob); setJobDetailOpen(false); }}>
+                    <RefreshCw className="h-4 w-4 mr-1" /> Renew Job
+                  </Button>
+                )}
+                {selectedJob.status === 'open' && (
+                  <Button size="sm" variant="destructive" onClick={() => { deleteJob(selectedJob); setJobDetailOpen(false); }}>
+                    <Trash2 className="h-4 w-4 mr-1" /> Delete Job
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-neutral-500">No job selected</div>
+          )}
         </DialogContent>
       </Dialog>
 
