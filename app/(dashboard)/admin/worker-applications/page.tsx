@@ -131,15 +131,21 @@ export default function WorkerApplicationsPage() {
       
       // Only update role if it's different
       if ((userDoc as any).role !== 'worker') {
-        console.log('Updating user role to worker');
-        await databases.updateDocument(
-          DATABASE_ID!,
-          COLLECTIONS.USERS,
-          userId,
-          {
-            role: 'worker'
-          }
-        );
+        console.log('Updating user role to worker for userId:', userId);
+        try {
+          await databases.updateDocument(
+            DATABASE_ID!,
+            COLLECTIONS.USERS,
+            userId,
+            {
+              role: 'worker'
+            }
+          );
+          console.log('User role updated successfully');
+        } catch (roleUpdateError) {
+          console.error('Failed to update user role:', roleUpdateError);
+          toast.warning('Worker approved but role update failed. Please check manually.');
+        }
       } else {
         console.log('User role is already worker, skipping update');
       }
