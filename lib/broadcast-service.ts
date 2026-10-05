@@ -287,7 +287,11 @@ export class BroadcastService {
                   title: message.title,
                   message: this.htmlToPlainText(message.htmlContent || message.content),
                   type: 'info',
-                  actionUrl: user.role === 'worker' ? '/worker/dashboard' : '/client/dashboard',
+                  actionUrl: user.role === 'worker' ? '/(tabs)/worker/jobs-near-you' : '/(tabs)/client/jobs',
+                  data: {
+                    type: 'broadcast',
+                    actionUrl: user.role === 'worker' ? '/(tabs)/worker/jobs-near-you' : '/(tabs)/client/jobs'
+                  },
                   idempotencyKey: `broadcast_${broadcastId}_${user.$id}`,
                 });
                 stats.inAppSent++;

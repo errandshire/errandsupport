@@ -5,6 +5,7 @@ import { notificationService } from './notification-service';
 import { emailService } from './email-service';
 import { TermiiSMSService } from './termii-sms.service';
 import { NOTIFICATION_TYPES } from './constants';
+import { ApiService } from './api';
 
 /**
  * Job Notification Service
@@ -58,17 +59,43 @@ export class JobNotificationService {
             );
 
             // 2. Send in-app notification
+            const workerBudget = Math.round(job.budgetMax * 0.8); // 80% for worker (20% platform fee)
             await notificationService.createNotification({
               userId: worker.userId,
               title: 'New Job Available!',
-              message: `New job posted: "${job.title}" - Budget: ₦${job.budgetMax.toLocaleString()}`,
-              type: 'info',
+              message: `New job posted: "${job.title}" - You earn: ₦${workerBudget.toLocaleString()}`,
+              type: 'job',
               bookingId: job.$id,
-              actionUrl: `/worker/jobs?jobId=${job.$id}`,
+              actionUrl: `/(tabs)/worker/jobs-near-you?jobId=${job.$id}`,
+              data: {
+                type: 'job',
+                jobId: job.$id,
+                title: job.title,
+                budget: workerBudget
+              },
               idempotencyKey: `job_posted_${job.$id}_${worker.userId}`,
             });
 
-            // 3. Send email notification
+            // 3. Send push notification
+            try {
+              await ApiService.request('/push/send', {
+                method: 'POST',
+                body: JSON.stringify({
+                  userId: worker.userId,
+                  title: 'New Job Available!',
+                  body: `New job posted: "${job.title}" - You earn: ₦${workerBudget.toLocaleString()}`,
+                  data: {
+                    type: 'job',
+                    jobId: job.$id,
+                    actionUrl: `/(tabs)/worker/jobs-near-you?jobId=${job.$id}`
+                  }
+                })
+              });
+            } catch (pushError) {
+              console.error(`❌ Push notification failed for worker ${worker.userId}:`, pushError);
+            }
+
+            // 4. Send email notification
             if (user.email) {
               try {
                 await emailService.sendJobPostingNotification({
@@ -77,7 +104,7 @@ export class JobNotificationService {
                   job: {
                     id: job.$id!,
                     title: job.title,
-                    budget: job.budgetMax,
+                    budget: workerBudget, // Show 80% to worker
                     location: job.locationAddress,
                     scheduledDate: job.scheduledDate,
                   }
@@ -88,10 +115,10 @@ export class JobNotificationService {
               }
             }
 
-            // 4. Send SMS notification
+            // 5. Send SMS notification
             if (user.phone) {
               try {
-                const smsMessage = `ErrandWork: New job "${job.title}" posted. Budget: ₦${job.budgetMax.toLocaleString()}. View: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/jobs?jobId=${job.$id}`;
+                const smsMessage = `ErrandWork: New job "${job.title}" posted. You earn: ₦${workerBudget.toLocaleString()}. View: ${process.env.NEXT_PUBLIC_BASE_URL}/worker/jobs?jobId=${job.$id}`;
 
                 await TermiiSMSService.sendSMS({
                   to: user.phone,

@@ -28,6 +28,7 @@ interface NotificationData {
   senderId?: string;
   recipientId?: string;
   actionUrl?: string;
+  data?: any;
   idempotencyKey?: string;
   createdAt: string;
 }
@@ -87,8 +88,9 @@ class NotificationService {
     senderId,
     recipientId,
     actionUrl,
+    data,
     idempotencyKey
-  }: Partial<Notification> & { idempotencyKey?: string }): Promise<void> {
+  }: Partial<Notification> & { idempotencyKey?: string; data?: any }): Promise<void> {
     if (!userId || !message) {
       console.warn('Invalid notification data:', { userId, message });
       return;
@@ -142,6 +144,7 @@ class NotificationService {
         senderId,
         recipientId,
         actionUrl,
+        data,
         idempotencyKey,
         createdAt: new Date().toISOString()
       };
@@ -167,7 +170,15 @@ class NotificationService {
             userId,
             title: title || 'Notification',
             body: message,
-            data: { type: type || 'info', actionUrl },
+            data: { 
+              type: type || 'info', 
+              actionUrl, 
+              bookingId, 
+              messageId, 
+              senderId, 
+              recipientId,
+              ...(data || {})
+            },
           }),
         });
       } catch (pushError) {

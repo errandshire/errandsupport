@@ -61,6 +61,15 @@ export default function WorkerApplicationsPage() {
   const handleApprove = async (id: string) => {
     try {
       setProcessing(id);
+      
+      // First, get the worker document to get the userId
+      const workerDoc = await databases.getDocument(
+        DATABASE_ID!,
+        COLLECTIONS.WORKERS,
+        id
+      );
+      
+      // Update the worker document
       await databases.updateDocument(
         DATABASE_ID!,
         COLLECTIONS.WORKERS,
@@ -73,6 +82,18 @@ export default function WorkerApplicationsPage() {
           verifiedAt: new Date().toISOString()
         }
       );
+      
+      // Update the user's role in the USERS collection
+      await databases.updateDocument(
+        DATABASE_ID!,
+        COLLECTIONS.USERS,
+        (workerDoc as any).userId,
+        {
+          role: 'worker',
+          updatedAt: new Date().toISOString()
+        }
+      );
+      
       toast.success("Worker application approved");
       fetchApplications();
     } catch (error: any) {
