@@ -69,30 +69,35 @@ export default function WorkerApplicationsPage() {
         id
       );
       
-      // Update the worker document
+      const userId = (workerDoc as any).userId;
+      
+      // Update the worker document - only update verificationStatus
       await databases.updateDocument(
         DATABASE_ID!,
         COLLECTIONS.WORKERS,
         id,
         {
-          verificationStatus: 'approved',
-          isVerified: true,
-          idVerified: true,
-          isActive: true,
-          verifiedAt: new Date().toISOString()
+          verificationStatus: 'approved'
         }
       );
       
       // Update the user's role in the USERS collection
-      await databases.updateDocument(
+      const userDoc = await databases.getDocument(
         DATABASE_ID!,
         COLLECTIONS.USERS,
-        (workerDoc as any).userId,
-        {
-          role: 'worker',
-          updatedAt: new Date().toISOString()
-        }
+        userId
       );
+      
+      if ((userDoc as any).role !== 'worker') {
+        await databases.updateDocument(
+          DATABASE_ID!,
+          COLLECTIONS.USERS,
+          userId,
+          {
+            role: 'worker'
+          }
+        );
+      }
       
       toast.success("Worker application approved");
       fetchApplications();
