@@ -62,7 +62,7 @@ export default function WorkerApplicationsPage() {
     try {
       setProcessing(id);
       
-      // First, get the worker document to get the userId
+      // First, get the worker document to get the userId and current status
       const workerDoc = await databases.getDocument(
         DATABASE_ID!,
         COLLECTIONS.WORKERS,
@@ -70,16 +70,54 @@ export default function WorkerApplicationsPage() {
       );
       
       const userId = (workerDoc as any).userId;
+      const currentStatus = (workerDoc as any).verificationStatus;
       
-      // Update the worker document - only update verificationStatus
+      console.log('Worker doc:', workerDoc);
+      console.log('Current status:', currentStatus);
+      
+      // Only update if status is not already approved
+      if (currentStatus === 'approved') {
+        toast.info("Worker is already approved");
+        fetchApplications();
+        setProcessing(null);
+        return;
+      }
+      
+      // Build update object with only fields that need to change
+      const updateData: any = {};
+      
+      if ((workerDoc as any).verificationStatus !== 'approved') {
+        updateData.verificationStatus = 'approved';
+      }
+      if ((workerDoc as any).isVerified !== true) {
+        updateData.isVerified = true;
+      }
+      if ((workerDoc as any).idVerified !== true) {
+        updateData.idVerified = true;
+      }
+      if ((workerDoc as any).isActive !== true) {
+        updateData.isActive = true;
+      }
+      
+      console.log('Update data for worker:', updateData);
+      
+      // If no fields need updating, skip the update
+      if (Object.keys(updateData).length === 0) {
+        toast.info("Worker is already approved");
+        fetchApplications();
+        setProcessing(null);
+        return;
+      }
+      
+      // Update the worker document
       await databases.updateDocument(
         DATABASE_ID!,
         COLLECTIONS.WORKERS,
         id,
-        {
-          verificationStatus: 'approved'
-        }
+        updateData
       );
+      
+      console.log('Worker document updated successfully');
       
       // Update the user's role in the USERS collection
       const userDoc = await databases.getDocument(
@@ -88,7 +126,12 @@ export default function WorkerApplicationsPage() {
         userId
       );
       
+      console.log('User doc:', userDoc);
+      console.log('Current role:', (userDoc as any).role);
+      
+      // Only update role if it's different
       if ((userDoc as any).role !== 'worker') {
+        console.log('Updating user role to worker');
         await databases.updateDocument(
           DATABASE_ID!,
           COLLECTIONS.USERS,
@@ -97,6 +140,8 @@ export default function WorkerApplicationsPage() {
             role: 'worker'
           }
         );
+      } else {
+        console.log('User role is already worker, skipping update');
       }
       
       toast.success("Worker application approved");
