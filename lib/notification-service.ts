@@ -146,7 +146,7 @@ class NotificationService {
 
       // Send push notification via VPS
       try {
-        await fetch(`${API_BASE_URL}/api/push/send`, {
+        await fetch('https://api.erandwork.com/api/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
