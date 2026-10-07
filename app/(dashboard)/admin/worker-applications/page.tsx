@@ -39,7 +39,7 @@ export default function WorkerApplicationsPage() {
     try {
       setLoading(true);
       // Call VPS API to fetch pending worker applications
-      const response = await fetch(`${API_BASE_URL}/api/worker-applications?status=pending`);
+      const response = await fetch(`${API_BASE_URL}/worker-applications?status=pending`);
       if (!response.ok) {
         throw new Error('Failed to fetch applications');
       }
@@ -63,7 +63,7 @@ export default function WorkerApplicationsPage() {
       
       // Call the VPS API endpoint to approve the worker
       // This will update both the workers and users tables in PostgreSQL
-      const response = await fetch(`${API_BASE_URL}/api/worker-applications/${id}/approve`, {
+      const response = await fetch(`${API_BASE_URL}/worker-applications/${id}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ export default function WorkerApplicationsPage() {
       setProcessing(id);
       
       // Call the VPS API endpoint to reject the worker
-      const response = await fetch(`${API_BASE_URL}/api/worker-applications/${id}/reject`, {
+      const response = await fetch(`${API_BASE_URL}/worker-applications/${id}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -155,22 +155,50 @@ export default function WorkerApplicationsPage() {
                 <div><span className="font-medium">Address:</span> {app.address || "—"}</div>
                 <div><span className="font-medium">State:</span> {app.state || "—"}</div>
                 <div><span className="font-medium">LGA:</span> {app.lga || "—"}</div>
-                <div><span className="font-medium">NIN:</span> {app.idNumber || "—"}</div>
+                <div><span className="font-medium">NIN:</span> {app.nin || app.idNumber || "—"}</div>
               </div>
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">Documents:</p>
-                {app.idDocument ? (
-                  <a href={app.idDocument} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> View ID Document
-                  </a>
+                {app.documentUrl || app.idDocument ? (
+                  <div className="space-y-2">
+                    <img 
+                      src={app.documentUrl || app.idDocument} 
+                      alt="ID Document" 
+                      className="w-full h-auto max-h-48 object-cover rounded border"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const link = document.createElement('a');
+                        link.href = app.documentUrl || app.idDocument;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.className = 'text-blue-600 text-sm flex items-center gap-2';
+                        link.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> View ID Document';
+                        e.currentTarget.parentElement?.replaceChild(link, e.currentTarget);
+                      }}
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm text-neutral-500">No ID document uploaded</p>
                 )}
-                {app.selfieWithId ? (
-                  <a href={app.selfieWithId} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> View Selfie with ID
-                  </a>
+                {app.selfieUrl || app.selfieWithId ? (
+                  <div className="space-y-2">
+                    <img 
+                      src={app.selfieUrl || app.selfieWithId} 
+                      alt="Selfie with ID" 
+                      className="w-full h-auto max-h-48 object-cover rounded border"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const link = document.createElement('a');
+                        link.href = app.selfieUrl || app.selfieWithId;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.className = 'text-blue-600 text-sm flex items-center gap-2';
+                        link.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> View Selfie with ID';
+                        e.currentTarget.parentElement?.replaceChild(link, e.currentTarget);
+                      }}
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm text-neutral-500">No selfie with ID uploaded</p>
                 )}

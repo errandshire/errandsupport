@@ -1,5 +1,6 @@
-import { databases, COLLECTIONS, DATABASE_ID, ID, Query, API_BASE_URL } from './api';
+import { COLLECTIONS, ID, API_BASE_URL } from './api';
 import { SMSService } from './sms.service';
+import { ApiService } from './api';
 
 export interface Notification {
   id: string;
@@ -41,18 +42,12 @@ class NotificationService {
     }
 
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.NOTIFICATIONS,
-        [
-          Query.equal('userId', userId),
-          Query.orderDesc('$createdAt'),
-          Query.limit(limit)
-        ]
+      const response = await ApiService.request<any[]>(
+        `/notifications?filter_userId=${userId}&limit=${limit}`
       );
 
-      // Map Appwrite documents to Notification interface (map $id to id)
-      return response.documents.map(doc => ({
+      // Map response to Notification interface (map $id to id)
+      return (response || []).map(doc => ({
         ...doc,
         id: doc.$id
       })) as unknown as Notification[];
@@ -67,12 +62,10 @@ class NotificationService {
     if (!notificationId) return;
 
     try {
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.NOTIFICATIONS,
-        notificationId,
-        { isRead: true }
-      );
+      await ApiService.request(`/notifications/${notificationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ isRead: true })
+      });
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -97,36 +90,24 @@ class NotificationService {
     }
 
     try {
-      // Check for duplicate notifications using idempotency key first
+      // Check for duplicate notifications using idempotency key first using VPS API
       if (idempotencyKey) {
-        const existingNotification = await databases.listDocuments(
-          DATABASE_ID!,
-          COLLECTIONS.NOTIFICATIONS,
-          [
-            Query.equal('idempotencyKey', idempotencyKey),
-            Query.limit(1)
-          ]
+        const existingNotification = await ApiService.request<any[]>(
+          `/notifications?filter_idempotencyKey=${idempotencyKey}&limit=1`
         );
 
-        if (existingNotification.documents.length > 0) {
+        if (existingNotification && existingNotification.length > 0) {
           console.log('Duplicate notification prevented (idempotency):', { userId, idempotencyKey });
           return;
         }
       } else {
-        // Fallback: Check for recent duplicate notifications (last 5 minutes) if no idempotency key
-        const recentNotifications = await databases.listDocuments(
-          DATABASE_ID!,
-          COLLECTIONS.NOTIFICATIONS,
-          [
-            Query.equal('userId', userId),
-            Query.equal('title', title || 'Notification'),
-            Query.equal('message', message),
-            Query.greaterThan('createdAt', new Date(Date.now() - 5 * 60 * 1000).toISOString()),
-            Query.limit(1)
-          ]
+        // Fallback: Check for recent duplicate notifications (last 5 minutes) if no idempotency key using VPS API
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const recentNotifications = await ApiService.request<any[]>(
+          `/notifications?filter_userId=${userId}&filter_title=${title || 'Notification'}&filter_message=${message}&filter_createdAt_gt=${fiveMinutesAgo}&limit=1`
         );
 
-        if (recentNotifications.documents.length > 0) {
+        if (recentNotifications && recentNotifications.length > 0) {
           console.log('Duplicate notification prevented (content-based):', { userId, title, message });
           return;
         }
@@ -154,16 +135,18 @@ class NotificationService {
         Object.entries(notificationData).filter(([_, value]) => value !== undefined)
       ) as NotificationData;
 
-      await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.NOTIFICATIONS,
-        ID.unique(),
-        cleanData
-      );
+      // Create notification using VPS API
+      await ApiService.request('/notifications', {
+        method: 'POST',
+        body: JSON.stringify({
+          $id: ID.unique(),
+          ...cleanData
+        })
+      });
 
       // Send push notification via VPS
       try {
-        await fetch(`${API_BASE_URL}/push/send`, {
+        await fetch(`${API_BASE_URL}/api/push/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

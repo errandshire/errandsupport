@@ -1,9 +1,9 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './api';
-import { ID, Query } from '@/lib/api';
+import { DATABASE_ID, COLLECTIONS, ID } from './api';
 import { JobApplicationService } from './job-application.service';
 import { WalletService } from './wallet.service';
 import { JobNotificationService } from './job-notification.service';
 import { notificationService } from './notification-service';
+import { ApiService } from './api';
 
 /**
  * Worker Selection Service
@@ -17,29 +17,21 @@ import { notificationService } from './notification-service';
  */
 export class WorkerSelectionService {
   /**
-   * Client selects a worker for their job
+   * Client selects a worker for their job using VPS API
    *
    * @param jobId - ID of the job
    * @param applicationId - ID of the application being selected
    * @param clientId - ID of the client (for validation)
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    * @returns Booking ID
    */
   static async selectWorkerForJob(
     jobId: string,
     applicationId: string,
-    clientId: string,
-    dbClient?: any
+    clientId: string
   ): Promise<string> {
-    const db = dbClient || databases; // Use provided client or default to client-side
-
     try {
-      // 1. Get job details
-      const job = await db.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId
-      );
+      // 1. Get job details using VPS API
+      const job = await ApiService.request<any>(`/jobs/${jobId}`);
 
       // 2. Validate job belongs to client
       if (job.clientId !== clientId) {
@@ -51,12 +43,8 @@ export class WorkerSelectionService {
         throw new Error('This job is no longer available for selection');
       }
 
-      // 4. Get application details
-      const application = await db.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        applicationId
-      );
+      // 4. Get application details using VPS API
+      const application = await ApiService.request<any>(`/job-applications/${applicationId}`);
 
       // 5. Validate application is for this job
       if (application.jobId !== jobId) {
@@ -68,12 +56,8 @@ export class WorkerSelectionService {
         throw new Error('This application is no longer available');
       }
 
-      // 7. Get worker details
-      const worker = await db.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.WORKERS,
-        application.workerId
-      );
+      // 7. Get worker details using VPS API
+      const worker = await ApiService.request<any>(`/workers/${application.workerId}`);
 
       // 8. Validate worker is still verified and active
       if (!worker.isVerified) {
@@ -84,26 +68,21 @@ export class WorkerSelectionService {
         throw new Error('Worker is no longer active');
       }
 
-      // 9. Check client wallet balance - Query directly like /api/jobs/apply does
+      // 9. Check client wallet balance using VPS API
       console.log('💰 Fetching wallet for clientId:', clientId);
-
-      const wallets = await db.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        [Query.equal('userId', clientId)]
-      );
+      const wallets = await ApiService.request<any[]>(`/virtual-wallets?filter_userId=${clientId}`);
 
       console.log('💰 Wallet query result:', {
         clientId,
-        foundWallets: wallets.documents.length,
-        wallets: wallets.documents
+        foundWallets: wallets?.length || 0,
+        wallets: wallets
       });
 
-      if (wallets.documents.length === 0) {
+      if (!wallets || wallets.length === 0) {
         throw new Error('Wallet not found. Please add funds to your wallet first.');
       }
 
-      const clientWallet = wallets.documents[0];
+      const clientWallet = wallets[0];
 
       // Ensure balance and escrow are numbers, default to 0 if undefined/null
       const walletBalance = Number(clientWallet.balance) || 0;
@@ -127,8 +106,10 @@ export class WorkerSelectionService {
         );
       }
 
-      // 10. Create booking
+      // 10. Create booking using VPS API
+      const bookingId = ID.unique();
       const bookingData = {
+        $id: bookingId,
         clientId: job.clientId,
         workerId: worker.userId, // Fixed: Use worker.userId to match dashboard query
         serviceId: job.categoryId,
@@ -149,104 +130,50 @@ export class WorkerSelectionService {
         notes: job.description,
       };
 
-      const booking = await db.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.BOOKINGS,
-        ID.unique(),
-        bookingData
-      );
+      const booking = await ApiService.request<any>('/bookings', {
+        method: 'POST',
+        body: JSON.stringify(bookingData)
+      });
 
-      // 11. Hold funds in escrow
+      // 11. Hold funds in escrow using WalletService (now uses VPS API)
       try {
-        // Create hold transaction
-        const transactionId = `hold_${booking.$id}`;
-
-        console.log('💳 Creating escrow hold transaction:', {
-          transactionId,
+        await WalletService.holdFundsForBooking({
           clientId,
           bookingId: booking.$id,
-          amount: job.budgetMax
+          amountInNaira: job.budgetMax
         });
-
-        try {
-          await db.createDocument(
-            DATABASE_ID,
-            COLLECTIONS.WALLET_TRANSACTIONS,
-            transactionId,
-            {
-              userId: clientId,
-              type: 'booking_hold',
-              amount: job.budgetMax,
-              bookingId: booking.$id,
-              reference: transactionId,
-              status: 'completed',
-              description: `Payment held for booking #${booking.$id}`,
-              createdAt: new Date().toISOString()
-            }
-          );
-          console.log('✅ Transaction created');
-        } catch (transError: any) {
-          if (transError.code === 409 || transError.message?.includes('already exists')) {
-            console.log(`⚠️ Transaction ${transactionId} already exists`);
-            // Transaction already exists, continue
-          } else {
-            throw transError;
-          }
-        }
-
-        // Update wallet - move from balance to escrow
-        console.log('💰 Moving funds to escrow...');
-        await db.updateDocument(
-          DATABASE_ID,
-          COLLECTIONS.VIRTUAL_WALLETS,
-          clientWallet.$id,
-          {
-            balance: walletBalance - job.budgetMax,
-            escrow: walletEscrow + job.budgetMax,
-            totalSpent: (clientWallet.totalSpent || 0) + job.budgetMax,
-            updatedAt: new Date().toISOString()
-          }
-        );
-        console.log('✅ Funds moved to escrow');
-
       } catch (escrowError) {
         // Rollback booking if escrow fails
         console.error('❌ Escrow failed, rolling back booking:', escrowError);
-        await db.deleteDocument(
-          DATABASE_ID,
-          COLLECTIONS.BOOKINGS,
-          booking.$id
-        );
+        await ApiService.request(`/bookings/${booking.$id}`, {
+          method: 'DELETE'
+        });
         throw new Error('Failed to hold funds in escrow. Please try again.');
       }
 
-      // 12. Update job status
-      await db.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId,
-        {
+      // 12. Update job status using VPS API
+      await ApiService.request(`/jobs/${jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           status: 'assigned',
           assignedWorkerId: worker.$id,
           assignedAt: new Date().toISOString(),
           bookingId: booking.$id,
-        }
-      );
+        })
+      });
 
-      // 13. Update selected application and link to booking
-      await db.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        applicationId,
-        {
+      // 13. Update selected application and link to booking using VPS API
+      await ApiService.request(`/job-applications/${applicationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           status: 'selected',
           selectedAt: new Date().toISOString(),
           bookingId: booking.$id // Link booking to application for unified acceptance
-        }
-      );
+        })
+      });
 
-      // 14. Reject all other pending applications
-      await JobApplicationService.rejectPendingApplications(jobId, applicationId, db);
+      // 14. Reject all other pending applications (now uses VPS API)
+      await JobApplicationService.rejectPendingApplications(jobId, applicationId);
 
       // 15. Send notification to selected worker (in-app + SMS)
       try {
@@ -263,13 +190,9 @@ export class WorkerSelectionService {
           idempotencyKey: `worker_selected_${jobId}_${worker.userId}`,
         });
 
-        // SMS notification - fetch user document to get phone number
+        // SMS notification - fetch user document to get phone number using VPS API
         try {
-          const workerUser = await db.getDocument(
-            DATABASE_ID,
-            COLLECTIONS.USERS,
-            worker.userId
-          );
+          const workerUser = await ApiService.request<any>(`/users/${worker.userId}`);
 
           if (workerUser.phone) {
             const { TermiiSMSService } = await import('@/lib/termii-sms.service');
@@ -301,25 +224,15 @@ export class WorkerSelectionService {
         console.error('Failed to notify client:', notifError);
       }
 
-      // 17. Notify rejected workers
+      // 17. Notify rejected workers using VPS API
       try {
-        const rejectedApplications = await db.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.JOB_APPLICATIONS,
-          [
-            Query.equal('jobId', jobId),
-            Query.equal('status', 'rejected'),
-            Query.limit(100)
-          ]
+        const rejectedApplications = await ApiService.request<any[]>(
+          `/job-applications?filter_jobId=${jobId}&filter_status=rejected&limit=100`
         );
 
-        for (const app of rejectedApplications.documents) {
+        for (const app of rejectedApplications) {
           try {
-            const rejWorker = await db.getDocument(
-              DATABASE_ID,
-              COLLECTIONS.WORKERS,
-              app.workerId
-            );
+            const rejWorker = await ApiService.request<any>(`/workers/${app.workerId}`);
 
             await notificationService.createNotification({
               userId: rejWorker.userId,
@@ -347,18 +260,14 @@ export class WorkerSelectionService {
   }
 
   /**
-   * Get worker details for selection preview
+   * Get worker details for selection preview using VPS API
    *
    * @param workerId - ID of the worker
    * @returns Worker profile with relevant details
    */
   static async getWorkerForSelection(workerId: string): Promise<any> {
     try {
-      const worker = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.WORKERS,
-        workerId
-      );
+      const worker = await ApiService.request<any>(`/workers/${workerId}`);
 
       return {
         id: worker.$id,

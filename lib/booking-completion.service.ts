@@ -1,17 +1,17 @@
-import { COLLECTIONS, DATABASE_ID} from './api';
+import { COLLECTIONS, DATABASE_ID } from './api';
 import { WalletService } from './wallet.service';
-const { serverDatabases } = require('./api-server');
+import { ApiService } from './api';
 
 /**
  * BOOKING COMPLETION SERVICE
  *
- * Handles job completion and fund release to workers
+ * Handles job completion and fund release to workers using VPS API
  */
 
 export class BookingCompletionService {
 
   /**
-   * Complete booking and release funds to worker
+   * Complete booking and release funds to worker using VPS API
    *
    * TRANSACTION ROLLBACK IMPLEMENTED:
    * - If payment release succeeds but booking update fails, payment is rolled back
@@ -26,12 +26,8 @@ export class BookingCompletionService {
     try {
       const { bookingId, clientId, workerId, amount } = params;
 
-      // Get booking to verify status
-      const booking = await serverDatabases.getDocument(
-        DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        bookingId
-      );
+      // Get booking to verify status using VPS API
+      const booking = await ApiService.request<any>(`/bookings/${bookingId}`);
 
       // Security checks
       if (booking.clientId !== clientId && booking.workerId !== workerId) {
@@ -55,7 +51,7 @@ export class BookingCompletionService {
         };
       }
 
-      // STEP 1: Release funds from escrow to worker (with commission deduction)
+      // STEP 1: Release funds from escrow to worker (with commission deduction) - now uses VPS API
       const releaseResult = await WalletService.releaseFundsToWorker({
         clientId,
         workerId,
@@ -69,19 +65,17 @@ export class BookingCompletionService {
 
       const workerAmount = releaseResult.workerAmount || amount;
 
-      // STEP 2: Update booking status (CRITICAL - if this fails, rollback payment)
+      // STEP 2: Update booking status (CRITICAL - if this fails, rollback payment) using VPS API
       try {
-        await serverDatabases.updateDocument(
-          DATABASE_ID!,
-          COLLECTIONS.BOOKINGS,
-          bookingId,
-          {
+        await ApiService.request(`/bookings/${bookingId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
             status: 'completed',
             paymentStatus: 'released',
             completedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          }
-        );
+          })
+        });
       } catch (bookingUpdateError) {
         // ROLLBACK: Booking update failed, reverse the payment
         console.error('❌ Booking update failed, rolling back payment...', bookingUpdateError);
@@ -114,13 +108,9 @@ export class BookingCompletionService {
           idempotencyKey: `payment_received_${bookingId}_${workerId}`
         });
 
-        // SMS notification - show NET amount
+        // SMS notification - show NET amount using VPS API
         try {
-          const workerUser = await serverDatabases.getDocument(
-            DATABASE_ID!,
-            COLLECTIONS.USERS,
-            workerId
-          );
+          const workerUser = await ApiService.request<any>(`/users/${workerId}`);
           if (workerUser.phone) {
             // Use TermiiSMSService to send SMS (handles API key securely)
             try {
@@ -138,11 +128,7 @@ export class BookingCompletionService {
 
           // Send email notification
           const { BookingNotificationService } = await import('./booking-notification-service');
-          const booking = await serverDatabases.getDocument(
-            DATABASE_ID!,
-            COLLECTIONS.BOOKINGS,
-            bookingId
-          );
+          const booking = await ApiService.request<any>(`/bookings/${bookingId}`);
           await BookingNotificationService.notifyPaymentReleased(bookingId, workerId, clientId, booking, workerAmount);
         } catch (error) {
           console.error('Failed to send notifications:', error);
@@ -167,7 +153,7 @@ export class BookingCompletionService {
   }
 
   /**
-   * Cancel booking and refund to client
+   * Cancel booking and refund to client using VPS API
    */
   static async cancelBooking(params: {
     bookingId: string;
@@ -177,12 +163,8 @@ export class BookingCompletionService {
     try {
       const { bookingId, clientId, reason } = params;
 
-      // Get booking
-      const booking = await serverDatabases.getDocument(
-        DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        bookingId
-      );
+      // Get booking using VPS API
+      const booking = await ApiService.request<any>(`/bookings/${bookingId}`);
 
       // Security check
       if (booking.clientId !== clientId) {
@@ -216,17 +198,16 @@ export class BookingCompletionService {
         };
       }
 
-      // Get client wallet
+      // Get client wallet using VPS API
       const wallet = await WalletService.getOrCreateWallet(clientId);
 
-      // IDEMPOTENCY: Try to create refund transaction first
+      // IDEMPOTENCY: Try to create refund transaction first using VPS API
       const transactionId = `refund_${bookingId}`;
       try {
-        await serverDatabases.createDocument(
-          DATABASE_ID!,
-          COLLECTIONS.WALLET_TRANSACTIONS,
-          transactionId,
-          {
+        await ApiService.request('/wallet-transactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            $id: transactionId,
             userId: clientId,
             type: 'booking_refund',
             amount: refundAmount,
@@ -235,10 +216,10 @@ export class BookingCompletionService {
             status: 'completed',
             description: `Refund for cancelled booking #${bookingId}`,
             createdAt: new Date().toISOString()
-          }
-        );
+          })
+        });
       } catch (error: any) {
-        if (error.code === 409 || error.message?.includes('already exists')) {
+        if (error.code === 409 || error.message?.includes('already exists') || error.message?.includes('duplicate')) {
           return {
             success: true,
             message: 'Booking already refunded'
@@ -247,31 +228,27 @@ export class BookingCompletionService {
         throw error;
       }
 
-      // Move funds from escrow back to balance
-      await serverDatabases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        wallet.$id,
-        {
+      // Move funds from escrow back to balance using VPS API
+      await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: wallet.balance + refundAmount,
           escrow: wallet.escrow - refundAmount,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
-      // Update booking status
-      await serverDatabases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        bookingId,
-        {
+      // Update booking status using VPS API
+      await ApiService.request(`/bookings/${bookingId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           status: 'cancelled',
           paymentStatus: 'refunded',
           cancelledAt: new Date().toISOString(),
           cancellationReason: reason || 'Cancelled',
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
 
       return {

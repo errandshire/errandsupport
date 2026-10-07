@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS, DATABASE_ID } from './api';
+import { COLLECTIONS, DATABASE_ID, API_BASE_URL } from './api';
 import { Query } from '@/lib/api';
 import { Job } from './types';
 import { notificationService } from './notification-service';
@@ -31,32 +31,21 @@ export class JobNotificationService {
       console.log(`📢 Starting notifications for job ${job.$id}: "${job.title}"`);
 
       while (true) {
-        const workers = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.WORKERS,
-          [
-            Query.equal('isVerified', true),
-            Query.equal('isActive', true),
-            Query.limit(batchSize),
-            Query.offset(offset)
-          ]
+        const workers = await ApiService.request<any[]>(
+          `/workers?filter_isVerified=true&filter_isActive=true&limit=${batchSize}&offset=${offset}`
         );
 
-        if (workers.documents.length === 0) {
+        if (!workers || workers.length === 0) {
           break; // No more workers to notify
         }
 
-        console.log(`📤 Processing batch of ${workers.documents.length} workers (offset: ${offset})`);
+        console.log(`📤 Processing batch of ${workers.length} workers (offset: ${offset})`);
 
         // Process each worker in this batch
-        const notificationPromises = workers.documents.map(async (worker) => {
+        const notificationPromises = workers.map(async (worker) => {
           try {
-            // 1. Fetch user data for email and phone
-            const user = await databases.getDocument(
-              DATABASE_ID,
-              COLLECTIONS.USERS,
-              worker.userId
-            );
+            // 1. Fetch user data for email and phone using VPS API
+            const user = await ApiService.request<any>(`/users/${worker.userId}`);
 
             // 2. Send in-app notification
             const workerBudget = Math.round(job.budgetMax * 0.8); // 80% for worker (20% platform fee)
@@ -78,8 +67,9 @@ export class JobNotificationService {
 
             // 3. Send push notification
             try {
-              await ApiService.request('/push/send', {
+              await fetch('https://api.erandwork.com/api/push/send', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   userId: worker.userId,
                   title: 'New Job Available!',
@@ -137,10 +127,10 @@ export class JobNotificationService {
         });
 
         await Promise.all(notificationPromises);
-        totalNotified += workers.documents.length;
+        totalNotified += workers.length;
 
         // If we got less than batchSize, we've reached the end
-        if (workers.documents.length < batchSize) {
+        if (workers.length < batchSize) {
           break;
         }
 
@@ -186,19 +176,15 @@ export class JobNotificationService {
   }
 
   /**
-   * Notify client when their job has been accepted by a worker
+   * Notify client when their job has been accepted by a worker using VPS API
    */
   static async notifyJobAccepted(
     job: Job,
     workerData: { id: string; name: string; email: string }
   ): Promise<void> {
     try {
-      // Get client details
-      const client = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        job.clientId
-      );
+      // Get client details using VPS API
+      const client = await ApiService.request<any>(`/users/${job.clientId}`);
 
       // In-app notification
       await notificationService.createNotification({

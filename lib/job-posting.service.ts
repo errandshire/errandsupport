@@ -3,24 +3,33 @@ import { ID, Query, Permission, Role } from '@/lib/api';
 import { Job, JobFormData, JobWithDetails } from './types';
 import { JOB_EXPIRY_HOURS, JOB_STATUS } from './constants';
 import { generateUniqueSlug } from './slug-utils';
+import { ApiService } from './api';
 
 /**
  * Job Posting Service
- * Handles all job posting operations using Appwrite SDK
+ * Handles all job posting operations using VPS API
  */
 export class JobPostingService {
   /**
-   * Upload job attachments to Appwrite Storage
+   * Upload job attachments to VPS API
    */
   static async uploadJobAttachments(files: File[]): Promise<string[]> {
     try {
       const uploadPromises = files.map(async (file) => {
-        const fileId = ID.unique();
-        await storage.createFile(STORAGE_BUCKET_ID, fileId, file);
-
-        // Return the file URL
-        const fileUrl = storage.getFileView(STORAGE_BUCKET_ID, fileId);
-        return fileUrl.toString();
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch(`${ApiService.API_BASE_URL}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to upload file');
+        }
+        
+        const data = await response.json();
+        return data.url;
       });
 
       const urls = await Promise.all(uploadPromises);
@@ -32,12 +41,11 @@ export class JobPostingService {
   }
 
   /**
-   * Create a new job posting
+   * Create a new job posting using VPS API
    * @param clientId - The client creating the job
    * @param formData - The job form data
-   * @param db - Optional database instance (use serverDatabases for API routes)
    */
-  static async createJob(clientId: string, formData: JobFormData & { attachmentUrls?: string[] }, db = databases): Promise<Job> {
+  static async createJob(clientId: string, formData: JobFormData & { attachmentUrls?: string[] }): Promise<Job> {
     try {
       // Use pre-uploaded URLs if available (client-side upload), otherwise try uploading
       let attachmentUrls: string[] = formData.attachmentUrls || [];
@@ -70,7 +78,8 @@ export class JobPostingService {
         scheduledDateISO = new Date().toISOString();
       }
 
-      const jobData: Record<string, unknown> = {
+      const jobData = {
+        $id: jobId,
         clientId,
         title: formData.title,
         description: formData.description,
@@ -91,31 +100,18 @@ export class JobPostingService {
         requiresFunding: false,
         applicantCount: 0,
         slug,
+        latitude: formData.locationLat,
+        longitude: formData.locationLng,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      if (formData.locationLat != null) jobData.latitude = formData.locationLat;
-      if (formData.locationLng != null) jobData.longitude = formData.locationLng;
+      const response = await ApiService.request<Job>('/jobs', {
+        method: 'POST',
+        body: JSON.stringify(jobData),
+      });
 
-      const response = await db.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId,
-        jobData,
-        [
-          // Client (owner) has full access
-          Permission.read(Role.user(clientId)),
-          Permission.update(Role.user(clientId)),
-          Permission.delete(Role.user(clientId)),
-          // Anyone can read (public jobs for SEO and sharing)
-          Permission.read(Role.any()),
-          // Any authenticated user can update (to increment applicant count)
-          Permission.update(Role.users()),
-        ]
-      );
-
-      return response as unknown as Job;
+      return response;
     } catch (error) {
       console.error('Error creating job:', error);
       throw new Error('Failed to create job posting');
@@ -123,27 +119,13 @@ export class JobPostingService {
   }
 
   /**
-   * Get all jobs posted by a client
+   * Get all jobs posted by a client using VPS API
    */
   static async getClientJobs(clientId: string, status?: string): Promise<Job[]> {
     try {
-      const queries = [
-        Query.equal('clientId', clientId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(100)
-      ];
-
-      if (status) {
-        queries.push(Query.equal('status', status));
-      }
-
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        queries
-      );
-
-      return response.documents as unknown as Job[];
+      const query = status ? `?filter_clientId=${clientId}&filter_status=${status}` : `?filter_clientId=${clientId}`;
+      const response = await ApiService.request<Job[]>(`/jobs${query}`);
+      return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('Error fetching client jobs:', error);
       throw new Error('Failed to fetch jobs');
@@ -151,17 +133,12 @@ export class JobPostingService {
   }
 
   /**
-   * Get a single job by ID
+   * Get a single job by ID using VPS API
    */
   static async getJobById(jobId: string): Promise<Job> {
     try {
-      const response = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId
-      );
-
-      return response as unknown as Job;
+      const response = await ApiService.request<Job>(`/jobs/${jobId}`);
+      return response;
     } catch (error) {
       console.error('Error fetching job:', error);
       throw new Error('Job not found');
@@ -169,25 +146,17 @@ export class JobPostingService {
   }
 
   /**
-   * Get job with client details
+   * Get job with client details using VPS API
    */
   static async getJobWithDetails(jobId: string): Promise<JobWithDetails> {
     try {
       const job = await this.getJobById(jobId);
 
-      // Fetch client details
-      const client = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        job.clientId
-      );
+      // Fetch client details using VPS API
+      const client = await ApiService.request<any>(`/users/${job.clientId}`);
 
-      // Fetch category details
-      const category = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.CATEGORIES,
-        job.categoryId
-      );
+      // Fetch category details using VPS API
+      const category = await ApiService.request<any>(`/categories/${job.categoryId}`);
 
       return {
         ...job,
@@ -203,7 +172,7 @@ export class JobPostingService {
   }
 
   /**
-   * Update a job (only if status is 'open')
+   * Update a job (only if status is 'open') using VPS API
    */
   static async updateJob(jobId: string, updates: Partial<JobFormData>): Promise<Job> {
     try {
@@ -233,14 +202,12 @@ export class JobPostingService {
         updateData.attachments = attachmentUrls;
       }
 
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId,
-        updateData
-      );
+      const response = await ApiService.request<Job>(`/jobs/${jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData),
+      });
 
-      return response as unknown as Job;
+      return response;
     } catch (error) {
       console.error('Error updating job:', error);
       throw new Error('Failed to update job');
@@ -248,27 +215,19 @@ export class JobPostingService {
   }
 
   /**
-   * Cancel a job and notify all applicants
+   * Cancel a job and notify all applicants using VPS API
    * @param jobId - Job ID to cancel
    * @param clientId - Client ID (for authorization)
    * @param reason - Optional cancellation reason
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async cancelJob(
     jobId: string,
     clientId: string,
-    reason?: string,
-    dbClient?: any
+    reason?: string
   ): Promise<Job> {
-    const db = dbClient || databases;
-
     try {
       // 1. Get job details
-      const job = await db.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId
-      );
+      const job = await ApiService.request<Job>(`/jobs/${jobId}`);
 
       // 2. Verify the client owns this job
       if (job.clientId !== clientId) {
@@ -300,58 +259,43 @@ export class JobPostingService {
 
         // Update booking status to cancelled
         try {
-          await db.updateDocument(
-            DATABASE_ID,
-            COLLECTIONS.BOOKINGS,
-            job.bookingId,
-            {
+          await ApiService.request(`/bookings/${job.bookingId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
               status: 'cancelled',
               paymentStatus: 'refunded',
-            }
-          );
+            }),
+          });
         } catch (bookingError) {
           console.error('Error updating booking:', bookingError);
         }
       }
 
       // 5. Update job status to cancelled
-      const response = await db.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId,
-        {
+      const response = await ApiService.request<Job>(`/jobs/${jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           status: JOB_STATUS.CANCELLED,
-        }
-      );
+        }),
+      });
 
       // 6. Reject all pending applications
       const { JobApplicationService } = await import('./job-application.service');
       try {
-        await JobApplicationService.rejectPendingApplications(jobId, undefined, db);
+        await JobApplicationService.rejectPendingApplications(jobId);
       } catch (appError) {
         console.error('Error rejecting applications:', appError);
       }
 
       // 7. Notify all applicants about cancellation
       try {
-        const applications = await db.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.JOB_APPLICATIONS,
-          [
-            Query.equal('jobId', jobId),
-            Query.limit(100)
-          ]
-        );
+        const applications = await ApiService.request<any[]>(`/job-applications?filter_jobId=${jobId}`);
 
         const { notificationService } = await import('./notification-service');
 
-        for (const app of applications.documents) {
+        for (const app of applications) {
           try {
-            const worker = await db.getDocument(
-              DATABASE_ID,
-              COLLECTIONS.WORKERS,
-              app.workerId
-            );
+            const worker = await ApiService.request<any>(`/workers/${app.workerId}`);
 
             await notificationService.createNotification({
               userId: worker.userId,
@@ -371,7 +315,7 @@ export class JobPostingService {
         // Don't fail the cancellation if notifications fail
       }
 
-      return response as unknown as Job;
+      return response;
     } catch (error) {
       console.error('Error cancelling job:', error);
       throw error;
@@ -379,7 +323,7 @@ export class JobPostingService {
   }
 
   /**
-   * Get job statistics for a client
+   * Get job statistics for a client using VPS API
    */
   static async getJobStats(clientId: string): Promise<{
     total: number;
@@ -414,20 +358,18 @@ export class JobPostingService {
   }
 
   /**
-   * Increment job view count
+   * Increment job view count using VPS API
    */
   static async incrementViewCount(jobId: string): Promise<void> {
     try {
       const job = await this.getJobById(jobId);
 
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId,
-        {
+      await ApiService.request(`/jobs/${jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           viewCount: (job.viewCount || 0) + 1,
-        }
-      );
+        }),
+      });
     } catch (error) {
       console.error('Error incrementing view count:', error);
       // Don't throw error for view count increment failures
@@ -435,22 +377,12 @@ export class JobPostingService {
   }
 
   /**
-   * Get recently posted jobs (for homepage/dashboard)
+   * Get recently posted jobs (for homepage/dashboard) using VPS API
    */
   static async getRecentJobs(limit: number = 10): Promise<Job[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        [
-          Query.equal('status', JOB_STATUS.OPEN),
-          Query.orderDesc('$createdAt'),
-          Query.notEqual('status','cancelled'),
-          Query.limit(limit)
-        ]
-      );
-
-      return response.documents as unknown as Job[];
+      const response = await ApiService.request<Job[]>(`/jobs?filter_status=open&limit=${limit}`);
+      return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('Error fetching recent jobs:', error);
       return [];

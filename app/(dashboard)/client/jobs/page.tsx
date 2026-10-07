@@ -35,23 +35,15 @@ export default function ClientJobsPage() {
       const fetchedJobs = await JobPostingService.getClientJobs(user.$id);
       setJobs(Array.isArray(fetchedJobs) ? fetchedJobs : []);
 
-      // Fetch applicant counts for open jobs
-      const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
-      const { Query } = await import('@/lib/appwrite');
-
+      // Fetch applicant counts for open jobs using VPS API
+      const { ApiService } = await import('@/lib/api');
       const counts: Record<string, number> = {};
       for (const job of fetchedJobs.filter(j => j.status === 'open')) {
         try {
-          const applications = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.JOB_APPLICATIONS,
-            [
-              Query.equal('jobId', job.$id),
-              Query.equal('status', 'pending'),
-              Query.limit(1) // We only need the count
-            ]
+          const applications = await ApiService.request<{ total: number }>(
+            `/job-applications?filter_jobId=${job.$id}&filter_status=pending`
           );
-          counts[job.$id] = applications.total;
+          counts[job.$id] = applications.total || 0;
         } catch (error) {
           console.error(`Failed to fetch applicant count for job ${job.$id}:`, error);
           counts[job.$id] = 0;
@@ -83,10 +75,10 @@ export default function ClientJobsPage() {
   const handleCancelJob = async (job: Job) => {
     // Verify job still exists before opening cancel modal
     try {
-      const { databases, COLLECTIONS, DATABASE_ID } = await import('@/lib/appwrite');
+      const { ApiService } = await import('@/lib/api');
 
-      // Validate job exists in database
-      await databases.getDocument(DATABASE_ID, COLLECTIONS.JOBS, job.$id);
+      // Validate job exists in database using VPS API
+      await ApiService.request(`/jobs/${job.$id}`);
 
       // Job exists, proceed with cancellation
       setJobToCancel(job);

@@ -1,58 +1,46 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './api';
-import { ID, Query, Permission, Role } from '@/lib/api';
+import { DATABASE_ID, COLLECTIONS } from './api';
+import { ID } from '@/lib/api';
 import { JobApplication, JobApplicationWithDetails, JobApplicationStatus } from './types';
+import { NotificationService } from './notification-service';
+import { ApiService } from './api';
 
 /**
  * Job Application Service
  *
- * Manages worker applications to jobs (show interest functionality)
+ * Manages worker applications to jobs (show interest functionality) using VPS API
  * - Workers apply to jobs instead of directly accepting
  * - Clients see applicant count and select workers after funding
  */
 export class JobApplicationService {
   /**
-   * Worker applies to a job (shows interest)
+   * Worker applies to a job (shows interest) using VPS API
    *
    * @param jobId - ID of the job to apply to
    * @param workerId - ID of the worker applying
    * @param message - Optional message/pitch from worker
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    * @returns The created application
    */
   static async applyToJob(
     jobId: string,
     workerId: string,
-    message?: string,
-    dbClient?: any
+    message?: string
   ): Promise<JobApplication> {
-    const db = dbClient || databases; // Use provided client or default to client-side
-
     try {
       console.log('📝 applyToJob called with:', { jobId, workerId, message });
 
-      // 1. Check if worker already applied
+      // 1. Check if worker already applied using VPS API
       console.log('1️⃣ Checking for existing applications...');
-      const existingApplications = await db.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        [
-          Query.equal('jobId', jobId),
-          Query.equal('workerId', workerId),
-          Query.limit(1)
-        ]
+      const existingApplications = await ApiService.request<any[]>(
+        `/job-applications?filter_jobId=${jobId}&filter_workerId=${workerId}&limit=1`
       );
 
-      if (existingApplications.documents.length > 0) {
+      if (existingApplications && existingApplications.length > 0) {
         throw new Error('You have already applied to this job');
       }
 
-      // 2. Get job details to validate and get clientId
+      // 2. Get job details to validate and get clientId using VPS API
       console.log('2️⃣ Fetching job details for jobId:', jobId);
-      const job = await db.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId
-      );
+      const job = await ApiService.request<any>(`/jobs/${jobId}`);
       console.log('✅ Job fetched:', job.$id);
 
       // 3. Validate job is still open
@@ -60,13 +48,9 @@ export class JobApplicationService {
         throw new Error('This job is no longer accepting applications');
       }
 
-      // 4. Validate worker is verified and active
+      // 4. Validate worker is verified and active using VPS API
       console.log('4️⃣ Fetching worker details for workerId:', workerId);
-      const worker = await db.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.WORKERS,
-        workerId
-      );
+      const worker = await ApiService.request<any>(`/workers/${workerId}`);
       console.log('✅ Worker fetched:', worker.$id);
 
       if (!worker.isVerified) {
@@ -77,8 +61,10 @@ export class JobApplicationService {
         throw new Error('Your account must be active to apply to jobs');
       }
 
-      // 5. Create application
+      // 5. Create application using VPS API
+      const applicationId = ID.unique();
       const applicationData = {
+        $id: applicationId,
         jobId,
         workerId,
         clientId: job.clientId,
@@ -87,36 +73,58 @@ export class JobApplicationService {
         appliedAt: new Date().toISOString(),
       };
 
-      const application = await db.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        ID.unique(),
-        applicationData,
-        [
-          // Worker can read, update, and delete their own application
-          Permission.read(Role.user(worker.userId)),
-          Permission.update(Role.user(worker.userId)),
-          Permission.delete(Role.user(worker.userId)),
-          // Client can read the application
-          Permission.read(Role.user(job.clientId)),
-          // Client can update the application (to select/reject)
-          Permission.update(Role.user(job.clientId)),
-        ]
-      );
+      const application = await ApiService.request<JobApplication>('/job-applications', {
+        method: 'POST',
+        body: JSON.stringify(applicationData),
+      });
 
-      // 6. Increment applicant count on job (optimistic)
+      // 6. Increment applicant count on job using VPS API
       const currentCount = job.applicantCount || 0;
-      await db.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        jobId,
-        {
+      await ApiService.request(`/jobs/${jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           applicantCount: currentCount + 1,
           requiresFunding: true, // Mark job as requiring funding to view applicants
-        }
-      );
+        }),
+      });
 
-      return application as unknown as JobApplication;
+      // 7. Notify client about new application
+      try {
+        await NotificationService.createNotification({
+          userId: job.clientId,
+          title: 'New Job Application!',
+          message: `A worker has applied to your job "${job.title}"`,
+          type: 'job',
+          actionUrl: `/(tabs)/client/jobs?jobId=${jobId}`,
+          data: {
+            type: 'job',
+            jobId: jobId,
+            applicationId: application.$id
+          },
+          idempotencyKey: `job_application_${jobId}_${workerId}_${application.$id}`,
+        });
+
+        // Send push notification to client
+        await ApiService.request('/api/push/send', {
+          method: 'POST',
+          body: JSON.stringify({
+            userId: job.clientId,
+            title: 'New Job Application!',
+            body: `A worker has applied to your job "${job.title}"`,
+            data: {
+              type: 'job',
+              jobId: jobId,
+              applicationId: application.$id,
+              actionUrl: `/(tabs)/client/jobs?jobId=${jobId}`
+            }
+          })
+        });
+      } catch (notifError) {
+        console.error('Failed to send application notification:', notifError);
+        // Don't throw - notification failure shouldn't block application
+      }
+
+      return application;
     } catch (error) {
       console.error('Error applying to job:', error);
       throw error;
@@ -124,7 +132,7 @@ export class JobApplicationService {
   }
 
   /**
-   * Get all applications for a specific job
+   * Get all applications for a specific job using VPS API
    *
    * @param jobId - ID of the job
    * @param includeWorkerDetails - Whether to fetch worker details
@@ -135,29 +143,19 @@ export class JobApplicationService {
     includeWorkerDetails: boolean = false
   ): Promise<JobApplication[] | JobApplicationWithDetails[]> {
     try {
-      const applications = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        [
-          Query.equal('jobId', jobId),
-          Query.orderDesc('appliedAt'),
-          Query.limit(100) // Max 100 applicants per job
-        ]
+      const applications = await ApiService.request<JobApplication[]>(
+        `/job-applications?filter_jobId=${jobId}&limit=100`
       );
 
-      if (!includeWorkerDetails) {
-        return applications.documents as unknown as JobApplication[];
+      if (!includeWorkerDetails || !applications) {
+        return applications || [];
       }
 
-      // Fetch worker details for each application
+      // Fetch worker details for each application using VPS API
       const applicationsWithDetails = await Promise.all(
-        applications.documents.map(async (app) => {
+        applications.map(async (app) => {
           try {
-            const worker = await databases.getDocument(
-              DATABASE_ID,
-              COLLECTIONS.WORKERS,
-              app.workerId
-            );
+            const worker = await ApiService.request<any>(`/workers/${app.workerId}`);
 
             return {
               ...app,
@@ -189,23 +187,17 @@ export class JobApplicationService {
   }
 
   /**
-   * Get count of pending applications for a job
+   * Get count of pending applications for a job using VPS API
    *
    * @param jobId - ID of the job
    * @returns Number of pending applications
    */
   static async getApplicationCount(jobId: string): Promise<number> {
     try {
-      const applications = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        [
-          Query.equal('jobId', jobId),
-          Query.equal('status', 'pending'),
-        ]
+      const applications = await ApiService.request<any>(
+        `/job-applications?filter_jobId=${jobId}&filter_status=pending`
       );
-
-      return applications.total;
+      return applications.total || (Array.isArray(applications) ? applications.length : 0);
     } catch (error) {
       console.error('Error getting application count:', error);
       return 0;
@@ -213,7 +205,7 @@ export class JobApplicationService {
   }
 
   /**
-   * Check if a worker has already applied to a job
+   * Check if a worker has already applied to a job using VPS API
    *
    * @param jobId - ID of the job
    * @param workerId - ID of the worker
@@ -221,17 +213,10 @@ export class JobApplicationService {
    */
   static async hasWorkerApplied(jobId: string, workerId: string): Promise<boolean> {
     try {
-      const applications = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        [
-          Query.equal('jobId', jobId),
-          Query.equal('workerId', workerId),
-          Query.limit(1)
-        ]
+      const applications = await ApiService.request<any[]>(
+        `/job-applications?filter_jobId=${jobId}&filter_workerId=${workerId}&limit=1`
       );
-
-      return applications.documents.length > 0;
+      return applications && applications.length > 0;
     } catch (error) {
       console.error('Error checking if worker applied:', error);
       return false;
@@ -239,7 +224,7 @@ export class JobApplicationService {
   }
 
   /**
-   * Worker withdraws their application
+   * Worker withdraws their application using VPS API
    *
    * @param applicationId - ID of the application to withdraw
    * @param workerId - ID of the worker (for validation)
@@ -249,12 +234,8 @@ export class JobApplicationService {
     workerId: string
   ): Promise<void> {
     try {
-      // 1. Get application
-      const application = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        applicationId
-      );
+      // 1. Get application using VPS API
+      const application = await ApiService.request<any>(`/job-applications/${applicationId}`);
 
       // 2. Validate worker owns this application
       if (application.workerId !== workerId) {
@@ -266,32 +247,24 @@ export class JobApplicationService {
         throw new Error('You can only withdraw pending applications');
       }
 
-      // 4. Update application status
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        applicationId,
-        {
+      // 4. Update application status using VPS API
+      await ApiService.request(`/job-applications/${applicationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           status: 'withdrawn' as JobApplicationStatus,
-        }
-      );
+        }),
+      });
 
-      // 5. Decrement applicant count on job
-      const job = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        application.jobId
-      );
+      // 5. Decrement applicant count on job using VPS API
+      const job = await ApiService.request<any>(`/jobs/${application.jobId}`);
 
       const currentCount = job.applicantCount || 0;
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOBS,
-        application.jobId,
-        {
+      await ApiService.request(`/jobs/${application.jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           applicantCount: Math.max(0, currentCount - 1),
-        }
-      );
+        }),
+      });
     } catch (error) {
       console.error('Error withdrawing application:', error);
       throw error;
@@ -299,7 +272,7 @@ export class JobApplicationService {
   }
 
   /**
-   * Get all applications by a specific worker
+   * Get all applications by a specific worker using VPS API
    *
    * @param workerId - ID of the worker
    * @param status - Optional filter by status
@@ -310,23 +283,11 @@ export class JobApplicationService {
     status?: JobApplicationStatus
   ): Promise<JobApplication[]> {
     try {
-      const queries = [
-        Query.equal('workerId', workerId),
-        Query.orderDesc('appliedAt'),
-        Query.limit(50)
-      ];
-
-      if (status) {
-        queries.push(Query.equal('status', status));
-      }
-
-      const applications = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        queries
-      );
-
-      return applications.documents as unknown as JobApplication[];
+      const query = status
+        ? `/job-applications?filter_workerId=${workerId}&filter_status=${status}&limit=50`
+        : `/job-applications?filter_workerId=${workerId}&limit=50`;
+      const applications = await ApiService.request<JobApplication[]>(query);
+      return applications || [];
     } catch (error) {
       console.error('Error getting applications by worker:', error);
       throw error;
@@ -334,22 +295,18 @@ export class JobApplicationService {
   }
 
   /**
-   * Update application status (used by worker selection service)
+   * Update application status (used by worker selection service) using VPS API
    * Internal method - should not be called directly by clients
    *
    * @param applicationId - ID of the application
    * @param status - New status
    * @param timestamp - Optional timestamp for selectedAt/rejectedAt
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async updateApplicationStatus(
     applicationId: string,
     status: JobApplicationStatus,
-    timestamp?: string,
-    dbClient?: any
+    timestamp?: string
   ): Promise<void> {
-    const db = dbClient || databases;
-
     try {
       const updateData: any = {
         status,
@@ -361,12 +318,10 @@ export class JobApplicationService {
         updateData.rejectedAt = timestamp;
       }
 
-      await db.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        applicationId,
-        updateData
-      );
+      await ApiService.request(`/job-applications/${applicationId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData),
+      });
     } catch (error) {
       console.error('Error updating application status:', error);
       throw error;
@@ -374,36 +329,26 @@ export class JobApplicationService {
   }
 
   /**
-   * Reject all pending applications for a job (used when job is filled/cancelled)
+   * Reject all pending applications for a job (used when job is filled/cancelled) using VPS API
    * Internal method
    *
    * @param jobId - ID of the job
    * @param excludeApplicationId - Optional application ID to exclude (e.g., selected worker)
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async rejectPendingApplications(
     jobId: string,
-    excludeApplicationId?: string,
-    dbClient?: any
+    excludeApplicationId?: string
   ): Promise<void> {
-    const db = dbClient || databases;
-
     try {
-      const applications = await db.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.JOB_APPLICATIONS,
-        [
-          Query.equal('jobId', jobId),
-          Query.equal('status', 'pending'),
-          Query.limit(100)
-        ]
+      const applications = await ApiService.request<any[]>(
+        `/job-applications?filter_jobId=${jobId}&filter_status=pending&limit=100`
       );
 
       const rejectTimestamp = new Date().toISOString();
 
       // Update all pending applications to rejected
       await Promise.all(
-        applications.documents.map(async (app) => {
+        applications.map(async (app) => {
           // Skip the excluded application (selected worker)
           if (excludeApplicationId && app.$id === excludeApplicationId) {
             return;
@@ -412,8 +357,7 @@ export class JobApplicationService {
           await this.updateApplicationStatus(
             app.$id,
             'rejected',
-            rejectTimestamp,
-            db
+            rejectTimestamp
           );
         })
       );

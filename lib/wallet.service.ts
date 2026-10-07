@@ -1,6 +1,7 @@
-import { databases, COLLECTIONS, DATABASE_ID, ID, Query } from './api';
+import { COLLECTIONS, DATABASE_ID, ID } from './api';
 import type { Wallet, WalletTransaction } from './types';
 import { COMMISSION_RATE } from './constants';
+import { ApiService } from './api';
 
 /**
  * SIMPLE WALLET SERVICE
@@ -16,42 +17,37 @@ import { COMMISSION_RATE } from './constants';
 export class WalletService {
 
   /**
-   * Get or create wallet for user
+   * Get or create wallet for user using VPS API
    * @param userId - User ID to get/create wallet for
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
-  static async getOrCreateWallet(userId: string, dbClient?: any): Promise<Wallet> {
-    const db = dbClient || databases;
-
+  static async getOrCreateWallet(userId: string): Promise<Wallet> {
     try {
-      // Try to get existing wallet
-      const wallets = await db.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        [Query.equal('userId', userId), Query.limit(1)]
+      // Try to get existing wallet using VPS API
+      const wallets = await ApiService.request<Wallet[]>(
+        `/virtual-wallets?filter_userId=${userId}&limit=1`
       );
 
-      if (wallets.documents.length > 0) {
-        return wallets.documents[0] as unknown as Wallet;
+      if (wallets && wallets.length > 0) {
+        return wallets[0];
       }
 
-      // Create new wallet
-      const wallet = await db.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        ID.unique(),
-        {
+      // Create new wallet using VPS API
+      const walletId = ID.unique();
+      const wallet = await ApiService.request<Wallet>('/virtual-wallets', {
+        method: 'POST',
+        body: JSON.stringify({
+          $id: walletId,
           userId,
           balance: 0,
           escrow: 0,
           totalEarned: 0,
           totalSpent: 0,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       console.log(`✅ Created wallet for user ${userId}`);
-      return wallet as unknown as Wallet;
+      return wallet;
 
     } catch (error) {
       console.error('Error getting/creating wallet:', error);
@@ -60,7 +56,7 @@ export class WalletService {
   }
 
   /**
-   * Add funds to wallet (from Paystack payment)
+   * Add funds to wallet (from Paystack payment) using VPS API
    *
    * IDEMPOTENCY: Uses Paystack reference as transaction ID
    * If called twice with same reference, second call does nothing
@@ -74,13 +70,12 @@ export class WalletService {
     try {
       const { userId, amountInNaira, paystackReference, description } = params;
 
-      // IDEMPOTENCY CHECK: Try to create transaction with reference as ID
+      // IDEMPOTENCY CHECK: Try to create transaction with reference as ID using VPS API
       try {
-        await databases.createDocument(
-          DATABASE_ID!,
-          COLLECTIONS.WALLET_TRANSACTIONS,
-          paystackReference, // Use reference as ID for idempotency
-          {
+        await ApiService.request('/wallet-transactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            $id: paystackReference, // Use reference as ID for idempotency
             userId,
             type: 'topup',
             amount: amountInNaira,
@@ -88,11 +83,11 @@ export class WalletService {
             status: 'completed',
             description,
             createdAt: new Date().toISOString()
-          }
-        );
+          })
+        });
       } catch (error: any) {
         // If document already exists, payment already processed
-        if (error.code === 409 || error.message?.includes('already exists')) {
+        if (error.code === 409 || error.message?.includes('already exists') || error.message?.includes('duplicate')) {
           console.log(`⚠️ Payment ${paystackReference} already processed`);
           return {
             success: true,
@@ -102,19 +97,17 @@ export class WalletService {
         throw error;
       }
 
-      // Get wallet
+      // Get wallet using VPS API
       const wallet = await this.getOrCreateWallet(userId);
 
-      // Update wallet balance
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        wallet.$id,
-        {
+      // Update wallet balance using VPS API
+      await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: wallet.balance + amountInNaira,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       console.log(`✅ Credited ₦${amountInNaira} to ${userId} (ref: ${paystackReference})`);
 
@@ -133,24 +126,20 @@ export class WalletService {
   }
 
   /**
-   * Hold funds for a booking (client pays, money goes to escrow)
+   * Hold funds for a booking (client pays, money goes to escrow) using VPS API
    *
    * IDEMPOTENCY: Uses bookingId as part of transaction reference
-   * @param dbClient - Optional database client (use serverDatabases for server-side calls)
    */
   static async holdFundsForBooking(params: {
     clientId: string;
     bookingId: string;
     amountInNaira: number;
-    dbClient?: any;
   }): Promise<{ success: boolean; message: string }> {
-    const db = params.dbClient || databases;
-
     try {
       const { clientId, bookingId, amountInNaira } = params;
 
-      // Get wallet
-      const wallet = await this.getOrCreateWallet(clientId, db);
+      // Get wallet using VPS API
+      const wallet = await this.getOrCreateWallet(clientId);
 
       // CHECK BALANCE
       if (wallet.balance < amountInNaira) {
@@ -160,14 +149,13 @@ export class WalletService {
         };
       }
 
-      // IDEMPOTENCY: Try to create transaction
+      // IDEMPOTENCY: Try to create transaction using VPS API
       const transactionId = `hold_${bookingId}`;
       try {
-        await db.createDocument(
-          DATABASE_ID!,
-          COLLECTIONS.WALLET_TRANSACTIONS,
-          transactionId,
-          {
+        await ApiService.request('/wallet-transactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            $id: transactionId,
             userId: clientId,
             type: 'booking_hold',
             amount: amountInNaira,
@@ -176,10 +164,10 @@ export class WalletService {
             status: 'completed',
             description: `Payment held for booking #${bookingId}`,
             createdAt: new Date().toISOString()
-          }
-        );
+          })
+        });
       } catch (error: any) {
-        if (error.code === 409 || error.message?.includes('already exists')) {
+        if (error.code === 409 || error.message?.includes('already exists') || error.message?.includes('duplicate')) {
           console.log(`⚠️ Booking ${bookingId} already paid`);
           return {
             success: true,
@@ -189,18 +177,16 @@ export class WalletService {
         throw error;
       }
 
-      // Move from balance to escrow
-      await db.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        wallet.$id,
-        {
+      // Move from balance to escrow using VPS API
+      await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: wallet.balance - amountInNaira,
           escrow: wallet.escrow + amountInNaira,
           totalSpent: wallet.totalSpent + amountInNaira,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       console.log(`✅ Held ₦${amountInNaira} for booking ${bookingId}`);
 
@@ -219,7 +205,7 @@ export class WalletService {
   }
 
   /**
-   * Release funds from escrow to worker (job completed)
+   * Release funds from escrow to worker (job completed) using VPS API
    *
    * IDEMPOTENCY: Uses bookingId as part of transaction reference
    *
@@ -241,7 +227,7 @@ export class WalletService {
       const commissionAmount = Math.round(amountInNaira * COMMISSION_RATE);
       const workerAmount = amountInNaira - commissionAmount;
 
-      // Get both wallets
+      // Get both wallets using VPS API
       const [clientWallet, workerWallet] = await Promise.all([
         this.getOrCreateWallet(clientId),
         this.getOrCreateWallet(workerId)
@@ -255,14 +241,13 @@ export class WalletService {
         };
       }
 
-      // IDEMPOTENCY: Try to create worker payment transaction
+      // IDEMPOTENCY: Try to create worker payment transaction using VPS API
       const transactionId = `release_${bookingId}`;
       try {
-        await databases.createDocument(
-          DATABASE_ID!,
-          COLLECTIONS.WALLET_TRANSACTIONS,
-          transactionId,
-          {
+        await ApiService.request('/wallet-transactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            $id: transactionId,
             userId: workerId,
             type: 'booking_release',
             amount: workerAmount,
@@ -271,10 +256,10 @@ export class WalletService {
             status: 'completed',
             description: `Payment for booking #${bookingId} (after ${COMMISSION_RATE * 100}% commission)`,
             createdAt: new Date().toISOString()
-          }
-        );
+          })
+        });
       } catch (error: any) {
-        if (error.code === 409 || error.message?.includes('already exists')) {
+        if (error.code === 409 || error.message?.includes('already exists') || error.message?.includes('duplicate')) {
           console.log(`⚠️ Booking ${bookingId} already released`);
           return {
             success: true,
@@ -286,14 +271,13 @@ export class WalletService {
         throw error;
       }
 
-      // Create platform commission transaction record
+      // Create platform commission transaction record using VPS API
       const commissionTransactionId = `commission_${bookingId}`;
       try {
-        await databases.createDocument(
-          DATABASE_ID!,
-          COLLECTIONS.WALLET_TRANSACTIONS,
-          commissionTransactionId,
-          {
+        await ApiService.request('/wallet-transactions', {
+          method: 'POST',
+          body: JSON.stringify({
+            $id: commissionTransactionId,
             userId: 'platform',
             type: 'commission',
             amount: commissionAmount,
@@ -302,11 +286,11 @@ export class WalletService {
             status: 'completed',
             description: `Platform commission (${COMMISSION_RATE * 100}%) for booking #${bookingId}`,
             createdAt: new Date().toISOString()
-          }
-        );
+          })
+        });
       } catch (error: any) {
         // Commission transaction already exists, continue
-        if (error.code !== 409 && !error.message?.includes('already exists')) {
+        if (error.code !== 409 && !error.message?.includes('already exists') && !error.message?.includes('duplicate')) {
           throw error;
         }
       }
@@ -327,28 +311,24 @@ export class WalletService {
         console.error('Partner commission failed (non-blocking):', error);
       }
 
-      // Update client wallet (remove from escrow)
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        clientWallet.$id,
-        {
+      // Update client wallet (remove from escrow) using VPS API
+      await ApiService.request(`/virtual-wallets/${clientWallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           escrow: clientWallet.escrow - amountInNaira,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
-      // Update worker wallet (add NET amount after commission)
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        workerWallet.$id,
-        {
+      // Update worker wallet (add NET amount after commission) using VPS API
+      await ApiService.request(`/virtual-wallets/${workerWallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: workerWallet.balance + workerAmount,
           totalEarned: workerWallet.totalEarned + workerAmount,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       console.log(`✅ Released ₦${amountInNaira} for booking ${bookingId}:`);
       console.log(`   Worker receives: ₦${workerAmount.toLocaleString()}`);
@@ -371,21 +351,14 @@ export class WalletService {
   }
 
   /**
-   * Get wallet transactions
+   * Get wallet transactions using VPS API
    */
   static async getTransactions(userId: string, limit: number = 50): Promise<WalletTransaction[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.WALLET_TRANSACTIONS,
-        [
-          Query.equal('userId', userId),
-          Query.orderDesc('createdAt'),
-          Query.limit(limit)
-        ]
+      const response = await ApiService.request<WalletTransaction[]>(
+        `/wallet-transactions?filter_userId=${userId}&limit=${limit}`
       );
-
-      return response.documents as unknown as WalletTransaction[];
+      return response || [];
     } catch (error) {
       console.error('Error fetching transactions:', error);
       return [];
@@ -393,7 +366,7 @@ export class WalletService {
   }
 
   /**
-   * ROLLBACK: Reverse a payment release (move funds back from worker to escrow)
+   * ROLLBACK: Reverse a payment release (move funds back from worker to escrow) using VPS API
    *
    * USE CASE:
    * - Payment released to worker ✅
@@ -422,7 +395,7 @@ export class WalletService {
       const commissionAmount = Math.round(amountInNaira * COMMISSION_RATE);
       const workerAmount = amountInNaira - commissionAmount;
 
-      // Get both wallets
+      // Get both wallets using VPS API
       const [clientWallet, workerWallet] = await Promise.all([
         this.getOrCreateWallet(clientId),
         this.getOrCreateWallet(workerId)
@@ -437,13 +410,12 @@ export class WalletService {
         };
       }
 
-      // Create rollback transaction record
+      // Create rollback transaction record using VPS API
       const rollbackTransactionId = `rollback_${bookingId}_${Date.now()}`;
-      await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WALLET_TRANSACTIONS,
-        rollbackTransactionId,
-        {
+      await ApiService.request('/wallet-transactions', {
+        method: 'POST',
+        body: JSON.stringify({
+          $id: rollbackTransactionId,
           userId: workerId,
           type: 'rollback',
           amount: -workerAmount, // Negative amount indicates reversal (NET amount)
@@ -452,31 +424,27 @@ export class WalletService {
           status: 'completed',
           description: `Rollback payment for booking #${bookingId}`,
           createdAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
-      // Remove NET amount from worker balance
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        workerWallet.$id,
-        {
+      // Remove NET amount from worker balance using VPS API
+      await ApiService.request(`/virtual-wallets/${workerWallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: workerWallet.balance - workerAmount,
           totalEarned: workerWallet.totalEarned - workerAmount,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
-      // Add FULL amount back to client escrow (including the commission that was deducted)
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        clientWallet.$id,
-        {
+      // Add FULL amount back to client escrow (including the commission that was deducted) using VPS API
+      await ApiService.request(`/virtual-wallets/${clientWallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           escrow: clientWallet.escrow + amountInNaira,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       console.log(`✅ Rolled back payment for booking ${bookingId}:`);
       console.log(`   Deducted from worker: ₦${workerAmount.toLocaleString()}`);
@@ -497,7 +465,7 @@ export class WalletService {
   }
 
   /**
-   * ROLLBACK: Reverse an escrow hold (refund to client balance)
+   * ROLLBACK: Reverse an escrow hold (refund to client balance) using VPS API
    *
    * USE CASE:
    * - Funds held in escrow ✅
@@ -518,7 +486,7 @@ export class WalletService {
 
       console.log(`🔄 Rolling back escrow hold for booking ${bookingId}...`);
 
-      // Get wallet
+      // Get wallet using VPS API
       const wallet = await this.getOrCreateWallet(clientId);
 
       // Verify escrow has the funds
@@ -530,13 +498,12 @@ export class WalletService {
         };
       }
 
-      // Create rollback transaction record
+      // Create rollback transaction record using VPS API
       const rollbackTransactionId = `rollback_hold_${bookingId}_${Date.now()}`;
-      await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WALLET_TRANSACTIONS,
-        rollbackTransactionId,
-        {
+      await ApiService.request('/wallet-transactions', {
+        method: 'POST',
+        body: JSON.stringify({
+          $id: rollbackTransactionId,
           userId: clientId,
           type: 'rollback_hold',
           amount: amountInNaira,
@@ -545,21 +512,19 @@ export class WalletService {
           status: 'completed',
           description: `Rollback escrow hold for booking #${bookingId}`,
           createdAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
-      // Move from escrow back to balance
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        wallet.$id,
-        {
+      // Move from escrow back to balance using VPS API
+      await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: wallet.balance + amountInNaira,
           escrow: wallet.escrow - amountInNaira,
           totalSpent: wallet.totalSpent - amountInNaira,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       console.log(`✅ Rolled back ₦${amountInNaira} from escrow to ${clientId} balance`);
 
@@ -573,6 +538,45 @@ export class WalletService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to rollback escrow'
+      };
+    }
+  }
+
+  /**
+   * Release escrow (for refunds/cancellations) using VPS API
+   */
+  static async releaseEscrow(bookingId: string, type: 'refund' | 'payment'): Promise<{ success: boolean; message: string }> {
+    try {
+      // Get booking details using VPS API
+      const booking = await ApiService.request<any>(`/bookings/${bookingId}`);
+      
+      if (type === 'refund') {
+        // Refund to client
+        const wallet = await this.getOrCreateWallet(booking.clientId);
+        await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            balance: wallet.balance + booking.amount,
+            escrow: wallet.escrow - booking.amount,
+            updatedAt: new Date().toISOString()
+          })
+        });
+      } else {
+        // Payment to worker
+        await this.releaseFundsToWorker({
+          clientId: booking.clientId,
+          workerId: booking.workerId,
+          bookingId,
+          amountInNaira: booking.amount
+        });
+      }
+      
+      return { success: true, message: 'Escrow released successfully' };
+    } catch (error) {
+      console.error('Error releasing escrow:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to release escrow'
       };
     }
   }

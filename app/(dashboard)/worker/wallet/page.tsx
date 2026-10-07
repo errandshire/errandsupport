@@ -6,7 +6,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { WalletService } from "@/lib/wallet.service";
 import { paystackProxy } from "@/lib/paystack-client";
 import { generatePaymentReference } from "@/lib/utils";
-import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
+import { COLLECTIONS, ID } from "@/lib/api";
+import { ApiService } from "@/lib/api";
 import type { Wallet, WalletTransaction, BankAccount, Withdrawal } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,15 +93,11 @@ export default function WorkerWalletPage() {
     if (!user) return [];
 
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.BANK_ACCOUNTS,
-        [Query.equal('userId', user.$id)]
+      const response = await ApiService.request<BankAccount[]>(
+        `/bank-accounts?filter_userId=${user.$id}`
       );
-
-      const accounts = response.documents as unknown as BankAccount[];
-      setBankAccounts(accounts);
-      return accounts;
+      setBankAccounts(response || []);
+      return response || [];
     } catch (error) {
       console.error('Error loading bank accounts:', error);
       return [];
@@ -181,14 +178,13 @@ export default function WorkerWalletPage() {
         accountName: newBank.accountName
       });
 
-      // Save to database
+      // Save to database using VPS API
       const bankName = banks.find(b => b.code === newBank.bankCode)?.name || 'Unknown Bank';
 
-      await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.BANK_ACCOUNTS,
-        ID.unique(),
-        {
+      await ApiService.request('/bank-accounts', {
+        method: 'POST',
+        body: JSON.stringify({
+          $id: ID.unique(),
           userId: user.$id,
           accountNumber: newBank.accountNumber,
           accountName: newBank.accountName,
@@ -197,8 +193,8 @@ export default function WorkerWalletPage() {
           paystackRecipientCode: recipient.recipientCode,
           isDefault: bankAccounts.length === 0,
           createdAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       toast.success('Bank account added successfully');
       setShowAddBankModal(false);
@@ -219,16 +215,14 @@ export default function WorkerWalletPage() {
     try {
       setIsSettingDefault(bankAccountId);
 
-      // Update all accounts: set selected as default, others as non-default
+      // Update all accounts: set selected as default, others as non-default using VPS API
       const updatePromises = bankAccounts.map(account =>
-        databases.updateDocument(
-          DATABASE_ID!,
-          COLLECTIONS.BANK_ACCOUNTS,
-          account.$id,
-          {
+        ApiService.request(`/bank-accounts/${account.$id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
             isDefault: account.$id === bankAccountId
-          }
-        )
+          })
+        })
       );
 
       await Promise.all(updatePromises);
@@ -257,22 +251,18 @@ export default function WorkerWalletPage() {
     try {
       setIsDeletingBank(bankToDelete.$id);
 
-      await databases.deleteDocument(
-        DATABASE_ID!,
-        COLLECTIONS.BANK_ACCOUNTS,
-        bankToDelete.$id
-      );
+      await ApiService.request(`/bank-accounts/${bankToDelete.$id}`, {
+        method: 'DELETE'
+      });
 
-      // If deleted account was default and there are other accounts, set first one as default
+      // If deleted account was default and there are other accounts, set first one as default using VPS API
       if (bankToDelete.isDefault && bankAccounts.length > 1) {
         const remainingAccounts = bankAccounts.filter(b => b.$id !== bankToDelete.$id);
         if (remainingAccounts.length > 0) {
-          await databases.updateDocument(
-            DATABASE_ID!,
-            COLLECTIONS.BANK_ACCOUNTS,
-            remainingAccounts[0].$id,
-            { isDefault: true }
-          );
+          await ApiService.request(`/bank-accounts/${remainingAccounts[0].$id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ isDefault: true })
+          });
         }
       }
 
@@ -316,31 +306,28 @@ export default function WorkerWalletPage() {
       // Generate reference
       const reference = generatePaymentReference('withdraw');
 
-      // Deduct from wallet first
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        wallet.$id,
-        {
+      // Deduct from wallet first using VPS API
+      await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           balance: wallet.balance - amount,
           updatedAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
-      // Create withdrawal record
-      const withdrawal = await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WITHDRAWALS,
-        ID.unique(),
-        {
+      // Create withdrawal record using VPS API
+      const withdrawal = await ApiService.request<any>('/withdrawals', {
+        method: 'POST',
+        body: JSON.stringify({
+          $id: ID.unique(),
           userId: user.$id,
           amount,
           bankAccountId: selectedBankAccount,
           status: 'pending',
           reference,
           createdAt: new Date().toISOString()
-        }
-      );
+        })
+      });
 
       // Initiate Paystack transfer
       await paystackProxy('initiateTransfer', {
@@ -350,15 +337,13 @@ export default function WorkerWalletPage() {
         reason: 'Wallet withdrawal'
       });
 
-      // Update withdrawal status
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WITHDRAWALS,
-        withdrawal.$id,
-        {
+      // Update withdrawal status using VPS API
+      await ApiService.request(`/withdrawals/${withdrawal.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           status: 'processing'
-        }
-      );
+        })
+      });
 
       toast.success('Withdrawal initiated! Funds will arrive in your account shortly (usually within minutes).');
       setShowWithdrawModal(false);

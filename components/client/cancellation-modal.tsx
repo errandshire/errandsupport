@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { trackMetaEvent } from "@/lib/meta-pixel-events";
 import { useAuth } from "@/hooks/use-auth";
+import { JobPostingService } from "@/lib/job-posting.service";
 
 interface CancellationModalProps {
   isOpen: boolean;
@@ -56,30 +57,12 @@ export function CancellationModal({
     setIsSubmitting(true);
 
     try {
-      // Call the appropriate API endpoint
-      const endpoint = type === 'job'
-        ? `/api/jobs/cancel?jobId=${itemId}`
-        : `/api/bookings/${itemId}/complete`;
-
-      const response = await fetch(endpoint, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clientId: user.$id,
-          reason: reason || undefined
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        // Handle specific error cases
-        if (response.status === 404 || data.message?.includes('not found')) {
-          throw new Error(`This ${type} no longer exists. It may have already been cancelled.`);
-        }
-        throw new Error(data.message || `Failed to cancel ${type}`);
+      if (type === 'job') {
+        // Use JobPostingService to cancel job
+        await JobPostingService.cancelJob(itemId, user.$id, reason || undefined);
+      } else {
+        // TODO: Implement booking cancellation
+        throw new Error('Booking cancellation not yet implemented');
       }
 
       // Track cancellation with Meta Pixel
@@ -93,7 +76,7 @@ export function CancellationModal({
         console.error('Meta Pixel tracking error:', trackError);
       }
 
-      toast.success(data.message || `${type === 'job' ? 'Job' : 'Booking'} cancelled successfully`);
+      toast.success(`${type === 'job' ? 'Job' : 'Booking'} cancelled successfully`);
       onConfirm();
       onClose();
     } catch (error) {
