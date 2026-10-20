@@ -68,40 +68,27 @@ export default function RecentJobsPage() {
     try {
       setIsLoading(true);
 
-      const queries = [
-        Query.orderDesc('$createdAt'),
-        Query.limit(itemsPerPage),
-        Query.offset((page - 1) * itemsPerPage)
-      ];
-
-      // Add status filter
+      // Build query parameters for VPS API
+      let apiUrl = `/jobs?limit=${itemsPerPage}&offset=${(page - 1) * itemsPerPage}`;
+      
       if (status !== "all") {
-        queries.unshift(Query.equal('status', status));
+        apiUrl += `&filter_status=${status}`;
       }
-
-      // Add search if provided
+      
       if (searchQuery.trim()) {
-        queries.splice(1, 2);
-        queries.push(Query.limit(5000));
+        apiUrl += `&search=${encodeURIComponent(searchQuery.trim())}`;
       }
 
-      const res = await databases.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.BOOKINGS,
-        queries
-      );
-
-      setTotalCount(res.total);
+      const res = await ApiService.request<any>(apiUrl);
+      const jobsData = Array.isArray(res) ? res : [];
+      
+      setTotalCount(jobsData.length);
 
       // Fetch client details for each job
       const jobsWithClientInfo = await Promise.all(
-        res.documents.map(async (job: any) => {
+        jobsData.map(async (job: any) => {
           try {
-            const client = await databases.getDocument(
-              DATABASE_ID!,
-              COLLECTIONS.USERS,
-              job.clientId
-            );
+            const client = await ApiService.request(`/users/${job.clientId}`);
             return {
               ...job,
               clientName: client.name || client.email,
@@ -109,21 +96,12 @@ export default function RecentJobsPage() {
               clientPhone: client.phone
             };
           } catch (error) {
-            // Client not found or other error - return job with placeholder info
             return { ...job, clientName: 'Unknown', clientEmail: '', clientPhone: '' };
           }
         })
       );
 
-      let filteredJobs = jobsWithClientInfo;
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        filteredJobs = jobsWithClientInfo.filter((j: any) => 
-          `${j.title} ${j.category} ${j.description} ${j.clientName} ${j.clientPhone}`.toLowerCase().includes(q)
-        );
-      }
-
-      setJobs(filteredJobs as unknown as JobDoc[]);
+      setJobs(jobsWithClientInfo as unknown as JobDoc[]);
     } catch (error) {
       console.error("Error loading jobs:", error);
       toast.error("Failed to load jobs");
@@ -155,7 +133,9 @@ export default function RecentJobsPage() {
   const deleteJob = async (job: JobDoc) => {
     if (!confirm(`Delete "${job.title}"?`)) return;
     try {
-      await databases.deleteDocument(DATABASE_ID!, COLLECTIONS.BOOKINGS, job.$id);
+      await ApiService.request(`/jobs/${job.$id}`, {
+        method: 'DELETE'
+      });
       toast.success("Job deleted");
       fetchJobs(currentPage, search, statusFilter);
       setJobDetailOpen(false);
@@ -167,14 +147,13 @@ export default function RecentJobsPage() {
   const renewJob = async (job: JobDoc) => {
     if (!confirm(`Renew "${job.title}"? This will reopen it for workers.`)) return;
     try {
-      await databases.updateDocument(DATABASE_ID!, COLLECTIONS.BOOKINGS, job.$id, {
-        status: 'open',
-        workerId: null,
-        acceptedAt: null,
-        completedAt: null,
-        cancelledAt: null,
-        cancellationReason: null,
-        updatedAt: new Date().toISOString()
+      await ApiService.request(`/jobs/${job.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: 'open',
+          workerId: null,
+          updatedAt: new Date().toISOString()
+        })
       });
       toast.success("Job renewed");
       fetchJobs(currentPage, search, statusFilter);
@@ -187,9 +166,12 @@ export default function RecentJobsPage() {
   const updateJob = async () => {
     if (!selectedJob) return;
     try {
-      await databases.updateDocument(DATABASE_ID!, COLLECTIONS.BOOKINGS, selectedJob.$id, {
-        ...editForm,
-        updatedAt: new Date().toISOString()
+      await ApiService.request(`/jobs/${selectedJob.$id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...editForm,
+          updatedAt: new Date().toISOString()
+        })
       });
       toast.success("Job updated successfully");
       setIsEditing(false);

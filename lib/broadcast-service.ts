@@ -1,8 +1,9 @@
-import { databases, DATABASE_ID, COLLECTIONS } from './api';
+import { COLLECTIONS, DATABASE_ID } from './api';
 import { Query, ID } from '@/lib/api';
 import { emailService } from './email-service';
 import { TermiiSMSService } from './termii-sms.service';
 import { notificationService } from './notification-service';
+import { ApiService } from './api';
 
 /**
  * Broadcast Service
@@ -84,39 +85,33 @@ const SMS_COST_PER_MESSAGE = 8; // ₦8 per SMS via Termii
 
 export class BroadcastService {
   /**
-   * Get targeted users based on filters
+   * Get targeted users based on filters using VPS API
    */
   static async getTargetedUsers(filters: BroadcastFilters): Promise<any[]> {
     try {
-      const queries: any[] = [Query.limit(5000)]; // Max users to query
+      let url = '/users?limit=5000';
 
       // Role filter
       if (filters.role === 'worker') {
-        queries.push(Query.equal('role', 'worker'));
+        url += '&filter_role=worker';
       } else if (filters.role === 'client') {
-        queries.push(Query.equal('role', 'client'));
+        url += '&filter_role=client';
       }
       // 'all' = no role filter
 
       // Active status filter
       if (filters.isActive !== undefined) {
-        queries.push(Query.equal('status', filters.isActive ? 'active' : 'inactive'));
+        url += `&filter_status=${filters.isActive ? 'active' : 'inactive'}`;
       }
 
       // Registration date filter
       if (filters.registrationDate) {
-        queries.push(Query.greaterThanEqual('$createdAt', filters.registrationDate.from));
-        queries.push(Query.lessThanEqual('$createdAt', filters.registrationDate.to));
+        url += `&greaterThanEqual_$createdAt=${filters.registrationDate.from}`;
+        url += `&lessThanEqual_$createdAt=${filters.registrationDate.to}`;
       }
 
-      // Query USERS collection
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        queries
-      );
-
-      let users = response.documents;
+      // Query users via VPS API
+      const users = await ApiService.request<any[]>(url);
 
       // Sort by most recently created first (newest users get priority)
       users.sort((a: any, b: any) => {
@@ -127,21 +122,13 @@ export class BroadcastService {
 
       // Verification status filter (only for workers)
       if (filters.verificationStatus && filters.verificationStatus.length > 0 && filters.role === 'worker') {
-        // Need to cross-reference with WORKERS collection
-        const workerQueries = [
-          Query.limit(5000),
-          Query.equal('verificationStatus', filters.verificationStatus)
-        ];
-
-        const workersResponse = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.WORKERS,
-          workerQueries
-        );
+        // Need to cross-reference with WORKERS collection via VPS API
+        const workerUrl = `/workers?limit=5000&filter_verificationStatus=${filters.verificationStatus.join(',')}`;
+        const workers = await ApiService.request<any[]>(workerUrl);
 
         // Filter users to only include those with matching verification status
-        const verifiedWorkerUserIds = workersResponse.documents.map((w: any) => w.userId);
-        users = users.filter(u => verifiedWorkerUserIds.includes(u.$id));
+        const verifiedWorkerUserIds = workers.map((w: any) => w.userId);
+        return users.filter(u => verifiedWorkerUserIds.includes(u.$id));
       }
 
       console.log(`📊 Filtered ${users.length} users matching criteria`);
@@ -223,6 +210,8 @@ export class BroadcastService {
       smsFailed: 0,
       inAppSent: 0,
       inAppFailed: 0,
+      pushSent: 0,
+      pushFailed: 0,
     };
 
     try {
@@ -252,12 +241,13 @@ export class BroadcastService {
       };
 
       try {
-        await databases.createDocument(
-          DATABASE_ID,
-          COLLECTIONS.BROADCAST_MESSAGES,
-          broadcastId,
-          broadcastLog
-        );
+        await ApiService.request('/broadcast_messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            $id: broadcastId,
+            ...broadcastLog
+          })
+        });
         console.log('📝 Broadcast log saved:', broadcastId);
       } catch (error) {
         console.error('❌ Failed to save broadcast log:', error);
@@ -286,11 +276,12 @@ export class BroadcastService {
                   userId: user.$id,
                   title: message.title,
                   message: this.htmlToPlainText(message.htmlContent || message.content),
-                  type: 'info',
-                  actionUrl: user.role === 'worker' ? '/(tabs)/worker/jobs-near-you' : '/(tabs)/client/jobs',
+                  type: 'broadcast',
+                  actionUrl: `/broadcast/${broadcastId}`,
                   data: {
                     type: 'broadcast',
-                    actionUrl: user.role === 'worker' ? '/(tabs)/worker/jobs-near-you' : '/(tabs)/client/jobs'
+                    actionUrl: `/broadcast/${broadcastId}`,
+                    broadcastId: broadcastId
                   },
                   idempotencyKey: `broadcast_${broadcastId}_${user.$id}`,
                 });
@@ -299,6 +290,24 @@ export class BroadcastService {
                 console.error(`❌ In-app notification failed for user ${user.$id}:`, error);
                 stats.inAppFailed++;
               }
+            }
+
+            // Send push notification
+            try {
+              await notificationService.sendPushNotification({
+                userId: user.$id,
+                title: message.title,
+                body: this.htmlToPlainText(message.htmlContent || message.content).substring(0, 150),
+                data: {
+                  type: 'broadcast',
+                  actionUrl: `/broadcast/${broadcastId}`,
+                  broadcastId: broadcastId
+                }
+              });
+              stats.pushSent++;
+            } catch (error) {
+              console.error(`❌ Push notification failed for user ${user.$id}:`, error);
+              stats.pushFailed++;
             }
 
           // Send email
@@ -397,21 +406,21 @@ export class BroadcastService {
         }
       }
 
-      // Update broadcast log with final stats
+      // Update broadcast log with final stats using VPS API
       try {
-        await databases.updateDocument(
-          DATABASE_ID,
-          COLLECTIONS.BROADCAST_MESSAGES,
-          broadcastId,
-          {
+        await ApiService.request(`/broadcast_messages/${broadcastId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
             emailsSent: stats.emailsSent,
             smsSent: stats.smsSent,
             inAppSent: stats.inAppSent,
+            pushSent: stats.pushSent,
             emailsFailed: stats.emailsFailed,
             smsFailed: stats.smsFailed,
+            pushFailed: stats.pushFailed,
             status: 'sent',
-          }
-        );
+          })
+        });
         console.log('✅ Broadcast log updated with final stats');
       } catch (error) {
         console.error('❌ Failed to update broadcast log:', error);
@@ -474,24 +483,18 @@ export class BroadcastService {
   }
 
   /**
-   * Get broadcast history
+   * Get broadcast history using VPS API
    */
   static async getBroadcastHistory(adminId: string, limit: number = 50): Promise<BroadcastHistory[]> {
     try {
       console.log('📜 Fetching broadcast history for admin:', adminId);
 
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.BROADCAST_MESSAGES,
-        [
-          Query.equal('adminId', adminId),
-          Query.orderDesc('sentAt'),
-          Query.limit(limit),
-        ]
+      const response = await ApiService.request<any[]>(
+        `/broadcast_messages?filter_adminId=${adminId}&limit=${limit}`
       );
 
       // Parse the content from filters JSON
-      const history = response.documents.map((doc: any) => {
+      const history = response.map((doc: any) => {
         const filters = doc.filters ? JSON.parse(doc.filters) : {};
         const content = filters._content || '';
         const htmlContent = filters._htmlContent || '';
@@ -514,7 +517,7 @@ export class BroadcastService {
           estimatedCost: doc.estimatedCost || 0,
           status: doc.status,
           sentAt: doc.sentAt,
-          createdAt: doc.$createdAt,
+          createdAt: doc.createdAt || doc.$createdAt,
         } as BroadcastHistory;
       });
 
