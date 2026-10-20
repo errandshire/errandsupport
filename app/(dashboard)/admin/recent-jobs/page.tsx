@@ -69,7 +69,7 @@ export default function RecentJobsPage() {
       setIsLoading(true);
 
       // Build query parameters for VPS API
-      let apiUrl = `/jobs?limit=${itemsPerPage}&offset=${(page - 1) * itemsPerPage}`;
+      let apiUrl = `/jobs?limit=${itemsPerPage}&offset=${(page - 1) * itemsPerPage}&order=createdAt,desc`;
       
       if (status !== "all") {
         apiUrl += `&filter_status=${status}`;
