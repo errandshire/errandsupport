@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const adminId = auth!.user.$id;
 
     const body = await request.json();
-    const { message, channels, filters, batchOption } = body;
+    const { message, channels, filters, batchOption, broadcastId, range, cumulative, isLast } = body;
 
     // Validate required fields
     if (!message || !message.title || !message.content) {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!channels || (!channels.email && !channels.sms && !channels.inApp)) {
+    if (!channels || (!channels.email && !channels.sms && !channels.inApp && !channels.push)) {
       return NextResponse.json(
         { success: false, message: 'At least one channel must be selected' },
         { status: 400 }
@@ -76,6 +76,10 @@ export async function POST(request: NextRequest) {
       filters,
       users,
       batchOption,
+      broadcastId,
+      range,
+      cumulative,
+      isLast,
     });
 
     console.log('📊 Broadcast stats:', JSON.stringify(result.stats));

@@ -49,10 +49,12 @@ export default function BroadcastDetailPage() {
   // Parse content from filters if stored as JSON
   let content = broadcast.content || '';
   let htmlContent = broadcast.htmlContent || '';
+  let failures: { to: string; channel: string; reason: string }[] = [];
   try {
     const filters = typeof broadcast.filters === 'string' ? JSON.parse(broadcast.filters) : broadcast.filters;
     if (filters?._content) content = filters._content;
     if (filters?._htmlContent) htmlContent = filters._htmlContent;
+    if (Array.isArray(filters?._failures)) failures = filters._failures;
   } catch (e) {
     // Use raw content if parsing fails
   }
@@ -85,6 +87,49 @@ export default function BroadcastDetailPage() {
             />
           ) : (
             <p className="whitespace-pre-wrap">{content}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Delivery results</CardTitle>
+          <p className="text-sm text-gray-600">
+            Status: {broadcast.status || 'unknown'} · {broadcast.recipientCount || 0} recipients targeted
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Emails sent', value: broadcast.emailsSent || 0, bad: broadcast.emailsFailed || 0 },
+              { label: 'SMS sent', value: broadcast.smsSent || 0, bad: broadcast.smsFailed || 0 },
+              { label: 'In-app', value: broadcast.inAppSent || 0, bad: 0 },
+              { label: 'Push sent', value: broadcast.pushSent || 0, bad: broadcast.pushFailed || 0 },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg border p-3">
+                <div className="text-xs text-gray-500">{item.label}</div>
+                <div className="text-2xl font-semibold">{item.value}</div>
+                {item.bad > 0 && <div className="text-xs text-red-600">{item.bad} failed</div>}
+              </div>
+            ))}
+          </div>
+
+          {failures.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-2">Failed deliveries ({failures.length}{failures.length >= 300 ? '+' : ''})</h3>
+              <div className="max-h-72 overflow-y-auto rounded-lg border divide-y text-sm">
+                {failures.map((f, i) => (
+                  <div key={i} className="p-2 flex gap-3">
+                    <span className="uppercase text-xs font-semibold text-gray-500 w-14 shrink-0">{f.channel}</span>
+                    <span className="font-mono text-xs break-all">{f.to}</span>
+                    <span className="text-red-600 text-xs ml-auto text-right">{f.reason}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Email addresses that Resend has suppressed after a bounce or complaint are accepted by Resend but never delivered, so they do not appear here.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

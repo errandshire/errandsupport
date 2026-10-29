@@ -34,6 +34,8 @@ export default function AdminBroadcastPage() {
   const [emailEnabled, setEmailEnabled] = React.useState(false);
   const [smsEnabled, setSmsEnabled] = React.useState(false);
   const [inAppEnabled, setInAppEnabled] = React.useState(false);
+  const [pushEnabled, setPushEnabled] = React.useState(false);
+  const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null);
 
   // UI state
   const [recipientCount, setRecipientCount] = React.useState(0);
@@ -111,7 +113,7 @@ export default function AdminBroadcastPage() {
       return;
     }
 
-    if (!emailEnabled && !smsEnabled && !inAppEnabled) {
+    if (!emailEnabled && !smsEnabled && !inAppEnabled && !pushEnabled) {
       toast.error('Please select at least one channel');
       return;
     }
@@ -148,60 +150,97 @@ export default function AdminBroadcastPage() {
         registrationDate: getDateRange(),
       };
 
-      const batchOption = batchSelection !== 'all'
-        ? { batch: parseInt(batchSelection), totalBatches }
-        : undefined;
+      const CHUNK_SIZE = 45;
+      const baseOffset = batchSelection !== 'all' ? (parseInt(batchSelection) - 1) * BATCH_SIZE : 0;
+      const total = batchSelection !== 'all' ? selectedBatchRecipients : recipientCount;
 
-      const response = await fetch('/api/admin/broadcast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.$id },
-        body: JSON.stringify({
-          adminId: user.$id,
-          message: {
-            title,
-            content: BroadcastService.htmlToPlainText(htmlContent),
-            htmlContent,
-          },
-          channels: {
-            email: emailEnabled,
-            sms: smsEnabled,
-            inApp: inAppEnabled,
-          },
-          filters,
-          batchOption,
-        }),
-      });
+      let broadcastId: string | undefined;
+      const cumulative = {
+        emailsSent: 0, emailsFailed: 0, smsSent: 0, smsFailed: 0,
+        inAppSent: 0, pushSent: 0, pushFailed: 0, failures: [] as any[],
+      };
+      let inAppFailed = 0;
+      let firstEmailError: string | null = null;
+      let done = 0;
+      setProgress({ done: 0, total });
 
-      const result = await response.json();
+      while (done < total) {
+        const start = baseOffset + done;
+        const end = baseOffset + Math.min(done + CHUNK_SIZE, total);
+        const isLast = done + CHUNK_SIZE >= total;
 
-      if (result.success) {
-        setSendingStatus('success');
-        const delivered = result.stats.emailsSent + result.stats.smsSent + result.stats.inAppSent;
-        const failed = result.stats.emailsFailed + result.stats.smsFailed + result.stats.inAppFailed;
-        toast.success(`Broadcast sent! ${delivered} delivered${failed > 0 ? `, ${failed} failed` : ''}.`);
-        if (result.stats.emailsFailed > 0 && result.stats.emailsSent === 0) {
-          toast.error(`All ${result.stats.emailsFailed} emails failed: ${result.emailError || 'check Vercel function logs'}`);
+        const response = await fetch('/api/admin/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user.$id },
+          body: JSON.stringify({
+            adminId: user.$id,
+            message: {
+              title,
+              content: BroadcastService.htmlToPlainText(htmlContent),
+              htmlContent,
+            },
+            channels: {
+              email: emailEnabled,
+              sms: smsEnabled,
+              inApp: inAppEnabled,
+              push: pushEnabled,
+            },
+            filters,
+            broadcastId,
+            range: { start, end },
+            cumulative,
+            isLast,
+          }),
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+          setSendingStatus('error');
+          toast.error(`${result.message || 'Failed to send broadcast'} (stopped after ${done} of ${total} recipients)`);
+          return;
         }
 
-        // Reset form
-        setTimeout(() => {
-          setTitle('');
-          setHtmlContent('');
-          setEmailEnabled(false);
-          setSmsEnabled(false);
-          setInAppEnabled(false);
-          setSendingStatus('idle');
-        }, 3000);
-      } else {
-        setSendingStatus('error');
-        toast.error(result.message || 'Failed to send broadcast');
+        broadcastId = result.broadcastId;
+        const st = result.stats;
+        cumulative.emailsSent += st.emailsSent;
+        cumulative.emailsFailed += st.emailsFailed;
+        cumulative.smsSent += st.smsSent;
+        cumulative.smsFailed += st.smsFailed;
+        cumulative.inAppSent += st.inAppSent;
+        cumulative.pushSent += st.pushSent || 0;
+        cumulative.pushFailed += st.pushFailed || 0;
+        cumulative.failures.push(...(st.failures || []));
+        inAppFailed += st.inAppFailed || 0;
+        firstEmailError = firstEmailError || result.emailError || null;
+
+        done = Math.min(done + CHUNK_SIZE, total);
+        setProgress({ done, total });
       }
+
+      setSendingStatus('success');
+      const delivered = cumulative.emailsSent + cumulative.smsSent + cumulative.inAppSent + cumulative.pushSent;
+      const failed = cumulative.emailsFailed + cumulative.smsFailed + cumulative.pushFailed + inAppFailed;
+      toast.success(`Broadcast sent to ${total} users! ${delivered} deliveries${failed > 0 ? `, ${failed} failed (details in history)` : ''}.`);
+      if (cumulative.emailsFailed > 0 && cumulative.emailsSent === 0) {
+        toast.error(`All ${cumulative.emailsFailed} emails failed: ${firstEmailError || 'check server logs'}`);
+      }
+
+      setTimeout(() => {
+        setTitle('');
+        setHtmlContent('');
+        setEmailEnabled(false);
+        setSmsEnabled(false);
+        setInAppEnabled(false);
+        setPushEnabled(false);
+        setSendingStatus('idle');
+      }, 3000);
     } catch (error) {
       console.error('Error sending broadcast:', error);
       setSendingStatus('error');
       toast.error('Failed to send broadcast');
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
 
@@ -409,6 +448,18 @@ export default function AdminBroadcastPage() {
                 </Label>
               </div>
 
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="push"
+                  checked={pushEnabled}
+                  onCheckedChange={(checked) => setPushEnabled(checked as boolean)}
+                />
+                <Label htmlFor="push" className="font-normal cursor-pointer flex items-center gap-2">
+                  <Smartphone className="h-4 w-4" />
+                  Push Notification
+                </Label>
+              </div>
+
               {smsEnabled && estimatedCost > 0 && (
                 <Alert className="mt-4">
                   <AlertDescription className="text-sm">
@@ -465,13 +516,13 @@ export default function AdminBroadcastPage() {
                 </Button>
                 <Button
                   onClick={handleSend}
-                  disabled={loading || !title || !htmlContent || recipientCount === 0 || (!emailEnabled && !smsEnabled && !inAppEnabled)}
+                  disabled={loading || !title || !htmlContent || recipientCount === 0 || (!emailEnabled && !smsEnabled && !inAppEnabled && !pushEnabled)}
                   className="flex-1"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Sending...
+                      {progress ? `Sending ${progress.done}/${progress.total}...` : 'Sending...'}
                     </>
                   ) : (
                     <>

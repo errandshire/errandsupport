@@ -30,6 +30,33 @@ export interface BroadcastChannels {
   email: boolean;
   sms: boolean;
   inApp: boolean;
+  push?: boolean;
+}
+
+export interface BroadcastFailure {
+  to: string;
+  channel: 'email' | 'sms' | 'inApp' | 'push';
+  reason: string;
+}
+
+export interface BroadcastCumulative {
+  emailsSent: number;
+  emailsFailed: number;
+  smsSent: number;
+  smsFailed: number;
+  inAppSent: number;
+  pushSent: number;
+  pushFailed: number;
+  failures: BroadcastFailure[];
+}
+
+/** Normalise a Nigerian phone number to 234XXXXXXXXXX. Returns null if it cannot be a valid mobile number. */
+export function normalizeNigerianPhone(raw?: string | null): string | null {
+  if (!raw) return null;
+  let digits = String(raw).replace(/\D/g, '');
+  if (digits.startsWith('234')) digits = digits.slice(3);
+  else if (digits.startsWith('0')) digits = digits.slice(1);
+  return /^[789]\d{9}$/.test(digits) ? `234${digits}` : null;
 }
 
 export interface BroadcastResult {
@@ -194,13 +221,23 @@ export class BroadcastService {
     filters: BroadcastFilters;
     users: any[];
     batchOption?: { batch: number; totalBatches: number };
+    broadcastId?: string;
+    range?: { start: number; end: number };
+    cumulative?: BroadcastCumulative;
+    isLast?: boolean;
   }): Promise<BroadcastResult> {
-    const { adminId, message, channels, filters, users, batchOption } = params;
+    const { adminId, message, channels, filters, users, batchOption, range, cumulative, isLast = true } = params;
 
-    // If batchOption is provided, slice users to only the selected batch
-    const targetUsers = batchOption && batchOption.batch > 0
-      ? users.slice((batchOption.batch - 1) * 90, batchOption.batch * 90)
-      : users;
+    // A range (used by chunked sending) wins over the legacy batch option
+    const targetUsers = range
+      ? users.slice(range.start, range.end)
+      : batchOption && batchOption.batch > 0
+        ? users.slice((batchOption.batch - 1) * 90, batchOption.batch * 90)
+        : users;
+    const failures: BroadcastFailure[] = [];
+    const addFailure = (to: string, channel: BroadcastFailure['channel'], reason: string) => {
+      if (failures.length < 100) failures.push({ to, channel, reason });
+    };
 
     const stats = {
       totalTargeted: targetUsers.length,
@@ -215,8 +252,8 @@ export class BroadcastService {
     };
 
     try {
-      // Create broadcast log entry
-      const broadcastId = ID.unique();
+      // Create broadcast log entry (only on the first chunk)
+      const broadcastId = params.broadcastId || ID.unique();
 
       // Note: Due to Appwrite attribute limits, we store content in filters as JSON
       const broadcastLog = {
@@ -240,18 +277,20 @@ export class BroadcastService {
         sentAt: new Date().toISOString(),
       };
 
-      try {
-        await ApiService.request('/broadcast_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            $id: broadcastId,
-            ...broadcastLog
-          })
-        });
-        console.log('📝 Broadcast log saved:', broadcastId);
-      } catch (error) {
-        console.error('❌ Failed to save broadcast log:', error);
-        // Continue anyway - don't let logging failure stop the broadcast
+      if (!params.broadcastId) {
+        try {
+          await ApiService.request('/broadcast_messages', {
+            method: 'POST',
+            body: JSON.stringify({
+              $id: broadcastId,
+              ...broadcastLog
+            })
+          });
+          console.log('📝 Broadcast log saved:', broadcastId);
+        } catch (error) {
+          console.error('❌ Failed to save broadcast log:', error);
+          // Continue anyway - don't let logging failure stop the broadcast
+        }
       }
 
       // Process users — sequential to respect Resend rate limits
@@ -289,12 +328,13 @@ export class BroadcastService {
               } catch (error) {
                 console.error(`❌ In-app notification failed for user ${user.$id}:`, error);
                 stats.inAppFailed++;
+                addFailure(user.email || user.$id, 'inApp', (error as any)?.message || 'In-app notification failed');
               }
             }
 
-            // Send push notification
-            try {
-              await notificationService.sendPushNotification({
+            // Send push notification (only when the admin selected it)
+            if (channels.push) try {
+              const pushResult = await notificationService.sendPushNotification({
                 userId: user.$id,
                 title: message.title,
                 body: this.htmlToPlainText(message.htmlContent || message.content).substring(0, 150),
@@ -304,10 +344,16 @@ export class BroadcastService {
                   broadcastId: broadcastId
                 }
               });
-              stats.pushSent++;
+              if (pushResult.success) {
+                stats.pushSent++;
+              } else if (!/token|disabled/i.test(pushResult.reason || '')) {
+                stats.pushFailed++;
+                addFailure(user.email || user.$id, 'push', pushResult.reason || 'Push was not delivered');
+              }
             } catch (error) {
               console.error(`❌ Push notification failed for user ${user.$id}:`, error);
               stats.pushFailed++;
+              addFailure(user.email || user.$id, 'push', (error as any)?.message || 'Push notification failed');
             }
 
           // Send email
@@ -373,6 +419,7 @@ export class BroadcastService {
               const errMsg = error?.message || String(error);
               console.error(`❌ BROADCAST EMAIL FAILED for ${user.email}: ${errMsg}`);
               stats.emailsFailed++;
+              addFailure(user.email, 'email', errMsg);
               if (!stats.firstEmailError) (stats as any).firstEmailError = errMsg;
             }
             // Throttle between individual emails
@@ -380,18 +427,28 @@ export class BroadcastService {
           }
 
           // Send SMS
-          if (channels.sms && user.phone) {
-            try {
+          if (channels.sms) {
+            const smsTo = normalizeNigerianPhone(user.phone);
+            if (!smsTo) {
+              stats.smsFailed++;
+              addFailure(user.email || user.$id, 'sms', user.phone ? `Invalid phone number: ${user.phone}` : 'No phone number on file');
+            } else try {
               const smsText = `ErrandWork: ${message.title}\n\n${this.htmlToPlainText(message.htmlContent || message.content).substring(0, 140)}`;
 
-              await TermiiSMSService.sendSMS({
-                to: user.phone,
+              const smsResult = await TermiiSMSService.sendSMS({
+                to: smsTo,
                 message: smsText,
               });
-              stats.smsSent++;
+              if (smsResult.success) {
+                stats.smsSent++;
+              } else {
+                stats.smsFailed++;
+                addFailure(smsTo, 'sms', smsResult.error || smsResult.message || 'SMS provider rejected the message');
+              }
             } catch (error) {
               console.error(`❌ SMS failed for user ${user.$id}:`, error);
               stats.smsFailed++;
+              addFailure(smsTo, 'sms', (error as any)?.message || 'SMS failed');
             }
           }
         } catch (error) {
@@ -406,22 +463,38 @@ export class BroadcastService {
         }
       }
 
-      // Update broadcast log with final stats using VPS API
+      // Update broadcast log with cumulative stats (earlier chunks + this one)
+      const total = {
+        emailsSent: (cumulative?.emailsSent || 0) + stats.emailsSent,
+        emailsFailed: (cumulative?.emailsFailed || 0) + stats.emailsFailed,
+        smsSent: (cumulative?.smsSent || 0) + stats.smsSent,
+        smsFailed: (cumulative?.smsFailed || 0) + stats.smsFailed,
+        inAppSent: (cumulative?.inAppSent || 0) + stats.inAppSent,
+        pushSent: (cumulative?.pushSent || 0) + stats.pushSent,
+        pushFailed: (cumulative?.pushFailed || 0) + stats.pushFailed,
+        failures: [...(cumulative?.failures || []), ...failures].slice(0, 300),
+      };
       try {
         await ApiService.request(`/broadcast_messages/${broadcastId}`, {
           method: 'PUT',
           body: JSON.stringify({
-            emailsSent: stats.emailsSent,
-            smsSent: stats.smsSent,
-            inAppSent: stats.inAppSent,
-            pushSent: stats.pushSent,
-            emailsFailed: stats.emailsFailed,
-            smsFailed: stats.smsFailed,
-            pushFailed: stats.pushFailed,
-            status: 'sent',
+            emailsSent: total.emailsSent,
+            smsSent: total.smsSent,
+            inAppSent: total.inAppSent,
+            pushSent: total.pushSent,
+            emailsFailed: total.emailsFailed,
+            smsFailed: total.smsFailed,
+            pushFailed: total.pushFailed,
+            filters: JSON.stringify({
+              ...filters,
+              _content: message.content,
+              _htmlContent: message.htmlContent,
+              _failures: total.failures,
+            }),
+            status: isLast ? 'sent' : 'sending',
           })
         });
-        console.log('✅ Broadcast log updated with final stats');
+        console.log('✅ Broadcast log updated with cumulative stats');
       } catch (error) {
         console.error('❌ Failed to update broadcast log:', error);
       }
@@ -431,7 +504,7 @@ export class BroadcastService {
       return {
         success: true,
         broadcastId,
-        stats,
+        stats: { ...stats, failures } as any,
         estimatedCost: channels.sms ? this.calculateSMSCost(users.length) : 0,
         message: batchOption
           ? `Batch ${batchOption.batch}/${batchOption.totalBatches}: sent to ${targetUsers.length} users. Emails: ${stats.emailsSent} sent, ${stats.emailsFailed} failed.`

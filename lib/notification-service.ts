@@ -174,6 +174,31 @@ class NotificationService {
   }
 
 
+  /**
+   * Send a push notification to one user through the VPS API.
+   * Resolves with { success, reason } - a user with no push token or with push turned off returns success: false.
+   */
+  static async sendPushNotification(params: {
+    userId: string;
+    title: string;
+    body: string;
+    data?: Record<string, any>;
+  }): Promise<{ success: boolean; reason?: string }> {
+    const response = await fetch('https://api.erandwork.com/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: params.userId,
+        title: params.title,
+        body: params.body,
+        data: params.data || {},
+      }),
+    });
+    if (!response.ok) throw new Error(`Push request failed (${response.status})`);
+    const result = await response.json().catch(() => ({}));
+    return { success: result?.success !== false, reason: result?.reason || result?.error };
+  }
+
   static async deleteNotification(notificationId: string): Promise<void> {
     if (!notificationId) return;
 
