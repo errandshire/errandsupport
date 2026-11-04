@@ -171,25 +171,44 @@ class AdminDashboardService {
     if (cached) return cached;
 
     try {
-      // Get recent workers (they need approval)
-      const workersResponse = await databases.listDocuments(
-        DATABASE_ID!,
-        COLLECTIONS.WORKERS,
-        [
-          Query.orderDesc('$createdAt'),
-          Query.limit(limit),
-          Query.equal('verificationStatus', 'pending')
-        ]
-      );
+      // Newest pending applications first. Workers are stamped with submittedAt when they register or apply,
+      // while $createdAt is often empty, which used to push the newest sign-ups to the bottom.
+      const toMs = (value: any): number => {
+        if (!value) return 0;
+        let v = String(value).trim();
+        if (/^\d{4}-\d{2}-\d{2} \d/.test(v)) v = v.replace(' ', 'T');
+        v = v.replace(/(\.\d{3})\d+/, '$1').replace(/(\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)([+-]\d{2})$/, '$1$2:00');
+        const t = new Date(v).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+      const stampOf = (w: any) => w.submittedAt || w.$createdAt || w.createdAt;
 
-      const registrations: RecentRegistration[] = workersResponse.documents.map(worker => ({
+      const fetchPending = (orderField: string) =>
+        databases.listDocuments(DATABASE_ID!, COLLECTIONS.WORKERS, [
+          Query.equal('verificationStatus', 'pending'),
+          Query.orderDesc(orderField),
+          Query.limit(Math.max(limit * 3, 30)),
+        ]);
+
+      let workersResponse: any;
+      try {
+        workersResponse = await fetchPending('submittedAt');
+      } catch {
+        workersResponse = await fetchPending('$createdAt');
+      }
+
+      const newest = [...workersResponse.documents]
+        .sort((x: any, y: any) => toMs(stampOf(y)) - toMs(stampOf(x)))
+        .slice(0, limit);
+
+      const registrations: RecentRegistration[] = newest.map((worker: any) => ({
         id: worker.$id,
-        name: worker.name || `${worker.firstName} ${worker.lastName}`.trim() || 'Unknown',
+        name: worker.name || `${worker.firstName || ''} ${worker.lastName || ''}`.trim() || 'Unknown',
         type: 'worker' as const,
         category: worker.categories?.[0] || 'General',
         status: 'pending' as const,
-        createdAt: worker.$createdAt,
-        timeAgo: this.getTimeAgo(worker.$createdAt)
+        createdAt: stampOf(worker),
+        timeAgo: this.getTimeAgo(stampOf(worker))
       }));
 
       this.setCache(cacheKey, registrations, this.CACHE_TTL.registrations);
@@ -271,7 +290,13 @@ class AdminDashboardService {
   // Helper to calculate time ago
   private getTimeAgo(dateString: string): string {
     const now = new Date();
-    const date = new Date(dateString);
+    let normalized = String(dateString || '').trim();
+    if (/^\d{4}-\d{2}-\d{2} \d/.test(normalized)) normalized = normalized.replace(' ', 'T');
+    normalized = normalized
+      .replace(/(\.\d{3})\d+/, '$1')
+      .replace(/(\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?)([+-]\d{2})$/, '$1$2:00');
+    const date = new Date(normalized);
+    if (isNaN(date.getTime())) return '';
     const diffMs = now.getTime() - date.getTime();
     
     const minutes = Math.floor(diffMs / (1000 * 60));
