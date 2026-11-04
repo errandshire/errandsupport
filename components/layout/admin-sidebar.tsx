@@ -45,7 +45,7 @@ const sidebarItems = [
     badge: null,
   },
   {
-    title: "Manage Users",
+    title: "Manage Workers",
     href: "/admin/users",
     icon: Users,
     badge: null,

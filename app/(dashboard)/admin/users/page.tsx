@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
+import { databases, COLLECTIONS, DATABASE_ID, Query, ApiService } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -211,7 +211,8 @@ export default function AdminUsersPage() {
         queries
       );
 
-      setTotalCount(res.total);
+      const real = await ApiService.request<any>('/admin/stats/counts').catch(() => null);
+      setTotalCount(typeof real?.totalWorkers === 'number' ? real.totalWorkers : res.total);
 
       // Narrow down by the search text first, so we only look up profiles for matching users
       const candidateDocs = searchQuery.trim()
@@ -717,7 +718,7 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6 overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-serif font-bold">Manage Users</h1>
+        <h1 className="text-2xl font-serif font-bold">Manage Workers</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -777,7 +778,7 @@ export default function AdminUsersPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search workers..."
+              placeholder="Search by name, email or phone..."
               className="pl-8 w-full sm:w-64"
             />
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { databases, COLLECTIONS, DATABASE_ID, Query } from "@/lib/api";
+import { databases, COLLECTIONS, DATABASE_ID, Query, ApiService } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,11 +50,27 @@ type ClientStats = {
   averageRating: number;
 };
 
+const fullName = (u: any): string =>
+  (u?.name || u?.displayName || [u?.firstName, u?.lastName].filter(Boolean).join(" ")).toString().trim();
+
+const matchesSearch = (u: any, query: string): boolean => {
+  const text = [fullName(u), u?.firstName, u?.lastName, u?.email, u?.phone, u?.state, u?.city]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return query.toLowerCase().split(/\s+/).filter(Boolean).every((token) => text.includes(token));
+};
+
 export default function AdminClientsPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [clients, setClients] = React.useState<ClientDoc[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
   const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [selected, setSelected] = React.useState<ClientDoc | null>(null);
@@ -92,11 +108,11 @@ export default function AdminClientsPage() {
       }
 
       const res = await databases.listDocuments(DATABASE_ID!, COLLECTIONS.USERS, queries);
-      setTotalCount(res.total);
-      let filteredClients = res.documents;
+      const real = await ApiService.request<any>('/admin/stats/counts').catch(() => null);
+      setTotalCount(typeof real?.totalClients === 'number' ? real.totalClients : res.total);
+      let filteredClients: any[] = res.documents.map((c: any) => ({ ...c, name: fullName(c) }));
       if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        filteredClients = res.documents.filter((c: any) => `${c.name} ${c.email} ${c.phone}`.toLowerCase().includes(q));
+        filteredClients = filteredClients.filter((c: any) => matchesSearch(c, searchQuery.trim()));
       }
       setClients(filteredClients as unknown as ClientDoc[]);
     } catch (error) {
@@ -109,9 +125,9 @@ export default function AdminClientsPage() {
 
   // Fetch clients when page or search changes
   React.useEffect(() => {
-    fetchClients(currentPage, search);
+    fetchClients(currentPage, debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, itemsPerPage]); // Added itemsPerPage dependency
+  }, [currentPage, debouncedSearch, itemsPerPage]); // Added itemsPerPage dependency
 
   // Reset to page 1 when itemsPerPage changes
   React.useEffect(() => {
@@ -336,20 +352,20 @@ export default function AdminClientsPage() {
   };
 
   // Pagination calculations (server-side)
-  const totalPages = search.trim()
+  const totalPages = debouncedSearch.trim()
     ? Math.ceil(clients.length / itemsPerPage)
     : Math.ceil(totalCount / itemsPerPage);
 
   // For search, we do client-side pagination since we fetch all results
   // For normal view, clients already contains the current page from server
-  const displayedClients = search.trim()
+  const displayedClients = debouncedSearch.trim()
     ? clients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
     : clients;
 
   // Reset to page 1 when search changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search]);
+  }, [debouncedSearch]);
 
   const getClientStatus = (client: ClientDoc) => {
     if (client.status === 'suspended') return 'suspended';
@@ -405,7 +421,7 @@ export default function AdminClientsPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search clients..."
+              placeholder="Search by name, email or phone..."
               className="pl-8 w-full sm:w-64"
             />
           </div>
@@ -419,7 +435,7 @@ export default function AdminClientsPage() {
               <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => fetchClients(currentPage, search)} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchClients(currentPage, debouncedSearch)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </div>
@@ -427,8 +443,8 @@ export default function AdminClientsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Clients ({search.trim() ? clients.length : totalCount})</CardTitle>
-          {!search.trim() && (
+          <CardTitle>Clients ({debouncedSearch.trim() ? clients.length : totalCount})</CardTitle>
+          {!debouncedSearch.trim() && (
             <p className="text-sm text-neutral-500">
               Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} clients
             </p>

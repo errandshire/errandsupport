@@ -350,7 +350,7 @@ export default function AdminDashboard() {
               <Button variant="outline" className="w-full justify-start" asChild>
                 <Link href="/admin/users">
                   <Users className="h-4 w-4 mr-2" />
-                  Manage Users
+                  Manage Workers
                 </Link>
               </Button>
               <Button variant="outline" className="w-full justify-start" asChild>
