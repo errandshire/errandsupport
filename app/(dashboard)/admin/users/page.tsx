@@ -99,12 +99,33 @@ function formatReadableDate(isoString: string | undefined): string {
   }
 }
 
+const fullName = (u: any): string =>
+  (u?.name || u?.displayName || [u?.firstName, u?.lastName].filter(Boolean).join(" ")).toString().trim();
+
+// Every word typed must appear somewhere in the name, email, phone or location (so "john doe" finds "Doe, John")
+const matchesSearch = (u: any, query: string): boolean => {
+  const text = [fullName(u), u?.firstName, u?.lastName, u?.email, u?.phone, u?.state, u?.city]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((token) => text.includes(token));
+};
+
 export default function AdminUsersPage() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = React.useState(false);
   const [workers, setWorkers] = React.useState<WorkerDoc[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
   const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [selected, setSelected] = React.useState<WorkerDoc | null>(null);
@@ -162,11 +183,7 @@ export default function AdminUsersPage() {
 
         // Filter search results if search query provided
         if (searchQuery.trim()) {
-          const q = searchQuery.trim().toLowerCase();
-          workersData = workersData.filter((w: any) => {
-            const text = `${w.displayName || ""} ${w.name || ""} ${w.email || ""} ${w.phone || ""} ${w.state || ""} ${w.city || ""}`.toLowerCase();
-            return text.includes(q);
-          });
+          workersData = workersData.filter((w: any) => matchesSearch(w, searchQuery.trim()));
         }
 
         setWorkers(workersData as unknown as WorkerDoc[]);
@@ -196,9 +213,14 @@ export default function AdminUsersPage() {
 
       setTotalCount(res.total);
 
+      // Narrow down by the search text first, so we only look up profiles for matching users
+      const candidateDocs = searchQuery.trim()
+        ? res.documents.filter((u: any) => matchesSearch(u, searchQuery.trim()))
+        : res.documents;
+
       // Fetch worker profile for each user in parallel
       const usersWithWorkerData = await Promise.all(
-        res.documents.map(async (user) => {
+        candidateDocs.map(async (user: any) => {
           try {
             // Try to get worker profile
             const workerProfileResponse = await databases.listDocuments(
@@ -213,8 +235,8 @@ export default function AdminUsersPage() {
               return {
                 ...workerProfile,
                 userId: user.$id,
-                name: user.name,
-                displayName: user.name,
+                name: fullName(user),
+                displayName: fullName(user),
                 email: user.email,
                 phone: user.phone,
                 city: user.city,
@@ -226,8 +248,8 @@ export default function AdminUsersPage() {
               return {
                 $id: user.$id,
                 userId: user.$id,
-                name: user.name,
-                displayName: user.name,
+                name: fullName(user),
+                displayName: fullName(user),
                 email: user.email,
                 phone: user.phone,
                 city: user.city,
@@ -245,8 +267,8 @@ export default function AdminUsersPage() {
             return {
               $id: user.$id,
               userId: user.$id,
-              name: user.name,
-              displayName: user.name,
+              name: fullName(user),
+              displayName: fullName(user),
               email: user.email,
               phone: user.phone,
               city: user.city,
@@ -273,11 +295,7 @@ export default function AdminUsersPage() {
       // Filter search results if search query provided
       let filteredWorkers = filteredByIdDocument;
       if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        filteredWorkers = filteredByIdDocument.filter((w: any) => {
-          const text = `${w.displayName || ""} ${w.name || ""} ${w.email || ""} ${w.phone || ""} ${w.state || ""} ${w.city || ""}`.toLowerCase();
-          return text.includes(q);
-        });
+        filteredWorkers = filteredByIdDocument.filter((w: any) => matchesSearch(w, searchQuery.trim()));
       }
 
       setWorkers(filteredWorkers as unknown as WorkerDoc[]);
@@ -291,9 +309,9 @@ export default function AdminUsersPage() {
 
   // Fetch workers when page, search, filter, or dataSource changes
   React.useEffect(() => {
-    fetchWorkers(currentPage, search, idDocumentFilter, dataSource);
+    fetchWorkers(currentPage, debouncedSearch, idDocumentFilter, dataSource);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, idDocumentFilter, dataSource, itemsPerPage]); // Added itemsPerPage dependency
+  }, [currentPage, debouncedSearch, idDocumentFilter, dataSource, itemsPerPage]); // Added itemsPerPage dependency
 
   // Reset to page 1 when itemsPerPage changes
   React.useEffect(() => {
@@ -595,20 +613,20 @@ export default function AdminUsersPage() {
     return workersCopy;
   }, [workers, sortOrder]);
 
-  const totalPages = search.trim()
+  const totalPages = debouncedSearch.trim()
     ? Math.ceil(sortedWorkers.length / itemsPerPage)
     : Math.ceil(totalCount / itemsPerPage);
 
   // For search, we do client-side pagination since we fetch all results
   // For normal view, workers already contains the current page from server
-  const displayedWorkers = search.trim()
+  const displayedWorkers = debouncedSearch.trim()
     ? sortedWorkers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
     : sortedWorkers;
 
   // Reset to page 1 when search, filter, or sort changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, idDocumentFilter, dataSource, sortOrder]);
+  }, [debouncedSearch, idDocumentFilter, dataSource, sortOrder]);
 
   const getWorkerStatus = (worker: WorkerDoc) => {
     // Status values are now standardized: pending | approved | denied
@@ -773,7 +791,7 @@ export default function AdminUsersPage() {
               <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => fetchWorkers(currentPage, search, idDocumentFilter, dataSource)} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => fetchWorkers(currentPage, debouncedSearch, idDocumentFilter, dataSource)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
           <Button
@@ -791,12 +809,12 @@ export default function AdminUsersPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Workers ({search.trim() ? workers.length : totalCount})</CardTitle>
+            <CardTitle>Workers ({debouncedSearch.trim() ? workers.length : totalCount})</CardTitle>
             <Badge variant={dataSource === "workers" ? "default" : "secondary"} className="ml-2">
               {dataSource === "workers" ? "📊 WORKERS Collection" : "👥 USERS Collection"}
             </Badge>
           </div>
-          {!search.trim() && (
+          {!debouncedSearch.trim() && (
             <p className="text-sm text-neutral-500">
               Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} workers
             </p>
