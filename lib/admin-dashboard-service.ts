@@ -1,4 +1,4 @@
-import { databases, COLLECTIONS, DATABASE_ID} from './api';
+import { databases, COLLECTIONS, DATABASE_ID, ApiService } from './api';
 import { Query } from '@/lib/api';
 
 export interface DashboardStats {
@@ -74,7 +74,24 @@ class AdminDashboardService {
     if (cached) return cached;
 
     try {
-      // Parallel fetch for better performance
+      const real = await ApiService.request<any>('/admin/stats/counts').catch(() => null);
+      if (real && typeof real.totalUsers === 'number') {
+        const stats: DashboardStats = {
+          totalUsers: real.totalUsers,
+          activeWorkers: real.activeWorkers,
+          totalClients: real.totalClients,
+          activeClients: real.activeClients,
+          pendingVerifications: real.pendingVerifications,
+          systemHealth: 98,
+          userGrowth: real.growth?.users ?? 'N/A',
+          workerGrowth: real.growth?.workers ?? 'N/A',
+          clientGrowth: real.growth?.clients ?? 'N/A',
+        };
+        this.setCache(cacheKey, stats, this.CACHE_TTL.stats);
+        return stats;
+      }
+
+      // Fallback (server without the counts endpoint): approximate from limited queries
       const [usersResponse, workersResponse, clientsResponse] = await Promise.all([
         databases.listDocuments(
           DATABASE_ID!,
