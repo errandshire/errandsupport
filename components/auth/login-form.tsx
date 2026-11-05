@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -20,20 +20,36 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [otpStep, setOtpStep] = useState(false);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function submitLogin(useOtp: boolean) {
     setIsLoading(true);
 
     try {
-      const formData = new FormData(e.currentTarget);
+      const formData = new FormData(formRef.current as HTMLFormElement);
       const email = formData.get("email") as string;
       const password = formData.get("password") as string;
+      const otp = useOtp ? ((formData.get("otp") as string) || "").trim() : undefined;
 
-      
+      if (useOtp && otp?.length !== 6) {
+        toast.error("Enter the 6-digit code sent to your email");
+        return;
+      }
+
       // Use real authentication
-      const result = await login({ email, password });
-      
+      const result = await login({ email, password, otp });
+
+      if (result.error?.code === "DEVICE_VERIFICATION_REQUIRED") {
+        setOtpStep(true);
+        toast.info("We sent a 6-digit verification code to your email.");
+        return;
+      }
+      if (result.error?.code === "INVALID_DEVICE_OTP") {
+        toast.error("That code is incorrect. Please try again.");
+        return;
+      }
+
       if (result.success) {
         toast.success("Logged in successfully!");
         
@@ -52,6 +68,11 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
     }
   }
 
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    submitLogin(otpStep);
+  }
+
   return (
     <Card className="w-full">
       <CardHeader className="space-y-2 text-center pb-4">
@@ -61,7 +82,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium">
               Email
@@ -121,6 +142,33 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
             </div>
           </div>
           
+          {otpStep && (
+            <div className="space-y-2">
+              <Label htmlFor="otp" className="text-sm font-medium">
+                Verification code
+              </Label>
+              <Input
+                id="otp"
+                name="otp"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6-digit code from your email"
+                className="h-11 text-base tracking-widest"
+                disabled={isLoading}
+                autoComplete="one-time-code"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => submitLogin(false)}
+                disabled={isLoading}
+                className="text-xs text-primary-600 hover:text-primary-500 transition-colors"
+              >
+                Resend code
+              </button>
+            </div>
+          )}
+
           <Button
             type="submit"
             className="w-full h-11 text-base font-medium"
@@ -133,7 +181,7 @@ export function LoginForm({ callbackUrl }: LoginFormProps) {
               </div>
             ) : (
               <div className="flex items-center space-x-2">
-                <span>Sign In</span>
+                <span>{otpStep ? "Verify & Sign In" : "Sign In"}</span>
                 <ArrowRight className="h-4 w-4" />
               </div>
             )}

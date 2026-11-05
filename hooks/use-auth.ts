@@ -7,6 +7,23 @@ import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.erandwork.com/api';
 
+function getWebDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  const KEY = 'errandwork-device-id';
+  try {
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? crypto.randomUUID()
+        : `web_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
+
 export interface AuthError {
   message: string;
   code?: string;
@@ -84,7 +101,7 @@ export function useAuth() {
     }
   };
 
-  const login = async (data: LoginFormData): Promise<{ success: boolean; error?: AuthError }> => {
+  const login = async (data: LoginFormData & { otp?: string }): Promise<{ success: boolean; error?: AuthError }> => {
     try {
       setLoadingState(true);
 
@@ -95,7 +112,7 @@ export function useAuth() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: data.email, password: data.password }),
+        body: JSON.stringify({ email: data.email, password: data.password, deviceId: getWebDeviceId(), otp: data.otp }),
       });
 
       console.log('Login response status:', response.status);
@@ -113,8 +130,10 @@ export function useAuth() {
         return { success: true };
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Login API error:', errorData);
-        return { success: false, error: { message: errorData.error || 'Login failed' } };
+        if (errorData.code !== 'DEVICE_VERIFICATION_REQUIRED' && errorData.code !== 'INVALID_DEVICE_OTP') {
+          console.error('Login API error:', errorData);
+        }
+        return { success: false, error: { message: errorData.error || 'Login failed', code: errorData.code } };
       }
     } catch (error: any) {
       console.error('Login error:', error);
