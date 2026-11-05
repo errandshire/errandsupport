@@ -8,6 +8,7 @@ import { paystackProxy } from "@/lib/paystack-client";
 import { generatePaymentReference } from "@/lib/utils";
 import { COLLECTIONS, ID } from "@/lib/api";
 import { ApiService } from "@/lib/api";
+import { requestWithdrawOtp, submitWithdrawal } from "@/lib/withdraw-client";
 import type { Wallet, WalletTransaction, BankAccount, Withdrawal } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,9 @@ export default function WorkerWalletPage() {
   // Withdraw modal
   const [showWithdrawModal, setShowWithdrawModal] = React.useState(false);
   const [withdrawAmount, setWithdrawAmount] = React.useState('');
+  const [withdrawOtp, setWithdrawOtp] = React.useState('');
+  const [otpSent, setOtpSent] = React.useState(false);
+  const [maskedEmail, setMaskedEmail] = React.useState('');
   const [selectedBankAccount, setSelectedBankAccount] = React.useState('');
   const [isProcessingWithdraw, setIsProcessingWithdraw] = React.useState(false);
 
@@ -278,6 +282,14 @@ export default function WorkerWalletPage() {
     }
   };
 
+  const resetWithdrawForm = () => {
+    setWithdrawAmount('');
+    setSelectedBankAccount('');
+    setWithdrawOtp('');
+    setOtpSent(false);
+    setMaskedEmail('');
+  };
+
   const handleWithdraw = async () => {
     if (!user || !withdrawAmount || !selectedBankAccount) {
       toast.error('Please fill all fields');
@@ -298,57 +310,29 @@ export default function WorkerWalletPage() {
     try {
       setIsProcessingWithdraw(true);
 
-      const bankAccount = bankAccounts.find(b => b.$id === selectedBankAccount);
-      if (!bankAccount) {
-        throw new Error('Invalid bank account');
+      if (!otpSent) {
+        const res = await requestWithdrawOtp(user.$id);
+        setMaskedEmail(res?.maskedEmail || '');
+        setOtpSent(true);
+        toast.success('Verification code sent to your email');
+        return;
       }
 
-      // Generate reference
-      const reference = generatePaymentReference('withdraw');
+      if (withdrawOtp.length !== 6) {
+        toast.error('Enter the 6-digit code sent to your email');
+        return;
+      }
 
-      // Deduct from wallet first using VPS API
-      await ApiService.request(`/virtual-wallets/${wallet.$id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          balance: wallet.balance - amount,
-          updatedAt: new Date().toISOString()
-        })
-      });
-
-      // Create withdrawal record using VPS API
-      const withdrawal = await ApiService.request<any>('/withdrawals', {
-        method: 'POST',
-        body: JSON.stringify({
-          $id: ID.unique(),
-          userId: user.$id,
-          amount,
-          bankAccountId: selectedBankAccount,
-          status: 'pending',
-          reference,
-          createdAt: new Date().toISOString()
-        })
-      });
-
-      // Initiate Paystack transfer
-      await paystackProxy('initiateTransfer', {
+      await submitWithdrawal({
+        userId: user.$id,
         amountInNaira: amount,
-        recipientCode: bankAccount.paystackRecipientCode!,
-        reference,
-        reason: 'Wallet withdrawal'
-      });
-
-      // Update withdrawal status using VPS API
-      await ApiService.request(`/withdrawals/${withdrawal.$id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: 'processing'
-        })
+        bankAccountId: selectedBankAccount,
+        otp: withdrawOtp,
       });
 
       toast.success('Withdrawal initiated! Funds will arrive in your account shortly (usually within minutes).');
       setShowWithdrawModal(false);
-      setWithdrawAmount('');
-      setSelectedBankAccount('');
+      resetWithdrawForm();
       loadWalletData();
 
     } catch (error) {
@@ -567,7 +551,7 @@ export default function WorkerWalletPage() {
       )}
 
       {/* Withdraw Modal */}
-      <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
+      <Dialog open={showWithdrawModal} onOpenChange={(open) => { setShowWithdrawModal(open); if (!open) resetWithdrawForm(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Withdraw Funds</DialogTitle>
@@ -609,6 +593,25 @@ export default function WorkerWalletPage() {
                 Available: ₦{(wallet?.balance ?? 0).toLocaleString()}
               </p>
             </div>
+
+            {otpSent && (
+              <div>
+                <Label htmlFor="withdraw-otp">Verification code</Label>
+                <Input
+                  id="withdraw-otp"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="6-digit code"
+                  value={withdrawOtp}
+                  onChange={(e) => setWithdrawOtp(e.target.value.replace(/\D/g, ''))}
+                  className="mt-2 tracking-widest"
+                  autoFocus
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  We emailed a code to {maskedEmail || 'your email'}. It expires in 10 minutes.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -622,7 +625,7 @@ export default function WorkerWalletPage() {
                   Processing...
                 </>
               ) : (
-                'Withdraw'
+                otpSent ? 'Confirm Withdrawal' : 'Send Verification Code'
               )}
             </Button>
           </DialogFooter>

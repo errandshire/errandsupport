@@ -14,6 +14,19 @@ import { ApiService } from './api';
  * 5. Platform commission deducted from worker payments (15%)
  */
 
+// The server returns raw database rows (snake_case columns and numeric strings); convert them to the Wallet shape the UI expects
+const normalizeWallet = (row: any): Wallet => ({
+  ...row,
+  $id: row.$id || row.id,
+  userId: row.userId || row.user_id,
+  balance: Number(row.balance) || 0,
+  escrow: Number(row.escrow) || 0,
+  totalEarned: Number(row.totalEarned ?? row.total_earned) || 0,
+  totalSpend: Number(row.totalSpend ?? row.total_spent ?? row.totalSpent) || 0,
+  totalSpent: Number(row.totalSpent ?? row.total_spent ?? row.totalSpend) || 0,
+  updatedAt: row.updatedAt || row.updated_at,
+});
+
 export class WalletService {
 
   /**
@@ -28,7 +41,7 @@ export class WalletService {
       );
 
       if (wallets && wallets.length > 0) {
-        return wallets[0];
+        return normalizeWallet(wallets[0]);
       }
 
       // Create new wallet using VPS API
@@ -47,7 +60,7 @@ export class WalletService {
       });
 
       console.log(`✅ Created wallet for user ${userId}`);
-      return wallet;
+      return normalizeWallet(wallet);
 
     } catch (error) {
       console.error('Error getting/creating wallet:', error);
@@ -358,7 +371,9 @@ export class WalletService {
       const response = await ApiService.request<WalletTransaction[]>(
         `/wallet-transactions?filter_userId=${userId}&limit=${limit}`
       );
-      return response || [];
+      return (response || [])
+        .map((tx: any) => ({ ...tx, amount: Number(tx.amount) || 0, createdAt: tx.createdAt || tx.$createdAt }))
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } catch (error) {
       console.error('Error fetching transactions:', error);
       return [];

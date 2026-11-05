@@ -386,16 +386,14 @@ export function useAuth() {
       
       const response = await fetch(`${API_BASE_URL}/auth/user/${user.$id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.$id },
         credentials: 'include',
-        body: JSON.stringify({
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(updates),
       });
       
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody?.error || `Failed to update profile (${response.status})`);
       }
       
       const updatedProfile = await response.json();
@@ -404,7 +402,9 @@ export function useAuth() {
       return { success: true };
     } catch (error: any) {
       console.error('Profile update error:', error);
-      const errorMessage = 'Failed to update profile';
+      const errorMessage = /failed to fetch|networkerror|load failed/i.test(error?.message || '')
+        ? 'Cannot reach the server. Check your internet connection and try again.'
+        : (error?.message || 'Failed to update profile');
       toast.error(errorMessage);
       return { success: false, error: { message: errorMessage } };
     } finally {

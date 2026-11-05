@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { WalletService } from "@/lib/wallet.service";
 import { SettingsService } from "@/lib/settings.service";
 import { paystackProxy } from "@/lib/paystack-client";
+import { requestWithdrawOtp, submitWithdrawal } from "@/lib/withdraw-client";
 import { generatePaymentReference } from "@/lib/utils";
 import type { Wallet, WalletTransaction } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,9 @@ export default function ClientWalletPage() {
   // Withdrawal modal
   const [showWithdrawModal, setShowWithdrawModal] = React.useState(false);
   const [withdrawAmount, setWithdrawAmount] = React.useState('');
+  const [withdrawOtp, setWithdrawOtp] = React.useState('');
+  const [otpSent, setOtpSent] = React.useState(false);
+  const [maskedEmail, setMaskedEmail] = React.useState('');
   const [isProcessingWithdraw, setIsProcessingWithdraw] = React.useState(false);
   const [bankAccounts, setBankAccounts] = React.useState<any[]>([]);
   const [selectedBankAccount, setSelectedBankAccount] = React.useState('');
@@ -63,6 +67,35 @@ export default function ClientWalletPage() {
 
     loadWalletData();
   }, [loading, isAuthenticated, user, router]);
+
+  // When Paystack sends the user back to this page, confirm the payment so the wallet is credited.
+  // This only needs the payment reference, so it runs immediately, before the sign-in check can redirect away.
+  const loadWalletRef = React.useRef<(() => void) | null>(null);
+  const verifiedPaymentRef = React.useRef(false);
+  React.useEffect(() => {
+    if (verifiedPaymentRef.current || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get('reference') || params.get('trxref');
+    if (!reference) return;
+    verifiedPaymentRef.current = true;
+
+    (async () => {
+      try {
+        const { ApiService } = await import('@/lib/api');
+        const result: any = await ApiService.request(`/paystack/verify/${encodeURIComponent(reference)}`);
+        if (result?.success) {
+          toast.success(`Payment confirmed. ₦${Number(result.amountInNaira || 0).toLocaleString()} added to your wallet.`);
+        } else {
+          toast.error('Payment was not completed.');
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Could not confirm your payment. Contact support if you were charged.');
+      } finally {
+        window.history.replaceState({}, '', window.location.pathname);
+        loadWalletRef.current?.();
+      }
+    })();
+  }, []);
 
   const loadWalletData = async () => {
     if (!user) return;
@@ -92,6 +125,7 @@ export default function ClientWalletPage() {
       setIsLoadingWallet(false);
     }
   };
+  loadWalletRef.current = loadWalletData;
 
   // Load banks list
   const loadBanks = React.useCallback(async () => {
@@ -242,6 +276,14 @@ export default function ClientWalletPage() {
     }
   };
 
+  const resetWithdrawForm = () => {
+    setWithdrawAmount('');
+    setSelectedBankAccount('');
+    setWithdrawOtp('');
+    setOtpSent(false);
+    setMaskedEmail('');
+  };
+
   const handleWithdraw = async () => {
     if (!user || !withdrawAmount || !selectedBankAccount) {
       toast.error('Please fill all fields');
@@ -275,95 +317,29 @@ export default function ClientWalletPage() {
         throw new Error('Invalid bank account');
       }
 
-      // Calculate withdrawal fee using settings service
-      const { fee: deduction, netAmount: amountToReceive } = await SettingsService.calculateWithdrawalFee(amount);
-      const settings = await SettingsService.getSettings();
-
-      // Import required services
-      const { databases, COLLECTIONS } = await import('@/lib/appwrite');
-      const { ID } = await import('@/lib/appwrite');
-
-      // Generate reference
-      const reference = generatePaymentReference('withdraw');
-
-      // Deduct from wallet
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.VIRTUAL_WALLETS,
-        wallet.$id,
-        {
-          balance: wallet.balance - amount,
-          updatedAt: new Date().toISOString()
-        }
-      );
-
-      // Create withdrawal record
-      const withdrawal = await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WITHDRAWALS,
-        ID.unique(),
-        {
-          userId: user.$id,
-          amount: amountToReceive, // Amount after fee deduction
-          bankAccountId: selectedBankAccount,
-          status: 'pending',
-          reference,
-          createdAt: new Date().toISOString()
-        }
-      );
-
-      // Initiate Paystack transfer (with deducted amount)
-      await paystackProxy('initiateTransfer', {
-        amountInNaira: amountToReceive,
-        recipientCode: bankAccount.paystackRecipientCode!,
-        reference,
-        reason: `Wallet withdrawal (${settings.clientWithdrawalFeePercent}% service fee applied)`
-      });
-
-      // Update withdrawal status
-      await databases.updateDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WITHDRAWALS,
-        withdrawal.$id,
-        {
-          status: 'processing'
-        }
-      );
-
-      // Create transaction record for the deduction
-      await databases.createDocument(
-        DATABASE_ID!,
-        COLLECTIONS.WALLET_TRANSACTIONS,
-        `deduction_${reference}`,
-        {
-          userId: user.$id,
-          type: 'withdraw',
-          amount: deduction,
-          reference: `deduction_${reference}`,
-          status: 'completed',
-          description: `Service fee (20% of ₦${amount.toLocaleString()})`,
-          createdAt: new Date().toISOString()
-        }
-      );
-
-      // Send SMS notification
-      try {
-        const { TermiiSMSService } = await import('@/lib/termii-sms.service');
-        if (user.phone) {
-          await TermiiSMSService.sendPaymentNotification(user.phone, {
-            amount: amountToReceive,
-            type: 'withdrawal',
-            reference
-          });
-        }
-      } catch (smsError) {
-        console.error('Failed to send SMS:', smsError);
+      if (!otpSent) {
+        const res = await requestWithdrawOtp(user.$id);
+        setMaskedEmail(res?.maskedEmail || '');
+        setOtpSent(true);
+        toast.success('Verification code sent to your email');
+        return;
       }
 
-      toast.success(`Withdrawal initiated! You'll receive ₦${amountToReceive.toLocaleString()} (₦${deduction.toLocaleString()} service fee deducted).`);
+      if (withdrawOtp.length !== 6) {
+        toast.error('Enter the 6-digit code sent to your email');
+        return;
+      }
+
+      await submitWithdrawal({
+        userId: user.$id,
+        amountInNaira: amount,
+        bankAccountId: selectedBankAccount,
+        otp: withdrawOtp,
+      });
+
+      toast.success(`Withdrawal initiated! ₦${amount.toLocaleString()} is on its way to your bank account.`);
       setShowWithdrawModal(false);
-      setWithdrawAmount('');
-      setSelectedBankAccount('');
+      resetWithdrawForm();
       loadWalletData();
 
     } catch (error) {
@@ -596,12 +572,12 @@ export default function ClientWalletPage() {
       </Dialog>
 
       {/* Withdraw Modal */}
-      <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
+      <Dialog open={showWithdrawModal} onOpenChange={(open) => { setShowWithdrawModal(open); if (!open) resetWithdrawForm(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Withdraw Money</DialogTitle>
             <DialogDescription>
-              Withdraw funds to your bank account (20% service fee applies)
+              Withdraw funds to your bank account
             </DialogDescription>
           </DialogHeader>
 
@@ -629,16 +605,6 @@ export default function ClientWalletPage() {
                     min="100"
                     className="mt-2"
                   />
-                  {withdrawAmount && parseFloat(withdrawAmount) >= 100 && (
-                    <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm">
-                      <p className="text-orange-800">
-                        Service fee (20%): <strong>₦{(parseFloat(withdrawAmount) * 0.20).toLocaleString()}</strong>
-                      </p>
-                      <p className="text-orange-900 font-semibold mt-1">
-                        You'll receive: <strong>₦{(parseFloat(withdrawAmount) * 0.80).toLocaleString()}</strong>
-                      </p>
-                    </div>
-                  )}
                 </div>
 
                 <div>
@@ -668,6 +634,25 @@ export default function ClientWalletPage() {
                     + Add new bank account
                   </Button>
                 </div>
+
+                {otpSent && (
+                  <div>
+                    <Label htmlFor="withdraw-otp">Verification code</Label>
+                    <Input
+                      id="withdraw-otp"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6-digit code"
+                      value={withdrawOtp}
+                      onChange={(e) => setWithdrawOtp(e.target.value.replace(/\D/g, ''))}
+                      className="mt-2 tracking-widest"
+                      autoFocus
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      We emailed a code to {maskedEmail || 'your email'}. It expires in 10 minutes.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
@@ -681,7 +666,7 @@ export default function ClientWalletPage() {
                       Processing...
                     </>
                   ) : (
-                    'Withdraw'
+                    otpSent ? 'Confirm Withdrawal' : 'Send Verification Code'
                   )}
                 </Button>
               </DialogFooter>

@@ -410,6 +410,8 @@ export interface WorkerState {
 
 // SIMPLE WALLET SYSTEM
 export interface Wallet  {
+  $id?: string;
+  totalSpent: number;
   userId: string;
   balance: number;        // Available to spend or withdraw (in Naira)
   escrow: number;         // Money held for active bookings (in Naira)
@@ -419,6 +421,7 @@ export interface Wallet  {
 }
 
 export interface WalletTransaction  {
+  $id?: string;
   userId: string;
   type: 'topup' | 'booking_hold' | 'booking_release' | 'booking_refund' | 'withdraw' | 'rollback' | 'rollback_hold' | 'partner_commission';
   amount: number;         // Always in Naira (negative for rollbacks)
@@ -430,6 +433,7 @@ export interface WalletTransaction  {
 }
 
 export interface BankAccount  {
+  $id: string;
   userId: string;
   accountNumber: string;
   accountName: string;
